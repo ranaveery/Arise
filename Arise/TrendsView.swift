@@ -28,7 +28,7 @@ struct TrendsView: View {
     }
 
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 24) {
                 // Header
                 VStack(spacing: 4) {
@@ -62,7 +62,7 @@ struct TrendsView: View {
                 }
 
                 // Summary Cards
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     summaryCard(title: "Overall", value: "+3.1%", icon: "chart.line.uptrend.xyaxis", color: .green)
                     summaryCard(title: "Best Skill", value: "Fitness", icon: "flame.fill", color: .orange)
                     summaryCard(title: "Attention", value: "Fuel", icon: "exclamationmark.triangle.fill", color: .red)

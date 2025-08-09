@@ -28,7 +28,7 @@ struct SignUpView: View {
                 .foregroundColor(.white)
 
             VStack(spacing: 16) {
-                TextField("Full Name", text: $name)
+                TextField("Name", text: $name)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .background(Color.white.opacity(0.05))
@@ -36,7 +36,7 @@ struct SignUpView: View {
                     .foregroundColor(.white)
                     .autocapitalization(.words)
 
-                TextField("Email address", text: $email)
+                TextField("Email", text: $email)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .background(Color.white.opacity(0.05))
@@ -88,14 +88,14 @@ struct SignUpView: View {
             }
 
             HStack(spacing: 4) {
-                Text("Already have an account?")
+                Text("Have an account?")
                     .foregroundColor(.white)
                 Button(action: {
                     withAnimation {
                         showLogin = true
                     }
                 }) {
-                    Text("Login")
+                    Text("Sign in")
                         .foregroundColor(Color.blue)
                         .fontWeight(.semibold)
                 }
@@ -170,6 +170,11 @@ struct SignUpView: View {
                         "Wisdom": ["level": 1, "xp": 0],
                         "Discipline": ["level": 1, "xp": 0],
                         "Network": ["level": 1, "xp": 0]
+                    ],
+                    "notifications": [
+                        "expiringTasks": true,
+                        "newTasks": true,
+                        "weeklyProgress": true
                     ]
                 ]) { error in
                     if let error = error {
@@ -244,6 +249,11 @@ struct SignUpView: View {
                                 "Wisdom": ["level": 1, "xp": 0],
                                 "Discipline": ["level": 1, "xp": 0],
                                 "Network": ["level": 1, "xp": 0]
+                            ],
+                            "notifications": [
+                                "expiringTasks": true,
+                                "newTasks": true,
+                                "weeklyProgress": true
                             ]
                         ]) { error in
                             if let error = error {

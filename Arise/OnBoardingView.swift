@@ -31,18 +31,34 @@ struct OnboardingView: View {
                 Group {
                     if currentStep == 0 {
                         VStack(spacing: 10) {
+                            
+                            Image("logo_arise")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 150, height: 150)
+                                .padding(.bottom, 10)
+                            
                             Text("Welcome to Arise")
                                 .font(.system(size: 34, weight: .bold))
                                 .foregroundColor(.white)
-                            Text("Let’s get to know you.")
+
+                            Text("Let’s tailor your Arise experience.")
                                 .foregroundColor(.gray)
+                                .padding(.bottom, 200)
+
+                            Text("Your responses help us create a personalized experience.\nAll information is kept private and securely stored.")
+                                .font(.footnote)
+                                .foregroundColor(.gray)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                            
                         }
                         .frame(maxHeight: .infinity)
                     }
 
                     if currentStep == 1 {
                         VStack(spacing: 24) {
-                            Text("What’s your gender?")
+                            Text("Select your gender")
                                 .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(.white)
 
@@ -65,7 +81,7 @@ struct OnboardingView: View {
 
                     if currentStep == 2 {
                         VStack(spacing: 24) {
-                            Text("What’s your age?")
+                            Text("Select your age group")
                                 .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(.white)
 
@@ -85,7 +101,7 @@ struct OnboardingView: View {
 
                     if currentStep == 3 {
                         VStack(spacing: 24) {
-                            Text("Addictions to work on?")
+                            Text("Habits to work on?")
                                 .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(.white)
 
@@ -95,10 +111,19 @@ struct OnboardingView: View {
                                         text: option,
                                         isSelected: selectedAddictions.contains(option)
                                     ) {
-                                        if selectedAddictions.contains(option) {
-                                            selectedAddictions.remove(option)
+                                        if option == "None" {
+                                            if selectedAddictions.contains("None") {
+                                                selectedAddictions.remove("None")
+                                            } else {
+                                                selectedAddictions = ["None"]
+                                            }
                                         } else {
-                                            selectedAddictions.insert(option)
+                                            if selectedAddictions.contains(option) {
+                                                selectedAddictions.remove(option)
+                                            } else {
+                                                selectedAddictions.insert(option)
+                                                selectedAddictions.remove("None")
+                                            }
                                         }
                                     }
                                 }
@@ -113,30 +138,27 @@ struct OnboardingView: View {
                                 .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(.white)
 
-                            ScrollView {
-                                VStack(spacing: 16) {
-                                    ForEach(workoutOptions, id: \.self) { option in
-                                        MultiSelectOptionButton(
-                                            text: option,
-                                            isSelected: workoutTypes.contains(option)
-                                        ) {
-                                            if workoutTypes.contains(option) {
-                                                workoutTypes.remove(option)
-                                            } else {
-                                                workoutTypes.insert(option)
-                                            }
+                            VStack(spacing: 16) {
+                                ForEach(workoutOptions, id: \.self) { option in
+                                    OptionButton(
+                                        text: option,
+                                        isSelected: workoutTypes.contains(option)
+                                    ) {
+                                        if workoutTypes.contains(option) {
+                                            workoutTypes.remove(option)
+                                        } else {
+                                            workoutTypes.insert(option)
                                         }
                                     }
                                 }
-                                .padding(.horizontal, 10)
                             }
                         }
                         .frame(maxHeight: .infinity)
                     }
-                    
+                 
                     if currentStep == 5 {
                         VStack(spacing: 24) {
-                            Text("Dietary preference?")
+                            Text("Any dietary preferences?")
                                 .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(.white)
                             
@@ -156,41 +178,37 @@ struct OnboardingView: View {
                     
                     if currentStep == 6 {
                         VStack(spacing: 24) {
-                            Text("Any common health issues?")
+                            Text("Any health concerns?")
                                 .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(.white)
-                            
-                            ScrollView {
-                                VStack(spacing: 16) {
-                                    ForEach(healthProblemOptions, id: \.self) { option in
-                                        // If "None" is selected, deselect others and vice versa
-                                        let isSelected = healthProblems.contains(option)
-                                        MultiSelectOptionButton(
-                                            text: option,
-                                            isSelected: isSelected
-                                        ) {
-                                            if option == "None" {
-                                                if isSelected {
-                                                    healthProblems.remove(option)
-                                                } else {
-                                                    healthProblems = [option]
-                                                }
+
+                            VStack(spacing: 16) {
+                                ForEach(healthProblemOptions, id: \.self) { option in
+                                    OptionButton(
+                                        text: option,
+                                        isSelected: healthProblems.contains(option)
+                                    ) {
+                                        if option == "None" {
+                                            if healthProblems.contains("None") {
+                                                healthProblems.remove("None")
                                             } else {
-                                                if isSelected {
-                                                    healthProblems.remove(option)
-                                                } else {
-                                                    healthProblems.remove("None")
-                                                    healthProblems.insert(option)
-                                                }
+                                                healthProblems = ["None"]
+                                            }
+                                        } else {
+                                            if healthProblems.contains(option) {
+                                                healthProblems.remove(option)
+                                            } else {
+                                                healthProblems.insert(option)
+                                                healthProblems.remove("None")
                                             }
                                         }
                                     }
                                 }
-                                .padding(.horizontal, 10)
                             }
                         }
                         .frame(maxHeight: .infinity)
                     }
+                    
                 }
                 
                 // Step indicator dots

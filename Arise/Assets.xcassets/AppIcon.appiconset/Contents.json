@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "bgless.png",
+      "filename" : "logo_arise.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,7 +13,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "bgless 1.png",
+      "filename" : "logo_arise 1.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -25,7 +25,7 @@
           "value" : "tinted"
         }
       ],
-      "filename" : "bgless 2.png",
+      "filename" : "logo_arise 2.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"

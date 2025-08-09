@@ -143,7 +143,7 @@ struct HomeView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         // RANK HEADER
-                        NavigationLink(destination: RankDetails()) {
+                        NavigationLink(destination: RankDetailsView()) {
                             HStack(alignment: .center, spacing: 16) {
                                 ZStack {
                                     Circle()
@@ -246,26 +246,11 @@ struct HomeView: View {
             }
         }
     }
-
-//    func fetchUserData() {
-//        guard let uid = Auth.auth().currentUser?.uid else { return }
-//
-//        let docRef = Firestore.firestore().collection("users").document(uid)
-//        docRef.getDocument { snapshot, error in
-//            if let data = snapshot?.data() {
-//                self.rank = data["rank"] as? String ?? "Novice"
-//                self.totalXP = data["xp"] as? Int ?? 0
-//                self.skillData = data["skills"] as? [String: [String: Int]] ?? [:]
-//            } else {
-//                print("Failed to fetch user data: \(error?.localizedDescription ?? "Unknown error")")
-//            }
-//        }
-//    }
     
     func fetchUserData() {
         // First try loading from cache
         if let cached = UserDefaults.standard.dictionary(forKey: "cachedUserData") {
-            print("✅ Loaded user data from cache.")
+            print("Loaded user data from cache.")
             self.rank = cached["rank"] as? String ?? "Novice"
             self.totalXP = cached["xp"] as? Int ?? 0
             self.skillData = cached["skills"] as? [String: [String: Int]] ?? [:]
@@ -277,15 +262,15 @@ struct HomeView: View {
 
         docRef.getDocument { snapshot, error in
             if let data = snapshot?.data() {
-                print("✅ Pulled fresh data from Firestore.")
+                print("Pulled fresh data from Firestore.")
                 self.rank = data["rank"] as? String ?? "Novice"
                 self.totalXP = data["xp"] as? Int ?? 0
                 self.skillData = data["skills"] as? [String: [String: Int]] ?? [:]
 
-                // ✅ Save to cache
+                // Save to cache
                 UserDefaults.standard.set(data, forKey: "cachedUserData")
             } else {
-                print("❌ Failed to fetch Firestore data: \(error?.localizedDescription ?? "Unknown error")")
+                print("Failed to fetch Firestore data: \(error?.localizedDescription ?? "Unknown error")")
             }
         }
     }
