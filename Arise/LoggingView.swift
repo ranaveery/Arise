@@ -82,15 +82,13 @@ struct LoggingView: View {
                             HStack(spacing: 8) {
                                 Image(systemName: "line.3.horizontal.decrease")
                                     .font(.title2)
-                                Text("Sort")
-                                    .font(.title2)
                             }
                             .font(.headline)
                             .foregroundStyle(gradient)
                             .padding(.vertical, 6)
                             .padding(.horizontal, 14)
                             .background(Color.white.opacity(0.1))
-                            .clipShape(Capsule())
+                            .clipShape(Circle())
                         }
                     }
                     .padding(.horizontal)

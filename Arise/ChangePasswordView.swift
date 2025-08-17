@@ -2,141 +2,150 @@ import SwiftUI
 import FirebaseAuth
 
 struct ChangePasswordView: View {
+    @Environment(\.dismiss) var dismiss
+    
     @State private var currentPassword = ""
     @State private var newPassword = ""
-    @State private var confirmNewPassword = ""
+    @State private var confirmPassword = ""
+    
+    @State private var step = 1
     @State private var errorMessage = ""
-    @State private var successMessage = ""
     @State private var isLoading = false
-
+    @State private var successMessage = ""
+    
+    let gradient = LinearGradient(
+        gradient: Gradient(colors: [
+            Color(red: 84/255, green: 0/255, blue: 232/255),
+            Color(red: 236/255, green: 71/255, blue: 1/255)
+        ]),
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+    
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer(minLength: 20)
-
-            Image("logo_arise")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 130, height: 130)
-                .padding(.top, 10)
-
+        VStack(spacing: 20) {
             Text("Change Password")
-                .font(.largeTitle.bold())
+                .font(.title.bold())
                 .foregroundColor(.white)
-
-            VStack(spacing: 16) {
-                SecureField("Current Password", text: $currentPassword)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Color.white.opacity(0.05))
-                    .cornerRadius(25)
-                    .foregroundColor(.white)
-
-                SecureField("New Password", text: $newPassword)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Color.white.opacity(0.05))
-                    .cornerRadius(25)
-                    .foregroundColor(.white)
-
-                SecureField("Confirm New Password", text: $confirmNewPassword)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Color.white.opacity(0.05))
-                    .cornerRadius(25)
-                    .foregroundColor(.white)
-
-                if !errorMessage.isEmpty {
-                    Text(errorMessage)
-                        .foregroundColor(.red)
-                        .font(.caption)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, -4)
+                .padding(.top, 40)
+            
+            ScrollView {
+                VStack(spacing: 20) {
+                    if step == 1 {
+                        SecureField("Current Password", text: $currentPassword)
+                            .padding()
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                            .autocapitalization(.none)
+                        
+                        Button(action: verifyCurrentPassword) {
+                            if isLoading {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("Verify")
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(gradient)
+                                    .cornerRadius(12)
+                            }
+                        }
+                    } else if step == 2 {
+                        SecureField("New Password", text: $newPassword)
+                            .padding()
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                            .autocapitalization(.none)
+                        
+                        SecureField("Confirm New Password", text: $confirmPassword)
+                            .padding()
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                            .autocapitalization(.none)
+                        
+                        Button(action: updatePassword) {
+                            if isLoading {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("Update Password")
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(gradient)
+                                    .cornerRadius(12)
+                            }
+                        }
+                    }
+                    
+                    if !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .foregroundColor(.red)
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    
+                    if !successMessage.isEmpty {
+                        Text(successMessage)
+                            .foregroundColor(.green)
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
                 }
-
-                if !successMessage.isEmpty {
-                    Text(successMessage)
-                        .foregroundColor(.green)
-                        .font(.caption)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, -4)
-                }
+                .padding()
             }
-
-            Button(action: changePassword) {
-                if isLoading {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.black)
-                        .cornerRadius(25)
-                } else {
-                    Text("Update Password")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color(red: 84/255, green: 0/255, blue: 232/255),
-                                Color(red: 236/255, green: 71/255, blue: 1/255)
-                            ]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ))
-                        .foregroundColor(.white)
-                        .cornerRadius(25)
-                }
-            }
-
-            Spacer()
         }
-        .padding()
         .background(Color.black.ignoresSafeArea())
+        .preferredColorScheme(.dark)
     }
-
-    private func changePassword() {
-        errorMessage = ""
-        successMessage = ""
-        
-        guard !currentPassword.isEmpty else {
-            errorMessage = "Please enter your current password."
-            return
-        }
-        
-        guard newPassword.count >= 6 else {
-            errorMessage = "New password must be at least 6 characters."
-            return
-        }
-        
-        guard newPassword == confirmNewPassword else {
-            errorMessage = "New passwords do not match."
-            return
-        }
-        
-        guard let user = Auth.auth().currentUser, let email = user.email else {
-            errorMessage = "User not logged in."
+    
+    private func verifyCurrentPassword() {
+        guard let user = Auth.auth().currentUser,
+              let email = user.email else {
+            errorMessage = "User not found."
             return
         }
         
         isLoading = true
-        
         let credential = EmailAuthProvider.credential(withEmail: email, password: currentPassword)
-        user.reauthenticate(with: credential) { _, error in
-            if let _ = error {
-                self.errorMessage = "Current password is incorrect."
-                self.isLoading = false
-                return
+        user.reauthenticate(with: credential) { result, error in
+            isLoading = false
+            if let error = error {
+                errorMessage = "Incorrect password. Try again."
+                print("Reauth error: \(error.localizedDescription)")
+            } else {
+                step = 2
+                errorMessage = ""
             }
-            
-            user.updatePassword(to: newPassword) { error in
-                self.isLoading = false
-                if let error = error {
-                    self.errorMessage = "Failed to update password: \(error.localizedDescription)"
-                } else {
-                    self.successMessage = "Password updated successfully."
-                    self.currentPassword = ""
-                    self.newPassword = ""
-                    self.confirmNewPassword = ""
+        }
+    }
+    
+    private func updatePassword() {
+        guard newPassword == confirmPassword else {
+            errorMessage = "Passwords do not match."
+            return
+        }
+        
+        guard newPassword.count >= 6 else {
+            errorMessage = "Password must be at least 6 characters."
+            return
+        }
+        
+        isLoading = true
+        Auth.auth().currentUser?.updatePassword(to: newPassword) { error in
+            isLoading = false
+            if let error = error {
+                errorMessage = "Failed to update password: \(error.localizedDescription)"
+            } else {
+                successMessage = "Password updated successfully!"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    dismiss()
                 }
             }
         }

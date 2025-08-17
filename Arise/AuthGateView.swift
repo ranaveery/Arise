@@ -12,8 +12,18 @@ struct AuthGateView: View {
         Group {
             if isUserLoggedIn {
                 if checkingOnboarding {
-                    ProgressView("Importing your profile")
-                } else if !isOnboarded {
+                    VStack {
+                        Spacer()
+                        Image("logo_arise")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 150, height: 150)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
+                }
+ else if !isOnboarded {
                     OnboardingView {
                         self.isOnboarded = true
                     }

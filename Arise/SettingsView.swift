@@ -12,7 +12,9 @@ struct SettingsView: View {
     @State private var name = ""
     @State private var showLogoutConfirmation = false
     @State private var showDeleteConfirmation = false
-    @State private var preferencesLoaded = false // ✅ new
+    @State private var preferencesLoaded = false
+    @State private var showGoogleSignInAlert = false
+    @State private var navigateToChangePassword = false
 
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
@@ -46,46 +48,81 @@ struct SettingsView: View {
                         inputRow(systemImage: "person", label: "Name", binding: .constant(name.isEmpty ? "No name set" : name), isEditable: false)
                         inputRow(systemImage: "envelope", label: "Email", binding: .constant(userEmail.isEmpty ? "No email set" : userEmail), isEditable: false)
 
-                        if let provider = Auth.auth().currentUser?.providerData.first?.providerID,
-                           provider == "password" {
-                            NavigationLink(value: "Password") {
-                                Text("Change Password")
-                                    .font(.subheadline)
+                        // Preferences row
+                        NavigationLink(destination: ManagePreferencesView()) {
+                            HStack {
+                                Image(systemName: "slider.horizontal.3")
+                                    .foregroundColor(.gray)
+                                    .frame(width: 20)
+                                Text("Preferences")
                                     .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity, alignment: .center)
-                                    .padding(10)
-                                    .background(Color.white.opacity(0.05))
-                                    .cornerRadius(10)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(10)
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                        }
+
+                        HStack {
+                            Button(action: {
+                                if let provider = Auth.auth().currentUser?.providerData.first?.providerID,
+                                   provider == "password" {
+                                    // Navigate to ChangePasswordView
+                                    // If using NavigationLink programmatically:
+                                    navigateToChangePassword = true
+                                } else {
+                                    // Show alert for Google sign-in users
+                                    showGoogleSignInAlert = true
+                                }
+                            }) {
+                                HStack {
+                                    Image(systemName: "lock.rotation")
+                                        .foregroundColor(.gray)
+                                        .frame(width: 20)
+                                    Text("Change Password")
+                                        .foregroundColor(.white)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.gray)
+                                }
+                                .padding(10)
+                                .background(Color.white.opacity(0.05))
+                                .cornerRadius(10)
+                                .padding(.horizontal)
+                            }
+                            .alert(isPresented: $showGoogleSignInAlert) {
+                                Alert(
+                                    title: Text("Cannot Change Password"),
+                                    message: Text("This account was created with Google Sign-In, so no password is stored. To update your password, please use your Google Account settings."),
+                                    dismissButton: .default(Text("OK"))
+                                )
                             }
                         }
+                        
+//v.8.3p
+//                        NavigationLink(destination: DeleteAccountView()) {
+//                            HStack {
+//                                Image(systemName: "trash")
+//                                    .foregroundColor(.gray)
+//                                    .frame(width: 20)
+//                                Text("Delete Account")
+//                                    .foregroundColor(.white)
+//                                Spacer()
+//                                Image(systemName: "chevron.right")
+//                                    .foregroundColor(.gray)
+//                            }
+//                            .padding(10)
+//                            .background(Color.white.opacity(0.05))
+//                            .cornerRadius(10)
+//                            .padding(.horizontal)
+//                        }
+                        
                     }
 
-                    // NOTIFICATIONS
-                    if preferencesLoaded { // ✅ only show after loaded
-                        VStack(spacing: 12) {
-                            Text("NOTIFICATIONS")
-                                .font(.title3)
-                                .bold()
-                                .foregroundStyle(gradient)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal)
-
-                            notificationToggle(systemImage: "clock.badge.exclamationmark", label: "Expiring Tasks", isOn: $expiringTaskNotifications)
-                                .onChange(of: expiringTaskNotifications) { _, newValue in
-                                    savePreference(key: "expiringTasks", value: newValue)
-                                }
-
-                            notificationToggle(systemImage: "plus.square.on.square", label: "New Tasks", isOn: $newTaskNotifications)
-                                .onChange(of: newTaskNotifications) { _, newValue in
-                                    savePreference(key: "newTasks", value: newValue)
-                                }
-
-                            notificationToggle(systemImage: "chart.bar.xaxis", label: "Progress Reports", isOn: $weeklyProgressNotifications)
-                                .onChange(of: weeklyProgressNotifications) { _, newValue in
-                                    savePreference(key: "weeklyProgress", value: newValue)
-                                }
-                        }
-                    }
+                    NotificationsSection()
 
                     // APPEARANCE
                     VStack(spacing: 12) {
@@ -142,7 +179,7 @@ struct SettingsView: View {
                                 .frame(width: 20)
                             Text("Version").foregroundColor(.white)
                             Spacer()
-                            Text("v.25.7.1").foregroundColor(.gray)
+                            Text("v.8.2p").foregroundColor(.gray)
                         }
                         .padding(10)
                         .background(Color.white.opacity(0.05))
@@ -186,6 +223,9 @@ struct SettingsView: View {
             .navigationDestination(for: String.self) { value in
                 if value == "Reset Password" { ResetPasswordView() }
             }
+            .navigationDestination(isPresented: $navigateToChangePassword) {
+                ChangePasswordView()
+            }
             .onAppear {
                 if let cached = UserDefaults.standard.dictionary(forKey: "cachedUserData") {
                     self.name = cached["name"] as? String ?? ""
@@ -216,13 +256,13 @@ struct SettingsView: View {
                     newTaskNotifications = notifications["newTasks"] ?? true
                     weeklyProgressNotifications = notifications["weeklyProgress"] ?? true
                 } else {
-                    // ✅ If missing, set defaults in Firestore
+                    // If missing, set defaults in Firestore
                     savePreference(key: "expiringTasks", value: true)
                     savePreference(key: "newTasks", value: true)
                     savePreference(key: "weeklyProgress", value: true)
                 }
             }
-            preferencesLoaded = true // ✅ safe to show toggles
+            preferencesLoaded = true // safe to show toggles
         }
     }
 
@@ -258,20 +298,6 @@ struct SettingsView: View {
         }
     }
 
-    @ViewBuilder
-    private func notificationToggle(systemImage: String, label: String, isOn: Binding<Bool>) -> some View {
-        Toggle(isOn: isOn) {
-            HStack {
-                Image(systemName: systemImage).foregroundColor(.gray).frame(width: 20)
-                Text(label).foregroundColor(.white)
-            }
-        }
-        .tint(gradient)
-        .padding(10)
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(10)
-        .padding(.horizontal)
-    }
 
     @ViewBuilder
     private func inputRow(systemImage: String, label: String, binding: Binding<String>, isEditable: Bool) -> some View {
@@ -296,3 +322,91 @@ struct SettingsView: View {
         .padding(.horizontal)
     }
 }
+
+// MARK: - Notifications Section
+struct NotificationsSection: View {
+    // Local persisted states (load instantly from UserDefaults)
+    @AppStorage("expiringTasks") private var expiringTaskNotifications = true
+    @AppStorage("newTasks") private var newTaskNotifications = true
+    @AppStorage("weeklyProgress") private var weeklyProgressNotifications = true
+
+    let gradient = LinearGradient(
+        colors: [Color(red: 84/255, green: 0/255, blue: 232/255), Color(red: 236/255, green: 71/255, blue: 1/255)],
+        startPoint: .leading,
+        endPoint: .trailing
+    )
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("NOTIFICATIONS")
+                .font(.title3)
+                .bold()
+                .foregroundStyle(gradient)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+
+            notificationToggle(systemImage: "clock.badge.exclamationmark",
+                               label: "Expiring Tasks",
+                               isOn: $expiringTaskNotifications)
+            .onChange(of: expiringTaskNotifications) { _, newValue in
+                savePreference(key: "expiringTasks", value: newValue)
+            }
+
+            notificationToggle(systemImage: "plus.square.on.square",
+                               label: "New Tasks",
+                               isOn: $newTaskNotifications)
+            .onChange(of: newTaskNotifications) { _, newValue in
+                savePreference(key: "newTasks", value: newValue)
+            }
+
+            notificationToggle(systemImage: "chart.bar.xaxis",
+                               label: "Progress Reports",
+                               isOn: $weeklyProgressNotifications)
+            .onChange(of: weeklyProgressNotifications) { _, newValue in
+                savePreference(key: "weeklyProgress", value: newValue)
+            }
+        }
+        .onAppear {
+            refreshPreferencesFromFirestore()
+        }
+    }
+
+    // MARK: - Firestore sync
+    private func savePreference(key: String, value: Bool) {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        db.collection("users").document(uid).setData([
+            "notifications": [key: value]
+        ], merge: true)
+    }
+
+    @ViewBuilder
+    private func notificationToggle(systemImage: String, label: String, isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            HStack {
+                Image(systemName: systemImage).foregroundColor(.gray).frame(width: 20)
+                Text(label).foregroundColor(.white)
+            }
+        }
+        .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
+        .padding(10)
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(10)
+        .padding(.horizontal)
+    }
+    
+    private func refreshPreferencesFromFirestore() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        db.collection("users").document(uid).getDocument { snapshot, error in
+            if let data = snapshot?.data(),
+               let notifications = data["notifications"] as? [String: Bool] {
+                // Update AppStorage with cloud values (overrides cache if different)
+                expiringTaskNotifications = notifications["expiringTasks"] ?? expiringTaskNotifications
+                newTaskNotifications = notifications["newTasks"] ?? newTaskNotifications
+                weeklyProgressNotifications = notifications["weeklyProgress"] ?? weeklyProgressNotifications
+            }
+        }
+    }
+}
+

@@ -1,0 +1,100 @@
+A. INTRODUCTION
+
+This Agreement governs your use of Arise’s services (“Services” – e.g., and where available, the Arise mobile application, subscription features, workout plans, tracking features, personalized health recommendations, and any other in-app services) through which you can access, use, or subscribe to content, tools, and features (collectively, “Content”). Content may be offered through the Services by Arise or a third party. Our Services are available for your use in your country or territory of residence (“Home Country”). By creating an account for use of the Services in a particular country or territory, you are specifying it as your Home Country. To use our Services, you need compatible hardware, software (latest version recommended and sometimes required), and internet access (fees may apply). Our Services’ performance may be affected by these factors.
+
+B. PAYMENTS, SUBSCRIPTIONS, AND REFUNDS
+
+Some Services and Content may be provided for free, while others may require payment, either as a one-time purchase or as a subscription (“Paid Content”). Each transaction for Paid Content is an electronic contract between you and Arise, and/or you and any entity providing Content through the Services. Payments may be processed directly through the App store platform or via third-party payment processors.
+
+You may be required to provide payment information, including credit or debit cards, Apple Pay, or other payment methods accepted by the Services. By providing payment information, you authorize Arise to charge you for Paid Content, including any applicable taxes, and to store your payment information securely for future transactions.
+
+If your primary payment method fails for any reason (e.g., insufficient funds, expired card), you authorize Arise to attempt to charge your other eligible payment methods in order. Paid Subscriptions automatically renew until cancelled. You will be notified if the price of a Paid Subscription increases, and, if required, your consent will be requested to continue. Refunds for Paid Content, if any, are governed by the policies displayed during the purchase or subscription process. All transactions are final unless otherwise required by law.
+
+C. ACCOUNT
+
+Using our Services may require an Arise account (“Account”). Your Account is personal, and you are responsible for maintaining its confidentiality and security. You are solely responsible for all activity that occurs under your Account, including any unauthorized access.
+
+You must be at least thirteen (13) years of age (or the equivalent minimum age in your Home Country) to create an Account. Accounts for users under the minimum age can only be created with parental or legal guardian consent.
+
+You may designate a Legacy Contact for your Account, who may access certain information in accordance with the procedures described on Arise’s support resources.
+
+D. PRIVACY
+
+Your use of the Services is subject to Arise’s Privacy Policy, which explains how we collect, use, share, and protect your personal information. Please read the Privacy Policy carefully. Among other things, the Privacy Policy covers:
+
+* Information we collect automatically and from you
+* How we use information to personalize Services
+* Third-party data sharing
+* User rights under GDPR, CCPA, and other applicable laws
+* Security measures and retention practices
+
+By using the Services, you consent to the collection, use, and disclosure of information as described in the Privacy Policy.
+
+E. ACCESSIBILITY
+
+Arise is committed to making our Services accessible to all users. Accessibility features and information can be found at [https://www.ariseapp.com/accessibility](https://www.ariseapp.com/accessibility).
+
+F. SERVICES AND CONTENT USAGE RULES
+
+Your use of the Services and Content must comply with the following rules:
+
+* You may use the Services and Content solely for personal, non-commercial purposes unless explicitly authorized by Arise.
+* You may not modify, copy, distribute, or create derivative works of any Content unless permitted.
+* You may not manipulate, inflate, or otherwise interfere with metrics, ratings, or reviews within the Services.
+* You may not use automated means, bots, or scripts to scrape, collect, or analyze any part of the Services.
+* You are responsible for maintaining backups of any Content you download or create using the Services.
+* You may not circumvent or tamper with security features or digital rights management technologies.
+* You may access the Services only using official Arise software, and you may not modify or use modified versions of such software.
+
+Certain Content and features may be subject to additional rules, including limitations on device count, download expiration, or usage restrictions, which will be displayed when you access such Content.
+
+G. TERMINATION AND SUSPENSION OF SERVICES
+
+If you fail, or Arise reasonably believes you have failed, to comply with any provision of this Agreement, Arise may, without notice:
+
+* Terminate this Agreement and/or your Account, and you will remain liable for all amounts due;
+* Terminate your license to use the Services; or
+* Preclude your access to the Services.
+
+Arise may also modify, suspend, or discontinue the Services at any time, in whole or in part, with or without notice, and Arise will not be liable for any resulting impact to you or third parties.
+
+H. DOWNLOADS AND DATA BACKUP
+
+Some Services allow you to download or export Content to your devices. You may be limited in the amount of Content you can download, and some downloaded Content may expire after a specified period. Certain Content may not be available for download or export.
+
+You may redownload previously acquired Content to devices linked to your Account. Content may be removed or become unavailable if Arise loses the rights to make it available. You are encouraged to back up your data regularly.
+
+I. SUBSCRIPTIONS
+
+Certain Services may require subscriptions, which automatically renew until cancelled. Free trials, promotional offers, and cancellations are subject to terms presented at the time of enrollment. You are responsible for maintaining up-to-date payment information. Subscriptions cannot be paused unless explicitly stated.
+
+J. SERVICE AVAILABILITY
+
+Services, Content types, or features may vary by country, region, device, or platform. Content available in your Home Country may not be accessible when traveling outside your Home Country.
+
+K. THIRD-PARTY DEVICES AND EQUIPMENT
+
+Some Services may require the use of third-party devices or equipment. Use of such devices is subject to their respective terms and conditions. Arise may automatically download updates required to maintain compatibility with third-party devices.
+
+L. USER SUBMISSIONS
+
+Services may allow you to submit content, reviews, ratings, or other materials. You may not submit content that:
+
+* Violates the rights of others
+* Is offensive, abusive, unlawful, misleading, or harmful
+* Contains personal information of others without consent
+* Is spam, fraudulent, or incentivized inappropriately
+
+By submitting content, you grant Arise a worldwide, royalty-free, perpetual, nonexclusive license to use, reproduce, display, distribute, or create derivative works for operation and marketing purposes. Arise may remove or edit submissions at its discretion.
+
+M. FAMILY SHARING
+
+Family Sharing allows certain subscriptions or Content to be shared among eligible family members, up to six (6) users. Organizers are responsible for all purchases or subscriptions made by family members using shared payment methods.
+
+N. GOVERNING LAW AND DISPUTE RESOLUTION
+
+This Agreement is governed by the laws of the State of Delaware, without regard to conflicts of law principles. Any disputes will be resolved through binding arbitration, and users waive their right to participate in a class action.
+
+O. CHANGES TO TERMS
+
+Arise may update these Terms at any time. Updates will be effective upon posting in the App. Continued use of the Services constitutes acceptance of the revised Terms.

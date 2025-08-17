@@ -12,15 +12,14 @@ struct MainTabView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             // Main content
-            Group {
-                switch selectedTab {
-                case .home:
+            ZStack {
+                if selectedTab == .home {
                     HomeView()
-                case .logging:
+                } else if selectedTab == .logging {
                     LoggingView()
-                case .trends:
+                } else if selectedTab == .trends {
                     TrendsView()
-                case .settings:
+                } else if selectedTab == .settings {
                     SettingsView(isUserLoggedIn: $isUserLoggedIn)
                 }
             }
@@ -40,9 +39,8 @@ struct MainTabView: View {
                     Spacer()
                     TabButtonView(icon: "gearshape", label: "Settings", tab: .settings, selectedTab: $selectedTab)
                 }
-
                 .padding(.horizontal, 30)
-                .frame(height: 55) //  Controls total tab bar height
+                .frame(height: 55) // Controls total tab bar height
                 .background(Color.black)
             }
             .frame(maxWidth: .infinity)
@@ -50,6 +48,7 @@ struct MainTabView: View {
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
     }
+
 
     func tabButton(icon: String, label: String, tab: Tab) -> some View {
         @State var isAnimating = false
