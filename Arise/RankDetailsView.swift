@@ -19,6 +19,30 @@ struct Rank: Identifiable {
     let requiredXP: Double
 }
 
+// MARK: - Achievement Model
+struct Achievement: Identifiable {
+    let id = UUID()
+    let index: Int
+    var unlocked: Bool = false
+}
+
+// MARK: - Achievement Card
+struct AchievementCard: View {
+    let achievement: Achievement
+    
+    var body: some View {
+        Rectangle()
+            .fill(Color.gray.opacity(0.1)) // darker box
+            .aspectRatio(1, contentMode: .fit) // makes it a square
+                        .overlay(
+                            Image(systemName: achievement.unlocked ? "star.fill" : "questionmark")
+                                .font(.title)
+                                .bold()
+                                .foregroundColor(.white)
+                        )
+    }
+}
+
 struct RankDetailsView: View {
     let ranks = [
         Rank(id: 1, name: "Seeker", emblemName: "star.circle.fill", requiredXP: 0),
@@ -35,13 +59,26 @@ struct RankDetailsView: View {
 
     @State private var currentXP: Double = 0
     @State private var currentRankId: Int = 1
-    @State private var skillXPs: [SkillXP] = []
+    
+    @State private var skillXPs: [SkillXP] = [
+        SkillXP(name: "Discipline", level: 1, xp: 0),
+        SkillXP(name: "Fitness", level: 1, xp: 0),
+        SkillXP(name: "Fuel", level: 1, xp: 0),
+        SkillXP(name: "Network", level: 1, xp: 0),
+        SkillXP(name: "Resilience", level: 1, xp: 0),
+        SkillXP(name: "Wisdom", level: 1, xp: 0)
+
+    ]
+    
     @State private var glowPulse = false
+    
+    // achievements state
+    @State private var achievements: [Achievement] =
+        (1...36).map { Achievement(index: $0) }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                
                 
                 // MARK: - Current rank Section
                 VStack(spacing: 6) {
@@ -91,7 +128,7 @@ struct RankDetailsView: View {
                     .frame(height: 60)
                 }
 
-                // MARK: Skill Contributions
+                // MARK: - Skill Contributions
                 VStack(alignment: .leading, spacing: 20) {
                     Text("Skill Contributions")
                         .font(.headline)
@@ -132,9 +169,32 @@ struct RankDetailsView: View {
                         }
                     }
                 }
-                .padding(.horizontal)
-// END
                 
+                
+                // MARK: - Achievements Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Achievements")
+                        .font(.headline)
+                        .foregroundColor(Color(red: 1, green: 65/255, blue: 74/255))
+                    
+                    Text("You have unlocked \(achievements.filter { $0.unlocked }.count)/\(achievements.count) achievements")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.6))
+                    
+                    LazyVGrid(
+                        columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3),
+                        spacing: 16
+                    ) {
+                        ForEach(achievements) { achievement in
+                            Button {
+                                print("Tapped achievement \(achievement.index)")
+                            } label: {
+                                AchievementCard(achievement: achievement)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
                 
                 Spacer(minLength: 40)
             }
@@ -178,19 +238,17 @@ struct RankDetailsView: View {
             }
 
             if let skillsDict = data["skills"] as? [String: [String: Any]] {
-                var skillList: [SkillXP] = []
-                for (skillName, values) in skillsDict {
-                    let level = values["level"] as? Int ?? 1
-                    let xp = values["xp"] as? Int ?? 0
-                    skillList.append(SkillXP(name: skillName, level: level, xp: xp))
+                // Update existing skills, keep defaults if missing
+                self.skillXPs = self.skillXPs.map { skill in
+                    if let values = skillsDict[skill.name] {
+                        let level = values["level"] as? Int ?? skill.level
+                        let xp = values["xp"] as? Int ?? skill.xp
+                        return SkillXP(name: skill.name, level: level, xp: xp)
+                    } else {
+                        return skill // keep default 0 XP
+                    }
                 }
-                self.skillXPs = skillList.sorted { $0.name < $1.name }
             }
         }
     }
 }
-
-
-
-
-

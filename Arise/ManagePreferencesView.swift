@@ -47,7 +47,7 @@ struct ManagePreferencesView: View {
                         VStack(spacing: 5) {
                             ForEach(["Under 18", "18–24", "25–34", "35+"], id: \.self) { option in
                                 dropdownOption(option, isSelected: ageRange == option) { changePreference { ageRange = option } }
-                            }
+                                .transition(.opacity)                            }
                         }
                         .padding(.vertical, 5)
                     }
@@ -56,7 +56,7 @@ struct ManagePreferencesView: View {
                         VStack(spacing: 5) {
                             ForEach(addictionOptions, id: \.self) { option in
                                 MultiSelectOptionButton(text: option, isSelected: selectedAddictions.contains(option)) { changePreference { toggleSelection(option: option, in: &selectedAddictions) } }
-                            }
+                                .transition(.opacity)                            }
                         }
                         .padding(.vertical, 5)
                     }
@@ -65,6 +65,7 @@ struct ManagePreferencesView: View {
                         VStack(spacing: 5) {
                             ForEach(workoutOptions, id: \.self) { option in
                                 MultiSelectOptionButton(text: option, isSelected: workoutTypes.contains(option)) { changePreference { toggleSelection(option: option, in: &workoutTypes) } }
+                                    .transition(.opacity)
                             }
                         }
                         .padding(.vertical, 5)
@@ -74,6 +75,7 @@ struct ManagePreferencesView: View {
                         VStack(spacing: 5) {
                             ForEach(dietaryOptions, id: \.self) { option in
                                 dropdownOption(option, isSelected: dietaryPreference == option) { changePreference { dietaryPreference = option } }
+                                    .transition(.opacity)
                             }
                         }
                         .padding(.vertical, 5)
@@ -83,6 +85,7 @@ struct ManagePreferencesView: View {
                         VStack(spacing: 5) {
                             ForEach(healthProblemOptions, id: \.self) { option in
                                 MultiSelectOptionButton(text: option, isSelected: healthProblems.contains(option)) { changePreference { toggleSelection(option: option, in: &healthProblems) } }
+                                    .transition(.opacity)
                             }
                         }
                         .padding(.vertical, 5)
@@ -176,7 +179,6 @@ struct ManagePreferencesView: View {
         }
     }
     
-    
     @ViewBuilder
     private func preferenceRow<Content: View>(
         title: String,
@@ -187,19 +189,17 @@ struct ManagePreferencesView: View {
         @ViewBuilder dropdownContent: () -> Content = { EmptyView() }
     ) -> some View {
         VStack(spacing: 0) {
-            Button(action: { withAnimation { isExpanded?.wrappedValue.toggle() } }) {
+            Button(action: { withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { isExpanded?.wrappedValue.toggle() } }) {
                 HStack {
                     Image(systemName: systemImage)
                         .foregroundStyle(gradient)
                         .frame(width: 25)
                     
-                    // Title text
                     Text(title)
-                        .foregroundStyle(title == "Preferences" ? AnyShapeStyle(gradient) : AnyShapeStyle(Color.white))
+                        .foregroundColor(.white)
 
                     Spacer()
                     
-                    // Only show current value for Gender
                     if title == "Gender" {
                         Text(value)
                             .foregroundColor(.white)
@@ -207,8 +207,9 @@ struct ManagePreferencesView: View {
                     
                     if isEditable {
                         Image(systemName: "chevron.right")
-                            .rotationEffect(Angle(degrees: isExpanded?.wrappedValue == true ? 90 : 0))
+                            .rotationEffect(.degrees(isExpanded?.wrappedValue == true ? 90 : 0))
                             .foregroundColor(.gray)
+                            .animation(.easeInOut(duration: 0.25), value: isExpanded?.wrappedValue)
                     }
                 }
                 .padding()
@@ -216,7 +217,8 @@ struct ManagePreferencesView: View {
             
             if isExpanded?.wrappedValue == true {
                 dropdownContent()
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .animation(.easeInOut(duration: 0.3), value: isExpanded?.wrappedValue)
+                    .transition(.opacity)
             }
         }
         .background(Color.black.opacity(0.1))
@@ -238,7 +240,6 @@ struct ManagePreferencesView: View {
             .padding()
             .background(Color.white.opacity(0.05))
             .cornerRadius(10)
-            
         }
     }
     

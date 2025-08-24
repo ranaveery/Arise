@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var preferencesLoaded = false
     @State private var showGoogleSignInAlert = false
     @State private var navigateToChangePassword = false
+    let versionInfo = "1.3.1" // MAJOR.MINOR.PATCH
 
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
@@ -33,6 +34,10 @@ struct SettingsView: View {
                         Text("Settings")
                             .font(.largeTitle.bold())
                             .foregroundColor(.white)
+                        
+                        Text("Customize your experience")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.6))
                     }
                     .padding(.top, 20)
 
@@ -102,23 +107,22 @@ struct SettingsView: View {
                             }
                         }
                         
-//v.8.3p
-//                        NavigationLink(destination: DeleteAccountView()) {
-//                            HStack {
-//                                Image(systemName: "trash")
-//                                    .foregroundColor(.gray)
-//                                    .frame(width: 20)
-//                                Text("Delete Account")
-//                                    .foregroundColor(.white)
-//                                Spacer()
-//                                Image(systemName: "chevron.right")
-//                                    .foregroundColor(.gray)
-//                            }
-//                            .padding(10)
-//                            .background(Color.white.opacity(0.05))
-//                            .cornerRadius(10)
-//                            .padding(.horizontal)
-//                        }
+                        NavigationLink(destination: DeleteAccountView(isUserLoggedIn: $isUserLoggedIn)) {
+                            HStack {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.gray)
+                                    .frame(width: 20)
+                                Text("Delete Account")
+                                    .foregroundColor(.white)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(10)
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                        }
                         
                     }
 
@@ -179,7 +183,7 @@ struct SettingsView: View {
                                 .frame(width: 20)
                             Text("Version").foregroundColor(.white)
                             Spacer()
-                            Text("v.8.2p").foregroundColor(.gray)
+                            Text(versionInfo).foregroundColor(.gray)
                         }
                         .padding(10)
                         .background(Color.white.opacity(0.05))
@@ -194,7 +198,7 @@ struct SettingsView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 10)
-                            .background(Color(red: 236/255, green: 71/255, blue: 1/255))
+                            .background(Color.white.opacity(0.1))
                             .cornerRadius(20)
                     }
                     .alert(isPresented: $showLogoutConfirmation) {

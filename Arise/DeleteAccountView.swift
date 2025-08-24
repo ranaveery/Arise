@@ -10,6 +10,7 @@ struct DeleteAccountView: View {
     @State private var customReason: String = ""
     @State private var showConfirmation = false
     @State private var isDeleting = false
+    @Binding var isUserLoggedIn: Bool
     
     let reasons = [
         "I don't find the app useful",
@@ -78,7 +79,6 @@ struct DeleteAccountView: View {
             }
             .padding()
         }
-        .navigationTitle("Delete Account")
         .alert(isPresented: $showConfirmation) {
             Alert(
                 title: Text("Delete Account"),
@@ -143,30 +143,37 @@ struct DeleteAccountView: View {
 
 
     private func reauthEmailAndDelete(user: User) {
-        // Prompt for password
-        let alert = UIAlertController(title: "Re-enter Password",
-                                      message: "Please enter your password to confirm deletion.",
-                                      preferredStyle: .alert)
+        let alert = UIAlertController(
+            title: "Re-enter Password",
+            message: "Please enter your password to confirm deletion.",
+            preferredStyle: .alert
+        )
+        
         alert.addTextField { textField in
             textField.placeholder = "Password"
             textField.isSecureTextEntry = true
         }
-
+        
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+        
         alert.addAction(UIAlertAction(title: "Confirm", style: .destructive) { _ in
-            guard let password = alert.textFields?.first?.text,
-                  let email = user.email else { return }
-
+            guard let password = alert.textFields?.first?.text, !password.isEmpty,
+                  let email = user.email else {
+                print("Password missing")
+                return
+            }
+            
             let credential = EmailAuthProvider.credential(withEmail: email, password: password)
             user.reauthenticate(with: credential) { _, error in
                 if let error = error {
                     print("Reauthentication failed: \(error.localizedDescription)")
                     return
                 }
+                
                 performDelete(user: user)
             }
         })
-
+        
         // Present alert
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootVC = windowScene.windows.first?.rootViewController else { return }
@@ -176,16 +183,29 @@ struct DeleteAccountView: View {
     private func performDelete(user: User) {
         isDeleting = true
         let db = Firestore.firestore()
-        db.collection("users").document(user.uid).delete { _ in
-            user.delete { error in
+
+        user.delete { error in
+            if let error = error {
                 isDeleting = false
-                if let error = error {
-                    print("Error deleting account: \(error.localizedDescription)")
-                } else {
-                    print("Account deleted successfully")
-                    presentationMode.wrappedValue.dismiss()
+                print("Error deleting account: \(error.localizedDescription)")
+                return
+            }
+
+            // If account deletion succeeded, now clean up Firestore
+            db.collection("users").document(user.uid).delete { _ in
+                isDeleting = false
+                print("Account deleted successfully")
+
+                do {
+                    try Auth.auth().signOut()
+                    isUserLoggedIn = false
+                } catch {
+                    print("Error signing out: \(error.localizedDescription)")
                 }
+
+                presentationMode.wrappedValue.dismiss()
             }
         }
     }
+
 }

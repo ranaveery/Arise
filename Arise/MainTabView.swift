@@ -4,6 +4,7 @@ import SwiftUI
 struct MainTabView: View {
     @Binding var isUserLoggedIn: Bool
     @State private var selectedTab: Tab = .home
+    
 
     enum Tab {
         case home, logging, trends, settings

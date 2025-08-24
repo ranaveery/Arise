@@ -148,17 +148,67 @@ struct OnboardingView: View {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         isSaving = true
         let db = Firestore.firestore()
-        db.collection("users").document(uid).setData([
-            "gender": gender,
-            "ageRange": ageRange,
-            "addictions": Array(selectedAddictions),
-            "workoutTypes": Array(workoutTypes),
-            "dietaryPreference": dietaryPreference,
-            "healthProblems": Array(healthProblems),
-            "isOnboarded": true
-        ], merge: true) { error in
-            isSaving = false
-            if error == nil { onFinish() }
+        let userRef = db.collection("users").document(uid)
+        
+        userRef.getDocument { snapshot, error in
+            guard error == nil else {
+                isSaving = false
+                return
+            }
+            
+            var data: [String: Any] = [
+                "gender": gender,
+                "ageRange": ageRange,
+                "addictions": Array(selectedAddictions),
+                "workoutTypes": Array(workoutTypes),
+                "dietaryPreference": dietaryPreference,
+                "healthProblems": Array(healthProblems),
+                "isOnboarded": true
+            ]
+            
+            // If the user doc already exists, check if XP/skills are missing
+            if let snap = snapshot, snap.exists {
+                let existing = snap.data() ?? [:]
+                if existing["xp"] == nil { data["xp"] = 0 }
+                if existing["rank"] == nil { data["rank"] = "Novice" }
+                if existing["level"] == nil { data["level"] = 1 }
+                if existing["skills"] == nil {
+                    data["skills"] = [
+                        "Strength": ["level": 1, "xp": 0],
+                        "Endurance": ["level": 1, "xp": 0],
+                        "Focus": ["level": 1, "xp": 0],
+                        "Creativity": ["level": 1, "xp": 0]
+                    ]
+                }
+                if existing["notifications"] == nil {
+                    data["notifications"] = [
+                        "expiringTasks": true,
+                        "newTasks": true,
+                        "weeklyProgress": true
+                    ]
+                }
+            } else {
+                // Brand new doc
+                data["xp"] = 0
+                data["rank"] = "Novice"
+                data["level"] = 1
+                data["skills"] = [
+                    "Strength": ["level": 1, "xp": 0],
+                    "Endurance": ["level": 1, "xp": 0],
+                    "Focus": ["level": 1, "xp": 0],
+                    "Creativity": ["level": 1, "xp": 0]
+                ]
+                data["notifications"] = [
+                    "expiringTasks": true,
+                    "newTasks": true,
+                    "weeklyProgress": true
+                ]
+            }
+            
+            userRef.setData(data, merge: true) { error in
+                isSaving = false
+                if error == nil { onFinish() }
+            }
         }
     }
 

@@ -10,7 +10,17 @@ struct Task: Identifiable {
 
 struct LoggingView: View {
     @State private var selectedFilter: FilterOption? = nil
-
+    
+    // Track expansion state per skill
+    @State private var expandedSkills: [String: Bool] = [
+        "Resilience": true,
+        "Wisdom": true,
+        "Fuel": true,
+        "Fitness": true,
+        "Discipline": true,
+        "Network": true
+    ]
+    
     enum FilterOption: String, CaseIterable, Identifiable {
         case skill = "Skill"
         case expiry = "Time"
@@ -28,19 +38,136 @@ struct LoggingView: View {
         Task(name: "Text 3 people", xp: 30, expiresInHours: 2, skill: "Network")
     ]
 
-    var filteredTasks: [Task] {
-        switch selectedFilter {
-        case .skill:
-            return tasks.sorted { $0.skill < $1.skill }
-        case .expiry:
-            return tasks.sorted { $0.expiresInHours < $1.expiresInHours }
-        case .xp:
-            return tasks.sorted { $0.xp > $1.xp }
-        case .none:
-            return tasks.sorted { $0.expiresInHours < $1.expiresInHours }
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.black.ignoresSafeArea()
+
+                VStack(spacing: 20) {
+                    // Header
+                    HStack {
+                        Spacer()
+                        Text("Tasks")
+                            .font(.largeTitle.bold())
+                            .foregroundColor(.white)
+                        Spacer()
+
+                        // Sort button
+                        Menu {
+                            ForEach(FilterOption.allCases) { option in
+                                Button {
+                                    selectedFilter = option
+                                } label: {
+                                    HStack {
+                                        Text(option.rawValue)
+                                        Spacer()
+                                        if selectedFilter == option {
+                                            Image(systemName: "checkmark")
+                                                .foregroundColor(.purple)
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                                .font(.system(size: 30))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [
+                                            Color(red: 84/255, green: 0/255, blue: 232/255),
+                                            Color(red: 236/255, green: 71/255, blue: 1/255)
+                                        ]),
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                        }
+                    }
+                    .padding(.horizontal)
+
+                    // Sections
+                    ScrollView {
+                        VStack(spacing: 24) {
+                            ForEach(["Resilience", "Wisdom", "Fuel", "Fitness", "Discipline", "Network"], id: \.self) { skill in
+                                VStack(alignment: .leading, spacing: 12) {
+                                    // Section header
+                                    HStack(spacing: 8) {
+                                        Image(systemName: iconForSkill(skill))
+                                            .font(.system(size: 26))
+                                            .foregroundStyle(
+                                                LinearGradient(
+                                                    gradient: Gradient(colors: [
+                                                        Color(red: 84/255, green: 0/255, blue: 232/255),
+                                                        Color(red: 236/255, green: 71/255, blue: 1/255)
+                                                    ]),
+                                                    startPoint: .leading,
+                                                    endPoint: .trailing
+                                                )
+                                            )
+
+                                        Text(skill)
+                                            .font(.title.bold())
+                                            .foregroundStyle(
+                                                LinearGradient(
+                                                    gradient: Gradient(colors: [
+                                                        Color(red: 84/255, green: 0/255, blue: 232/255),
+                                                        Color(red: 236/255, green: 71/255, blue: 1/255)
+                                                    ]),
+                                                    startPoint: .leading,
+                                                    endPoint: .trailing
+                                                )
+                                            )
+
+                                        Image(systemName: expandedSkills[skill] ?? true ? "chevron.down" : "chevron.right")
+                                            .foregroundColor(.white.opacity(0.7))
+
+                                        Spacer()
+                                    }
+                                    .contentShape(Rectangle()) // ensures tap works on empty space
+                                    .onTapGesture {
+                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                            expandedSkills[skill]?.toggle()
+                                        }
+                                    }
+
+                                    // Tasks inside section with smooth animation
+                                    if expandedSkills[skill] ?? true {
+                                        VStack(spacing: 12) {
+                                            ForEach(tasks.filter { $0.skill == skill }) { task in
+                                                TaskCard(task: task)
+                                                    .transition(.move(edge: .top).combined(with: .opacity))
+                                            }
+                                        }
+                                        .animation(.easeInOut(duration: 0.3), value: expandedSkills[skill])
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 80)
+                    }
+                }
+            }
+            .navigationBarHidden(true)
         }
     }
 
+    private func iconForSkill(_ skill: String) -> String {
+        switch skill {
+        case "Resilience": return "brain"
+        case "Wisdom": return "book.fill"
+        case "Fuel": return "fork.knife"
+        case "Fitness": return "figure.run"
+        case "Discipline": return "infinity"
+        case "Network": return "person.2.fill"
+        default: return "circle.fill"
+        }
+    }
+}
+
+// Reuse task card style
+struct TaskCard: View {
+    let task: Task
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
             Color(red: 84/255, green: 0/255, blue: 232/255),
@@ -49,87 +176,52 @@ struct LoggingView: View {
         startPoint: .leading,
         endPoint: .trailing
     )
+    
+    private var timeColor: Color {
+        if task.expiresInHours < 3 {
+            return .red
+        } else if task.expiresInHours < 6 {
+            return .yellow
+        } else {
+            return .gray
+        }
+    }
 
     var body: some View {
-        NavigationView {
-            ZStack(alignment: .topTrailing) {
-                Color.black.ignoresSafeArea()
-
-                VStack(spacing: 12) {
-                    HStack {
-                        Text("Tasks")
-                            .font(.largeTitle.bold())
-                            .foregroundColor(.white)
-
-                        Spacer()
-
-                        Menu {
-                            ForEach(FilterOption.allCases) { option in
-                                Button(action: {
-                                    selectedFilter = option
-                                }) {
-                                    HStack {
-                                        Text(option.rawValue)
-                                        Spacer()
-                                        if selectedFilter == option {
-                                            Image(systemName: "checkmark")
-                                                .foregroundStyle(gradient)
-                                        }
-                                    }
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "line.3.horizontal.decrease")
-                                    .font(.title2)
-                            }
-                            .font(.headline)
-                            .foregroundStyle(gradient)
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 14)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.top)
-
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            ForEach(filteredTasks) { task in
-                                HStack(spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text(task.name)
-                                            .foregroundColor(.white)
-                                            .font(.headline)
-
-                                        Text("Trains: \(task.skill)")
-                                            .foregroundColor(.gray)
-                                            .font(.caption)
-
-                                        Text("Expires in \(task.expiresInHours)h")
-                                            .foregroundColor(.gray)
-                                            .font(.caption2)
-                                    }
-
-                                    Spacer()
-
-                                    VStack {
-                                        Text("\(task.xp) XP")
-                                            .foregroundColor(.orange)
-                                            .font(.subheadline.bold())
-                                    }
-                                }
-                                .padding()
-                                .background(Color.white.opacity(0.05))
-                                .cornerRadius(12)
-                            }
-                        }
-                        .padding()
-                    }
-                }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(task.name)
+                    .foregroundColor(.white)
+                    .font(.headline)
+                Spacer()
+                Text("+\(task.xp) XP")
+                    .font(.headline.bold())
+                    .foregroundStyle(gradient)
             }
-            .navigationBarHidden(true)
+
+            HStack {
+                Label(task.skill, systemImage: "bolt.fill")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.7))
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Image(systemName: "clock")
+                    Text("\(task.expiresInHours)h")
+                }
+                .font(.caption2)
+                .foregroundColor(timeColor)
+            }
         }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(gradient, lineWidth: 1.2)
+                )
+        )
     }
 }

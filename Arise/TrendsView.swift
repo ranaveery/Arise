@@ -208,7 +208,7 @@ struct MiniSparkline: View {
                 lineWidth: 2
             )
             .onAppear {
-                withAnimation(.easeOut(duration: 1.2)) {
+                withAnimation(.easeOut(duration: 0.45)) {
                     animationProgress = 1.0
                 }
             }

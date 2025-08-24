@@ -158,7 +158,9 @@ struct SignUpView: View {
                 errorMessage = error.localizedDescription
             } else if let user = result?.user {
                 let db = Firestore.firestore()
-                db.collection("users").document(user.uid).setData([
+                let userRef = db.collection("users").document(user.uid)
+
+                userRef.setData([
                     "name": name,
                     "email": email,
                     "rank": "Novice",
@@ -183,11 +185,13 @@ struct SignUpView: View {
                         print("User data saved successfully.")
                     }
                 }
-                isUserLoggedIn = true
+                DispatchQueue.main.async {
+                    isUserLoggedIn = true
+                }
             }
         }
     }
-    
+
     private func signInWithGoogle() {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootViewController = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
@@ -224,7 +228,6 @@ struct SignUpView: View {
                 }
 
                 guard let firebaseUser = result?.user else { return }
-
                 let db = Firestore.firestore()
                 let userRef = db.collection("users").document(firebaseUser.uid)
 
@@ -237,6 +240,7 @@ struct SignUpView: View {
                     } else {
                         let name = user.profile?.name ?? "Unnamed"
                         let email = user.profile?.email ?? firebaseUser.email ?? ""
+
                         userRef.setData([
                             "name": name,
                             "email": email,
@@ -270,4 +274,6 @@ struct SignUpView: View {
             }
         }
     }
+    
+    
 }
