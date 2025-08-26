@@ -33,7 +33,7 @@ struct AuthGateView: View {
             } else {
                 ZStack {
                     if showLogin {
-                        LoginView(isUserLoggedIn: $isUserLoggedIn, showLogin: $showLogin)
+                        LandingView(isUserLoggedIn: $isUserLoggedIn, showLogin: $showLogin)
                             .transition(.move(edge: .leading))
                     } else {
                         SignUpView(isUserLoggedIn: $isUserLoggedIn, showLogin: $showLogin)

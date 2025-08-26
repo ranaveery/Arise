@@ -17,7 +17,7 @@ struct ContentView: View {
                         .foregroundColor(.white)
                 }
             } else if !isUserLoggedIn {
-                LoginView(isUserLoggedIn: $isUserLoggedIn, showLogin: $showLogin)
+                LandingView(isUserLoggedIn: $isUserLoggedIn, showLogin: $showLogin)
             } else if isOnboarded {
                 MainTabView(isUserLoggedIn: $isUserLoggedIn)
             } else {

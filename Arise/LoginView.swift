@@ -11,6 +11,8 @@ struct LoginView: View {
     @State private var password = ""
     @State private var errorMessage = ""
     @State private var isLoading = false
+    @Environment(\.dismiss) private var dismiss
+
 
     var body: some View {
         VStack(spacing: 24) {
@@ -83,7 +85,7 @@ struct LoginView: View {
                     .foregroundColor(.white)
                 Button(action: {
                     withAnimation {
-                        showLogin = false
+                        dismiss()  // Takes user back to LandingView
                     }
                 }) {
                     Text("Sign up")

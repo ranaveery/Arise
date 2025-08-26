@@ -15,7 +15,9 @@ struct SettingsView: View {
     @State private var preferencesLoaded = false
     @State private var showGoogleSignInAlert = false
     @State private var navigateToChangePassword = false
-    let versionInfo = "1.3.1" // MAJOR.MINOR.PATCH
+//    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
+    let versionInfo = "0.3.1.0" // APPSTAGE.MAJOR.MINOR.PATCH
+
 
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
