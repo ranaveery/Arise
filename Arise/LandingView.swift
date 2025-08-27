@@ -17,10 +17,19 @@ struct LandingView: View {
     @State private var animateLogo = false   // NEW: for tap animation
     
     private let phrases = [
-        "Welcome",
+        "A new you begins here",
+        "Awaken your potential",
         "It's time to Arise",
-        "The first step to unlock your true potential"
+        "Rise beyond limits",
+        "Unlock your true potential",
+        "Build your best self",
+        "Every step takes you higher",
+        "Discipline creates freedom",
+        "Arise. Improve. Become."
     ]
+
+
+
     
     var body: some View {
         NavigationStack {
@@ -30,7 +39,6 @@ struct LandingView: View {
                 VStack {
                     Spacer()
                     
-                    // Logo + typing text grouped together
                     VStack(spacing: 12) {
                         // App Logo
                         Image("logo_arise")
@@ -47,18 +55,20 @@ struct LandingView: View {
                                     animateLogo = false
                                 }
                             }
+                            .padding(20)
                         
                         // Typing effect text
                         Text(displayedText)
-                        .font(.title.bold())
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
+                            .font(.title.bold())
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                            .frame(minHeight: 40)
                     }
                     
                     Spacer()
                     
                     // Bottom sheet style box
-                    VStack(spacing: 16) {
+                    VStack(spacing: 12) {
                         Button(action: signInWithGoogle) {
                             HStack {
                                 Image("google_logo")
@@ -66,7 +76,7 @@ struct LandingView: View {
                                     .aspectRatio(contentMode: .fit)
                                     .frame(width: 20, height: 20)
                                 Text("Continue with Google")
-                                    .fontWeight(.medium)
+                                    .font(.system(size: 18, weight: .semibold, design: .rounded))
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -77,29 +87,36 @@ struct LandingView: View {
                         
                         NavigationLink(destination: SignUpView(isUserLoggedIn: $isUserLoggedIn, showLogin: $showLogin)) {
                             Text("Sign up")
+                                .font(.system(size: 18, weight: .semibold, design: .rounded)) // nicer rounded font
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(Color.white.opacity(0.05))
-                                .cornerRadius(12)
+                                .cornerRadius(14)
                                 .foregroundColor(.white)
                         }
-                        
+
                         NavigationLink(destination: LoginView(isUserLoggedIn: $isUserLoggedIn, showLogin: $showLogin)) {
                             Text("Log in")
-                                .bold()
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                .tracking(0.5)
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.white.opacity(0.05))
-                                .cornerRadius(12)
+                                .background(Color(red: 20/255, green: 20/255, blue: 20/255))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(Color.white.opacity(0.15), lineWidth: 2)
+                                )
+                                .cornerRadius(14)
                                 .foregroundColor(.white)
+                                .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
                         }
                     }
-                    .padding()
+                    .padding(16)
                     .background(
-                        Color(.systemGray6)
-                            .clipShape(TopRoundedRectangle(radius: 25)) // top rounded only
+                        Color(red: 30/255, green: 30/255, blue: 30/255)
+                            .clipShape(TopRoundedRectangle(radius: 25))
+                            .ignoresSafeArea(edges: .bottom) // << move here
                     )
-                    .ignoresSafeArea(edges: .all)   // this extends gray to bottom
                 }
                 .onAppear {
                     isActive = true
