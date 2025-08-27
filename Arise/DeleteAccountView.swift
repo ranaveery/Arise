@@ -58,6 +58,12 @@ struct DeleteAccountView: View {
                             )
                     }
                 }
+
+                Text("This action deletes all progress and data associated with this account and can not be reverted.")
+                    .font(.footnote)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
                 
                 Button(action: {
                     showConfirmation = true
@@ -82,7 +88,7 @@ struct DeleteAccountView: View {
         .alert(isPresented: $showConfirmation) {
             Alert(
                 title: Text("Delete Account"),
-                message: Text("This action is permanent. Are you sure?"),
+                message: Text("This action is permanent and can not be undone. Are you sure?"),
                 primaryButton: .destructive(Text("Delete")) {
                     deleteAccount()
                 },

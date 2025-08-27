@@ -4,10 +4,9 @@ import FirebaseFirestore
 
 struct SettingsView: View {
     @Binding var isUserLoggedIn: Bool
-    @AppStorage("expiringTaskNotifications") private var expiringTaskNotifications = true
-    @AppStorage("newTaskNotifications") private var newTaskNotifications = true
-    @AppStorage("weeklyProgressNotifications") private var weeklyProgressNotifications = true
-
+    @AppStorage("expiringTasks") private var expiringTasks = true
+    @AppStorage("newTasks") private var newTasks = true
+    @AppStorage("weeklyProgress") private var weeklyProgress = true
     @State private var userEmail = ""
     @State private var name = ""
     @State private var showLogoutConfirmation = false
@@ -16,7 +15,7 @@ struct SettingsView: View {
     @State private var showGoogleSignInAlert = false
     @State private var navigateToChangePassword = false
 //    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.3.1.1" // APPSTAGE.MAJOR.MINOR.PATCH
+    let versionInfo = "0.3.1.2" // APPSTAGE.MAJOR.MINOR.PATCH
 
 
     let gradient = LinearGradient(
@@ -180,6 +179,26 @@ struct SettingsView: View {
                         aboutRow(systemImage: "lock.shield", label: "Privacy Policy") { PrivacyPolicyView() }
 
                         HStack {
+                            Image(systemName: "grid.circle")
+                                .foregroundColor(.gray)
+                                .frame(width: 20)
+                            Text("User ID").foregroundColor(.white)
+                            Spacer()
+                            if let user = Auth.auth().currentUser {
+                                Text(user.uid)
+                                    .font(.footnote)
+                                    .foregroundColor(.gray)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .textSelection(.enabled)
+                            }
+                        }
+                        .padding(10)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                        
+                        HStack {
                             Image(systemName: "info.circle")
                                 .foregroundColor(.gray)
                                 .frame(width: 20)
@@ -244,13 +263,6 @@ struct SettingsView: View {
         .preferredColorScheme(.dark)
     }
 
-    func savePreference(key: String, value: Bool) {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        let db = Firestore.firestore()
-        db.collection("users").document(uid).setData([
-            "notifications": [ key: value ]
-        ], merge: true)
-    }
 
     func loadPreferences() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
@@ -258,14 +270,14 @@ struct SettingsView: View {
         db.collection("users").document(uid).getDocument { snapshot, _ in
             if let data = snapshot?.data() {
                 if let notifications = data["notifications"] as? [String: Bool] {
-                    expiringTaskNotifications = notifications["expiringTasks"] ?? true
-                    newTaskNotifications = notifications["newTasks"] ?? true
-                    weeklyProgressNotifications = notifications["weeklyProgress"] ?? true
+                    expiringTasks = notifications["expiringTasks"] ?? true
+                    newTasks = notifications["newTasks"] ?? true
+                    weeklyProgress = notifications["weeklyProgress"] ?? true
                 } else {
                     // If missing, set defaults in Firestore
-                    savePreference(key: "expiringTasks", value: true)
-                    savePreference(key: "newTasks", value: true)
-                    savePreference(key: "weeklyProgress", value: true)
+                    PreferenceManager.savePreference(key: "expiringTasks", value: true)
+                    PreferenceManager.savePreference(key: "newTasks", value: true)
+                    PreferenceManager.savePreference(key: "weeklyProgress", value: true)
                 }
             }
             preferencesLoaded = true // safe to show toggles
@@ -332,9 +344,9 @@ struct SettingsView: View {
 // MARK: - Notifications Section
 struct NotificationsSection: View {
     // Local persisted states (load instantly from UserDefaults)
-    @AppStorage("expiringTasks") private var expiringTaskNotifications = true
-    @AppStorage("newTasks") private var newTaskNotifications = true
-    @AppStorage("weeklyProgress") private var weeklyProgressNotifications = true
+    @AppStorage("expiringTasks") private var expiringTasks = true
+    @AppStorage("newTasks") private var newTasks = true
+    @AppStorage("weeklyProgress") private var weeklyProgress = true
 
     let gradient = LinearGradient(
         colors: [Color(red: 84/255, green: 0/255, blue: 232/255), Color(red: 236/255, green: 71/255, blue: 1/255)],
@@ -353,23 +365,23 @@ struct NotificationsSection: View {
 
             notificationToggle(systemImage: "clock.badge.exclamationmark",
                                label: "Expiring Tasks",
-                               isOn: $expiringTaskNotifications)
-            .onChange(of: expiringTaskNotifications) { _, newValue in
-                savePreference(key: "expiringTasks", value: newValue)
+                               isOn: $expiringTasks)
+            .onChange(of: expiringTasks) { _, newValue in
+                PreferenceManager.savePreference(key: "expiringTasks", value: newValue)
             }
 
             notificationToggle(systemImage: "plus.square.on.square",
                                label: "New Tasks",
-                               isOn: $newTaskNotifications)
-            .onChange(of: newTaskNotifications) { _, newValue in
-                savePreference(key: "newTasks", value: newValue)
+                               isOn: $newTasks)
+            .onChange(of: newTasks) { _, newValue in
+                PreferenceManager.savePreference(key: "newTasks", value: newValue)
             }
 
             notificationToggle(systemImage: "chart.bar.xaxis",
                                label: "Progress Reports",
-                               isOn: $weeklyProgressNotifications)
-            .onChange(of: weeklyProgressNotifications) { _, newValue in
-                savePreference(key: "weeklyProgress", value: newValue)
+                               isOn: $weeklyProgress)
+            .onChange(of: weeklyProgress) { _, newValue in
+                PreferenceManager.savePreference(key: "weeklyProgress", value: newValue)
             }
         }
         .onAppear {
@@ -377,14 +389,6 @@ struct NotificationsSection: View {
         }
     }
 
-    // MARK: - Firestore sync
-    private func savePreference(key: String, value: Bool) {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        let db = Firestore.firestore()
-        db.collection("users").document(uid).setData([
-            "notifications": [key: value]
-        ], merge: true)
-    }
 
     @ViewBuilder
     private func notificationToggle(systemImage: String, label: String, isOn: Binding<Bool>) -> some View {
@@ -408,11 +412,20 @@ struct NotificationsSection: View {
             if let data = snapshot?.data(),
                let notifications = data["notifications"] as? [String: Bool] {
                 // Update AppStorage with cloud values (overrides cache if different)
-                expiringTaskNotifications = notifications["expiringTasks"] ?? expiringTaskNotifications
-                newTaskNotifications = notifications["newTasks"] ?? newTaskNotifications
-                weeklyProgressNotifications = notifications["weeklyProgress"] ?? weeklyProgressNotifications
+                expiringTasks = notifications["expiringTasks"] ?? expiringTasks
+                newTasks = notifications["newTasks"] ?? newTasks
+                weeklyProgress = notifications["weeklyProgress"] ?? weeklyProgress
             }
         }
     }
 }
 
+struct PreferenceManager {
+    static func savePreference(key: String, value: Bool) {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        db.collection("users").document(uid).setData([
+            "notifications": [key: value]
+        ], merge: true)
+    }
+}

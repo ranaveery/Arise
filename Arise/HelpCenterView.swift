@@ -30,7 +30,7 @@ struct HelpCenterView: View {
                     helpSection(
                         icon: "clock",
                         title: "Response Time",
-                        description: "We aim to respond within 24–72 hours. Please note that weekends may take longer."
+                        description: "We aim to respond within 24–48 hours. Please note that weekends may take longer."
                     )
                     
                     helpSection(
@@ -42,7 +42,7 @@ struct HelpCenterView: View {
                     helpSection(
                         icon: "envelope",
                         title: "Contact Support",
-                        description: "Email us anytime at darknesscaveyt@gmail.com with any issues or questions."
+                        description: "Email us at darknesscaveyt@gmail.com with any issues or questions. Please include your User ID below when contacting us by email."
                     )
                     
                     // Footer
