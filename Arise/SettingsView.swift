@@ -14,10 +14,10 @@ struct SettingsView: View {
     @State private var preferencesLoaded = false
     @State private var showGoogleSignInAlert = false
     @State private var navigateToChangePassword = false
-//    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.3.1.2" // APPSTAGE.MAJOR.MINOR.PATCH
-
-
+    //    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
+    let versionInfo = "0.3.1.3" // APPSTAGE.MAJOR.MINOR.PATCH
+    
+    
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
             Color(red: 84/255, green: 0/255, blue: 232/255),
@@ -26,7 +26,7 @@ struct SettingsView: View {
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
-
+    
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
@@ -41,7 +41,7 @@ struct SettingsView: View {
                             .foregroundColor(.white.opacity(0.6))
                     }
                     .padding(.top, 20)
-
+                    
                     // ACCOUNT
                     VStack(spacing: 12) {
                         Text("ACCOUNT")
@@ -50,10 +50,13 @@ struct SettingsView: View {
                             .foregroundStyle(gradient)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal)
-
-                        inputRow(systemImage: "person", label: "Name", binding: .constant(name.isEmpty ? "No name set" : name), isEditable: false)
+                        
+                        //                        inputRow(systemImage: "person", label: "Name", binding: .constant(name.isEmpty ? "No name set" : name), isEditable: false)
+                        inputRow(systemImage: "person", label: "Name", binding: $name, isEditable: true) {
+                            saveNameToFirestore(name)
+                        }
                         inputRow(systemImage: "envelope", label: "Email", binding: .constant(userEmail.isEmpty ? "No email set" : userEmail), isEditable: false)
-
+                        
                         // Preferences row
                         NavigationLink(destination: ManagePreferencesView()) {
                             HStack {
@@ -71,7 +74,7 @@ struct SettingsView: View {
                             .cornerRadius(10)
                             .padding(.horizontal)
                         }
-
+                        
                         HStack {
                             Button(action: {
                                 if let provider = Auth.auth().currentUser?.providerData.first?.providerID,
@@ -126,9 +129,9 @@ struct SettingsView: View {
                         }
                         
                     }
-
+                    
                     NotificationsSection()
-
+                    
                     // APPEARANCE
                     VStack(spacing: 12) {
                         Text("APPEARANCE")
@@ -137,7 +140,7 @@ struct SettingsView: View {
                             .foregroundStyle(gradient)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal)
-
+                        
                         HStack {
                             Image(systemName: "circle.lefthalf.filled")
                                 .foregroundColor(.gray)
@@ -150,7 +153,7 @@ struct SettingsView: View {
                         .background(Color.white.opacity(0.05))
                         .cornerRadius(10)
                         .padding(.horizontal)
-
+                        
                         HStack {
                             Image(systemName: "circle.dotted.and.circle")
                                 .foregroundColor(.gray)
@@ -164,7 +167,7 @@ struct SettingsView: View {
                         .cornerRadius(10)
                         .padding(.horizontal)
                     }
-
+                    
                     // ABOUT
                     VStack(spacing: 12) {
                         Text("ABOUT")
@@ -173,11 +176,11 @@ struct SettingsView: View {
                             .foregroundStyle(gradient)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal)
-
+                        
                         aboutRow(systemImage: "questionmark.circle", label: "Help Center") { HelpCenterView() }
                         aboutRow(systemImage: "doc.text", label: "Terms of Use") { TermsOfUseView() }
                         aboutRow(systemImage: "lock.shield", label: "Privacy Policy") { PrivacyPolicyView() }
-
+                        
                         HStack {
                             Image(systemName: "grid.circle")
                                 .foregroundColor(.gray)
@@ -211,7 +214,7 @@ struct SettingsView: View {
                         .cornerRadius(10)
                         .padding(.horizontal)
                     }
-
+                    
                     // LOG OUT
                     Button(action: { showLogoutConfirmation = true }) {
                         Text("Log Out")
@@ -262,8 +265,25 @@ struct SettingsView: View {
         }
         .preferredColorScheme(.dark)
     }
-
-
+    
+    private func saveNameToFirestore(_ newName: String) {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        db.collection("users").document(uid).setData([
+            "name": newName
+        ], merge: true) { error in
+            if let error = error {
+                print("Failed to update name: \(error.localizedDescription)")
+            } else {
+                print("Name successfully updated to: \(newName)")
+                // Optionally update UserDefaults cache
+                var cached = UserDefaults.standard.dictionary(forKey: "cachedUserData") ?? [:]
+                cached["name"] = newName
+                UserDefaults.standard.set(cached, forKey: "cachedUserData")
+            }
+        }
+    }
+    
     func loadPreferences() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
@@ -283,7 +303,7 @@ struct SettingsView: View {
             preferencesLoaded = true // safe to show toggles
         }
     }
-
+    
     private func loadUserData() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
@@ -299,7 +319,7 @@ struct SettingsView: View {
             }
         }
     }
-
+    
     @ViewBuilder
     private func aboutRow<Destination: View>(systemImage: String, label: String, destination: @escaping () -> Destination) -> some View {
         NavigationLink(destination: destination()) {
@@ -315,19 +335,31 @@ struct SettingsView: View {
             .padding(.horizontal)
         }
     }
-
-
+    
+    
     @ViewBuilder
-    private func inputRow(systemImage: String, label: String, binding: Binding<String>, isEditable: Bool) -> some View {
+    private func inputRow(
+        systemImage: String,
+        label: String,
+        binding: Binding<String>,
+        isEditable: Bool,
+        onCommit: (() -> Void)? = nil
+    ) -> some View {
         HStack {
-            Image(systemName: systemImage).foregroundColor(.gray).frame(width: 20)
-            Text(label).foregroundColor(.white)
+            Image(systemName: systemImage)
+                .foregroundColor(.gray)
+                .frame(width: 20)
+            Text(label)
+                .foregroundColor(.white)
             Spacer()
             if isEditable {
                 TextField("", text: binding)
                     .multilineTextAlignment(.trailing)
                     .foregroundColor(.white)
                     .frame(minWidth: 100)
+                    .onSubmit {    // fires when user presses return or ends editing
+                        onCommit?()
+                    }
             } else {
                 Text(binding.wrappedValue)
                     .foregroundColor(.gray)
@@ -339,93 +371,94 @@ struct SettingsView: View {
         .cornerRadius(10)
         .padding(.horizontal)
     }
-}
-
-// MARK: - Notifications Section
-struct NotificationsSection: View {
-    // Local persisted states (load instantly from UserDefaults)
-    @AppStorage("expiringTasks") private var expiringTasks = true
-    @AppStorage("newTasks") private var newTasks = true
-    @AppStorage("weeklyProgress") private var weeklyProgress = true
-
-    let gradient = LinearGradient(
-        colors: [Color(red: 84/255, green: 0/255, blue: 232/255), Color(red: 236/255, green: 71/255, blue: 1/255)],
-        startPoint: .leading,
-        endPoint: .trailing
-    )
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Text("NOTIFICATIONS")
-                .font(.title3)
-                .bold()
-                .foregroundStyle(gradient)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
-
-            notificationToggle(systemImage: "clock.badge.exclamationmark",
-                               label: "Expiring Tasks",
-                               isOn: $expiringTasks)
-            .onChange(of: expiringTasks) { _, newValue in
-                PreferenceManager.savePreference(key: "expiringTasks", value: newValue)
+    
+    
+    // MARK: - Notifications Section
+    struct NotificationsSection: View {
+        // Local persisted states (load instantly from UserDefaults)
+        @AppStorage("expiringTasks") private var expiringTasks = true
+        @AppStorage("newTasks") private var newTasks = true
+        @AppStorage("weeklyProgress") private var weeklyProgress = true
+        
+        let gradient = LinearGradient(
+            colors: [Color(red: 84/255, green: 0/255, blue: 232/255), Color(red: 236/255, green: 71/255, blue: 1/255)],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        
+        var body: some View {
+            VStack(spacing: 12) {
+                Text("NOTIFICATIONS")
+                    .font(.title3)
+                    .bold()
+                    .foregroundStyle(gradient)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                
+                notificationToggle(systemImage: "clock.badge.exclamationmark",
+                                   label: "Expiring Tasks",
+                                   isOn: $expiringTasks)
+                .onChange(of: expiringTasks) { _, newValue in
+                    PreferenceManager.savePreference(key: "expiringTasks", value: newValue)
+                }
+                
+                notificationToggle(systemImage: "plus.square.on.square",
+                                   label: "New Tasks",
+                                   isOn: $newTasks)
+                .onChange(of: newTasks) { _, newValue in
+                    PreferenceManager.savePreference(key: "newTasks", value: newValue)
+                }
+                
+                notificationToggle(systemImage: "chart.bar.xaxis",
+                                   label: "Progress Reports",
+                                   isOn: $weeklyProgress)
+                .onChange(of: weeklyProgress) { _, newValue in
+                    PreferenceManager.savePreference(key: "weeklyProgress", value: newValue)
+                }
             }
-
-            notificationToggle(systemImage: "plus.square.on.square",
-                               label: "New Tasks",
-                               isOn: $newTasks)
-            .onChange(of: newTasks) { _, newValue in
-                PreferenceManager.savePreference(key: "newTasks", value: newValue)
-            }
-
-            notificationToggle(systemImage: "chart.bar.xaxis",
-                               label: "Progress Reports",
-                               isOn: $weeklyProgress)
-            .onChange(of: weeklyProgress) { _, newValue in
-                PreferenceManager.savePreference(key: "weeklyProgress", value: newValue)
-            }
-        }
-        .onAppear {
-            refreshPreferencesFromFirestore()
-        }
-    }
-
-
-    @ViewBuilder
-    private func notificationToggle(systemImage: String, label: String, isOn: Binding<Bool>) -> some View {
-        Toggle(isOn: isOn) {
-            HStack {
-                Image(systemName: systemImage).foregroundColor(.gray).frame(width: 20)
-                Text(label).foregroundColor(.white)
+            .onAppear {
+                refreshPreferencesFromFirestore()
             }
         }
-        .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
-        .padding(10)
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(10)
-        .padding(.horizontal)
+        
+        
+        @ViewBuilder
+        private func notificationToggle(systemImage: String, label: String, isOn: Binding<Bool>) -> some View {
+            Toggle(isOn: isOn) {
+                HStack {
+                    Image(systemName: systemImage).foregroundColor(.gray).frame(width: 20)
+                    Text(label).foregroundColor(.white)
+                }
+            }
+            .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
+            .padding(10)
+            .background(Color.white.opacity(0.05))
+            .cornerRadius(10)
+            .padding(.horizontal)
+        }
+        
+        private func refreshPreferencesFromFirestore() {
+            guard let uid = Auth.auth().currentUser?.uid else { return }
+            let db = Firestore.firestore()
+            db.collection("users").document(uid).getDocument { snapshot, error in
+                if let data = snapshot?.data(),
+                   let notifications = data["notifications"] as? [String: Bool] {
+                    // Update AppStorage with cloud values (overrides cache if different)
+                    expiringTasks = notifications["expiringTasks"] ?? expiringTasks
+                    newTasks = notifications["newTasks"] ?? newTasks
+                    weeklyProgress = notifications["weeklyProgress"] ?? weeklyProgress
+                }
+            }
+        }
     }
     
-    private func refreshPreferencesFromFirestore() {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        let db = Firestore.firestore()
-        db.collection("users").document(uid).getDocument { snapshot, error in
-            if let data = snapshot?.data(),
-               let notifications = data["notifications"] as? [String: Bool] {
-                // Update AppStorage with cloud values (overrides cache if different)
-                expiringTasks = notifications["expiringTasks"] ?? expiringTasks
-                newTasks = notifications["newTasks"] ?? newTasks
-                weeklyProgress = notifications["weeklyProgress"] ?? weeklyProgress
-            }
+    struct PreferenceManager {
+        static func savePreference(key: String, value: Bool) {
+            guard let uid = Auth.auth().currentUser?.uid else { return }
+            let db = Firestore.firestore()
+            db.collection("users").document(uid).setData([
+                "notifications": [key: value]
+            ], merge: true)
         }
-    }
-}
-
-struct PreferenceManager {
-    static func savePreference(key: String, value: Bool) {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        let db = Firestore.firestore()
-        db.collection("users").document(uid).setData([
-            "notifications": [key: value]
-        ], merge: true)
     }
 }

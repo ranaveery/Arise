@@ -110,9 +110,6 @@ struct DeleteAccountView: View {
     }
 
     private func reauthGoogleAndDelete(user: User) {
-        guard let clientID = FirebaseApp.app()?.options.clientID else { return }
-
-        let config = GIDConfiguration(clientID: clientID)
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootVC = windowScene.windows.first?.rootViewController else {
             print("No root VC found")
@@ -131,9 +128,7 @@ struct DeleteAccountView: View {
                 return
             }
 
-            // Access token is NOT optional anymore
             let accessToken = result.user.accessToken.tokenString
-
             let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
 
             user.reauthenticate(with: credential) { _, error in

@@ -42,7 +42,7 @@ struct HelpCenterView: View {
                     helpSection(
                         icon: "envelope",
                         title: "Contact Support",
-                        description: "Email us at darknesscaveyt@gmail.com with any issues or questions. Please include your User ID below when contacting us by email."
+                        description: "Email us at darknesscaveyt@gmail.com with any issues or questions. Please include your User ID when contacting us by email."
                     )
                     
                     // Footer

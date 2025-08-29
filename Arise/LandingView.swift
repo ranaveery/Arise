@@ -134,55 +134,62 @@ struct LandingView: View {
     }
     
     // MARK: - Typing + Deleting effect with haptic feedback
-        private func startTypingEffect() {
-            typingTimer?.invalidate()
-            guard isActive else { return }   // don’t start if LandingView is not active
-    
-            let phrase = phrases[currentPhraseIndex]
-            let impact = UIImpactFeedbackGenerator(style: .soft)
-            impact.prepare()
-    
-            typingTimer = Timer.scheduledTimer(withTimeInterval: 0.06, repeats: true) { timer in
-                guard isActive else {   // stop immediately if user left
+    private func startTypingEffect() {
+        typingTimer?.invalidate()
+        guard isActive else { return }   // don’t start if LandingView is not active
+
+        let phrase = phrases[currentPhraseIndex]
+        
+        // Separate generators for typing vs deleting
+        let typingImpact = UIImpactFeedbackGenerator(style: .soft)
+        let deletingImpact = UISelectionFeedbackGenerator()
+        
+        typingImpact.prepare()
+        deletingImpact.prepare()
+
+        typingTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { timer in
+            guard isActive else {   // stop immediately if user left
+                timer.invalidate()
+                typingTimer = nil
+                return
+            }
+
+            if !isDeleting {
+                // Typing characters
+                if charIndex < phrase.count {
+                    let i = phrase.index(phrase.startIndex, offsetBy: charIndex)
+                    displayedText.append(phrase[i])
+                    charIndex += 1
+                    typingImpact.impactOccurred()  // soft tap
+                } else {
                     timer.invalidate()
-                    typingTimer = nil
-                    return
-                }
-    
-                if !isDeleting {
-                    if charIndex < phrase.count {
-                        let i = phrase.index(phrase.startIndex, offsetBy: charIndex)
-                        displayedText.append(phrase[i])
-                        charIndex += 1
-                        impact.impactOccurred()
-                    } else {
-                        timer.invalidate()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                            if isActive {   // only continue if still on LandingView
-                                isDeleting = true
-                                startTypingEffect()
-                            }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        if isActive {
+                            isDeleting = true
+                            startTypingEffect()
                         }
                     }
+                }
+            } else {
+                // Deleting characters
+                if !displayedText.isEmpty {
+                    displayedText.removeLast()
+                    charIndex -= 1
+                    deletingImpact.selectionChanged() // swoosh-like feedback
                 } else {
-                    if !displayedText.isEmpty {
-                        displayedText.removeLast()
-                        charIndex -= 1
-                        impact.impactOccurred()
-                    } else {
-                        timer.invalidate()
-                        isDeleting = false
-                        charIndex = 0
-                        currentPhraseIndex = (currentPhraseIndex + 1) % phrases.count
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            if isActive {   // only continue if still on LandingView
-                                startTypingEffect()
-                            }
+                    timer.invalidate()
+                    isDeleting = false
+                    charIndex = 0
+                    currentPhraseIndex = (currentPhraseIndex + 1) % phrases.count
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        if isActive {
+                            startTypingEffect()
                         }
                     }
                 }
             }
         }
+    }
     
     // MARK: - Google Sign-In
     private func signInWithGoogle() {

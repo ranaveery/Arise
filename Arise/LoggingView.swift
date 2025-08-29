@@ -39,57 +39,30 @@ struct LoggingView: View {
     ]
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 Color.black.ignoresSafeArea()
-
-                VStack(spacing: 20) {
-                    // Header
-                    HStack {
-                        Spacer()
-                        Text("Tasks")
-                            .font(.largeTitle.bold())
-                            .foregroundColor(.white)
-                        Spacer()
-
-                        // Sort button
-                        Menu {
-                            ForEach(FilterOption.allCases) { option in
-                                Button {
-                                    selectedFilter = option
-                                } label: {
-                                    HStack {
-                                        Text(option.rawValue)
-                                        Spacer()
-                                        if selectedFilter == option {
-                                            Image(systemName: "checkmark")
-                                                .foregroundColor(.purple)
-                                        }
-                                    }
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "line.3.horizontal.decrease.circle.fill")
-                                .font(.system(size: 30))
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [
-                                            Color(red: 84/255, green: 0/255, blue: 232/255),
-                                            Color(red: 236/255, green: 71/255, blue: 1/255)
-                                        ]),
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
+                
+                ScrollView {
+                    VStack(spacing: 30) {
+                        
+                        // Title + subtitle
+                        VStack(spacing: 4) {
+                            Text("Tasks")
+                                .font(.largeTitle.bold())
+                                .foregroundColor(.white)
+                            
+                            Text("Track and manage your progress")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.6))
                         }
-                    }
-                    .padding(.horizontal)
-
-                    // Sections
-                    ScrollView {
+                        .padding(.top, 20)
+                        
+                        // Skills + tasks
                         VStack(spacing: 24) {
                             ForEach(["Resilience", "Wisdom", "Fuel", "Fitness", "Discipline", "Network"], id: \.self) { skill in
                                 VStack(alignment: .leading, spacing: 12) {
+                                    
                                     // Section header
                                     HStack(spacing: 8) {
                                         Image(systemName: iconForSkill(skill))
@@ -104,7 +77,7 @@ struct LoggingView: View {
                                                     endPoint: .trailing
                                                 )
                                             )
-
+                                        
                                         Text(skill)
                                             .font(.title.bold())
                                             .foregroundStyle(
@@ -117,20 +90,20 @@ struct LoggingView: View {
                                                     endPoint: .trailing
                                                 )
                                             )
-
+                                        
                                         Image(systemName: expandedSkills[skill] ?? true ? "chevron.down" : "chevron.right")
                                             .foregroundColor(.white.opacity(0.7))
-
+                                        
                                         Spacer()
                                     }
-                                    .contentShape(Rectangle()) // ensures tap works on empty space
+                                    .contentShape(Rectangle())
                                     .onTapGesture {
                                         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                                             expandedSkills[skill]?.toggle()
                                         }
                                     }
-
-                                    // Tasks inside section with smooth animation
+                                    
+                                    // Tasks in section
                                     if expandedSkills[skill] ?? true {
                                         VStack(spacing: 12) {
                                             ForEach(tasks.filter { $0.skill == skill }) { task in
@@ -147,11 +120,12 @@ struct LoggingView: View {
                         .padding(.bottom, 80)
                     }
                 }
+                .scrollIndicators(.hidden)
             }
             .navigationBarHidden(true)
         }
     }
-
+    
     private func iconForSkill(_ skill: String) -> String {
         switch skill {
         case "Resilience": return "brain"
@@ -165,7 +139,7 @@ struct LoggingView: View {
     }
 }
 
-// Reuse task card style
+// Task card
 struct TaskCard: View {
     let task: Task
     let gradient = LinearGradient(
@@ -186,7 +160,7 @@ struct TaskCard: View {
             return .gray
         }
     }
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -198,14 +172,14 @@ struct TaskCard: View {
                     .font(.headline.bold())
                     .foregroundStyle(gradient)
             }
-
+            
             HStack {
                 Label(task.skill, systemImage: "bolt.fill")
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.7))
-
+                
                 Spacer()
-
+                
                 HStack(spacing: 4) {
                     Image(systemName: "clock")
                     Text("\(task.expiresInHours)h")
