@@ -171,13 +171,14 @@ struct OnboardingView: View {
                 let existing = snap.data() ?? [:]
                 if existing["xp"] == nil { data["xp"] = 0 }
                 if existing["rank"] == nil { data["rank"] = "Novice" }
-                if existing["level"] == nil { data["level"] = 1 }
                 if existing["skills"] == nil {
                     data["skills"] = [
-                        "Strength": ["level": 1, "xp": 0],
-                        "Endurance": ["level": 1, "xp": 0],
-                        "Focus": ["level": 1, "xp": 0],
-                        "Creativity": ["level": 1, "xp": 0]
+                        "Resilience": ["level": 1, "xp": 0],
+                        "Fuel": ["level": 1, "xp": 0],
+                        "Fitness": ["level": 1, "xp": 0],
+                        "Wisdom": ["level": 1, "xp": 0],
+                        "Discipline": ["level": 1, "xp": 0],
+                        "Network": ["level": 1, "xp": 0]
                     ]
                 }
                 if existing["notifications"] == nil {
@@ -191,12 +192,13 @@ struct OnboardingView: View {
                 // Brand new doc
                 data["xp"] = 0
                 data["rank"] = "Novice"
-                data["level"] = 1
                 data["skills"] = [
-                    "Strength": ["level": 1, "xp": 0],
-                    "Endurance": ["level": 1, "xp": 0],
-                    "Focus": ["level": 1, "xp": 0],
-                    "Creativity": ["level": 1, "xp": 0]
+                    "Resilience": ["level": 1, "xp": 0],
+                    "Fuel": ["level": 1, "xp": 0],
+                    "Fitness": ["level": 1, "xp": 0],
+                    "Wisdom": ["level": 1, "xp": 0],
+                    "Discipline": ["level": 1, "xp": 0],
+                    "Network": ["level": 1, "xp": 0]
                 ]
                 data["notifications"] = [
                     "expiringTasks": true,
