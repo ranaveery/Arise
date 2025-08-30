@@ -34,7 +34,7 @@ struct SettingsView: View {
     @State private var navigateToChangePassword = false
     
 //    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.3.2.1" // APPSTAGE.MAJOR.MINOR.PATCH
+    let versionInfo = "0.3.2.2" // APPSTAGE.MAJOR.MINOR.PATCH
 
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
@@ -170,6 +170,33 @@ struct SettingsView: View {
         .preferredColorScheme(.dark)
     }
 
+    private static func sanitizeName(_ input: String) -> String {
+        let allowed = CharacterSet.letters.union(CharacterSet(charactersIn: "-"))
+        let filtered = input.unicodeScalars
+            .filter { allowed.contains($0) }
+            .map { String($0) }
+            .joined()
+
+        var result = ""
+        var capitalizeNext = true
+        for char in filtered {
+            if char == "-" {
+                result.append(char)
+                capitalizeNext = true
+            } else {
+                if capitalizeNext {
+                    result.append(char.uppercased())
+                    capitalizeNext = false
+                } else {
+                    result.append(char.lowercased())
+                }
+            }
+        }
+        return result
+    }
+
+
+        
     // MARK: - SECTION BLOCK (title + card grouped)
     private func sectionBlock<Content: View>(_ title: String,
                                              @ViewBuilder content: @escaping () -> Content) -> some View {
@@ -312,11 +339,7 @@ struct SettingsView: View {
                 .foregroundColor(.white)
             Spacer()
             if isEditable {
-                TextField("", text: binding)
-                    .multilineTextAlignment(.trailing)
-                    .foregroundColor(.white)
-                    .frame(minWidth: 100)
-                    .onSubmit { onCommit?() }
+                EditableTextField(text: binding, onCommit: onCommit)
             } else {
                 Text(binding.wrappedValue)
                     .foregroundColor(.gray)
@@ -327,19 +350,22 @@ struct SettingsView: View {
         .padding(.vertical, 12)
     }
 
+
     // MARK: - Firestore helpers
     private func saveNameToFirestore(_ newName: String) {
+        let cleanedName = Self.sanitizeName(newName)
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
         db.collection("users").document(uid).setData([
-            "name": newName
+            "name": cleanedName
         ], merge: true) { error in
             if let error = error {
                 print("Failed to update name: \(error.localizedDescription)")
             } else {
                 var cached = UserDefaults.standard.dictionary(forKey: "cachedUserData") ?? [:]
-                cached["name"] = newName
+                cached["name"] = cleanedName
                 UserDefaults.standard.set(cached, forKey: "cachedUserData")
+                self.name = cleanedName
             }
         }
     }
@@ -368,7 +394,7 @@ struct SettingsView: View {
         let db = Firestore.firestore()
         db.collection("users").document(uid).getDocument { snapshot, error in
             if let data = snapshot?.data(), error == nil {
-                let fetchedName = data["name"] as? String ?? ""
+                let fetchedName = Self.sanitizeName(data["name"] as? String ?? "")
                 let fetchedEmail = data["email"] as? String ?? ""
                 DispatchQueue.main.async {
                     self.name = fetchedName
@@ -388,4 +414,27 @@ struct SettingsView: View {
             ], merge: true)
         }
     }
+    
+    struct EditableTextField: View {
+        @Binding var text: String
+        var onCommit: (() -> Void)?
+        @FocusState private var isFocused: Bool
+
+        var body: some View {
+            TextField("", text: $text)
+                .multilineTextAlignment(.trailing)
+                .foregroundColor(isFocused ? .white : .gray) // gray by default, white when editing
+                .frame(minWidth: 100)
+                .focused($isFocused)
+                .onChange(of: text) { _, newValue in
+                    text = SettingsView.sanitizeName(newValue)
+                }
+                .onSubmit {
+                    onCommit?()
+                    isFocused = false
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+        }
+    }
 }
+
