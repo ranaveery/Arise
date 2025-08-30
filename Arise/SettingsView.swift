@@ -2,6 +2,24 @@ import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
 
+// Reusable top-level card so nested types can use it too
+struct SectionCard<Content: View>: View {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+        }
+        .background(Color.white.opacity(0.05)) // the card color you wanted
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: Color.black.opacity(0.25), radius: 8, x: 0, y: 4)
+    }
+}
+
 struct SettingsView: View {
     @Binding var isUserLoggedIn: Bool
     @AppStorage("expiringTasks") private var expiringTasks = true
@@ -14,10 +32,10 @@ struct SettingsView: View {
     @State private var preferencesLoaded = false
     @State private var showGoogleSignInAlert = false
     @State private var navigateToChangePassword = false
-    //    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.3.1.3" // APPSTAGE.MAJOR.MINOR.PATCH
     
-    
+//    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
+    let versionInfo = "0.3.2.0" // APPSTAGE.MAJOR.MINOR.PATCH
+
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
             Color(red: 84/255, green: 0/255, blue: 232/255),
@@ -26,195 +44,82 @@ struct SettingsView: View {
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
-    
+
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 30) {
+                VStack(spacing: 26) {
+                    // HEADER
                     VStack(spacing: 4) {
                         Text("Settings")
                             .font(.largeTitle.bold())
                             .foregroundColor(.white)
-                        
+
                         Text("Customize your experience")
                             .font(.subheadline)
                             .foregroundColor(.white.opacity(0.6))
                     }
                     .padding(.top, 20)
-                    
-                    // ACCOUNT
-                    VStack(spacing: 12) {
-                        Text("ACCOUNT")
-                            .font(.title3)
-                            .bold()
-                            .foregroundStyle(gradient)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-                        
-                        //                        inputRow(systemImage: "person", label: "Name", binding: .constant(name.isEmpty ? "No name set" : name), isEditable: false)
+
+                    // ACCOUNT (title + card grouped)
+                    sectionBlock("ACCOUNT") {
                         inputRow(systemImage: "person", label: "Name", binding: $name, isEditable: true) {
                             saveNameToFirestore(name)
                         }
-                        inputRow(systemImage: "envelope", label: "Email", binding: .constant(userEmail.isEmpty ? "No email set" : userEmail), isEditable: false)
-                        
-                        // Preferences row
-                        NavigationLink(destination: ManagePreferencesView()) {
-                            HStack {
-                                Image(systemName: "slider.horizontal.3")
-                                    .foregroundColor(.gray)
-                                    .frame(width: 20)
-                                Text("Preferences")
-                                    .foregroundColor(.white)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.gray)
-                            }
-                            .padding(10)
-                            .background(Color.white.opacity(0.05))
-                            .cornerRadius(10)
-                            .padding(.horizontal)
-                        }
-                        
-                        HStack {
-                            Button(action: {
-                                if let provider = Auth.auth().currentUser?.providerData.first?.providerID,
-                                   provider == "password" {
-                                    // Navigate to ChangePasswordView
-                                    // If using NavigationLink programmatically:
-                                    navigateToChangePassword = true
-                                } else {
-                                    // Show alert for Google sign-in users
-                                    showGoogleSignInAlert = true
-                                }
-                            }) {
-                                HStack {
-                                    Image(systemName: "lock.rotation")
-                                        .foregroundColor(.gray)
-                                        .frame(width: 20)
-                                    Text("Change Password")
-                                        .foregroundColor(.white)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .foregroundColor(.gray)
-                                }
-                                .padding(10)
-                                .background(Color.white.opacity(0.05))
-                                .cornerRadius(10)
-                                .padding(.horizontal)
-                            }
-                            .alert(isPresented: $showGoogleSignInAlert) {
-                                Alert(
-                                    title: Text("Cannot Change Password"),
-                                    message: Text("This account was created with Google Sign-In, so no password is stored. To update your password, please use your Google Account settings."),
-                                    dismissButton: .default(Text("OK"))
-                                )
+                        dividerLine()
+                        inputRow(systemImage: "envelope",
+                                 label: "Email",
+                                 binding: .constant(userEmail.isEmpty ? "No email set" : userEmail),
+                                 isEditable: false)
+                        dividerLine()
+                        navRow(systemImage: "slider.horizontal.3", label: "Preferences") { ManagePreferencesView() }
+                        dividerLine()
+                        buttonRow(systemImage: "lock.rotation", label: "Change Password") {
+                            if let provider = Auth.auth().currentUser?.providerData.first?.providerID,
+                               provider == "password" {
+                                navigateToChangePassword = true
+                            } else {
+                                showGoogleSignInAlert = true
                             }
                         }
-                        
-                        NavigationLink(destination: DeleteAccountView(isUserLoggedIn: $isUserLoggedIn)) {
-                            HStack {
-                                Image(systemName: "trash")
-                                    .foregroundColor(.gray)
-                                    .frame(width: 20)
-                                Text("Delete Account")
-                                    .foregroundColor(.white)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.gray)
-                            }
-                            .padding(10)
-                            .background(Color.white.opacity(0.05))
-                            .cornerRadius(10)
-                            .padding(.horizontal)
+                        .alert(isPresented: $showGoogleSignInAlert) {
+                            Alert(
+                                title: Text("Cannot Change Password"),
+                                message: Text("This account was created with Google Sign-In, so no password is stored. To update your password, please use your Google Account settings."),
+                                dismissButton: .default(Text("OK"))
+                            )
                         }
-                        
+                        dividerLine()
+                        navRow(systemImage: "trash", label: "Delete Account") {
+                            DeleteAccountView(isUserLoggedIn: $isUserLoggedIn)
+                        }
                     }
-                    
-                    NotificationsSection()
-                    
+
+                    // NOTIFICATIONS (title + card grouped)
+                    sectionBlock("NOTIFICATIONS") {
+                        notificationsContent()
+                    }
+
                     // APPEARANCE
-                    VStack(spacing: 12) {
-                        Text("APPEARANCE")
-                            .font(.title3)
-                            .bold()
-                            .foregroundStyle(gradient)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-                        
-                        HStack {
-                            Image(systemName: "circle.lefthalf.filled")
-                                .foregroundColor(.gray)
-                                .frame(width: 20)
-                            Text("Mode").foregroundColor(.white)
-                            Spacer()
-                            Text("Dark").foregroundColor(.gray)
-                        }
-                        .padding(10)
-                        .background(Color.white.opacity(0.05))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
-                        
-                        HStack {
-                            Image(systemName: "circle.dotted.and.circle")
-                                .foregroundColor(.gray)
-                                .frame(width: 20)
-                            Text("Animations").foregroundColor(.white)
-                            Spacer()
-                            Text("Enabled").foregroundColor(.gray)
-                        }
-                        .padding(10)
-                        .background(Color.white.opacity(0.05))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
+                    sectionBlock("APPEARANCE") {
+                        staticRow(systemImage: "circle.lefthalf.filled", label: "Mode", value: "Dark")
+                        dividerLine()
+                        staticRow(systemImage: "circle.dotted.and.circle", label: "Animations", value: "Enabled")
                     }
-                    
-                    // ABOUT
-                    VStack(spacing: 12) {
-                        Text("ABOUT")
-                            .font(.title3)
-                            .bold()
-                            .foregroundStyle(gradient)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-                        
-                        aboutRow(systemImage: "questionmark.circle", label: "Help Center") { HelpCenterView() }
-                        aboutRow(systemImage: "doc.text", label: "Terms of Use") { TermsOfUseView() }
-                        aboutRow(systemImage: "lock.shield", label: "Privacy Policy") { PrivacyPolicyView() }
-                        
-                        HStack {
-                            Image(systemName: "grid.circle")
-                                .foregroundColor(.gray)
-                                .frame(width: 20)
-                            Text("User ID").foregroundColor(.white)
-                            Spacer()
-                            if let user = Auth.auth().currentUser {
-                                Text(user.uid)
-                                    .font(.footnote)
-                                    .foregroundColor(.gray)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .textSelection(.enabled)
-                            }
-                        }
-                        .padding(10)
-                        .background(Color.white.opacity(0.05))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
-                        
-                        HStack {
-                            Image(systemName: "info.circle")
-                                .foregroundColor(.gray)
-                                .frame(width: 20)
-                            Text("Version").foregroundColor(.white)
-                            Spacer()
-                            Text(versionInfo).foregroundColor(.gray)
-                        }
-                        .padding(10)
-                        .background(Color.white.opacity(0.05))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
+
+                    // APP / ABOUT
+                    sectionBlock("APP") {
+                        appRow(systemImage: "questionmark.circle", label: "Help Center") { HelpCenterView() }
+                        dividerLine()
+                        appRow(systemImage: "doc.text", label: "Terms of Use") { TermsOfUseView() }
+                        dividerLine()
+                        appRow(systemImage: "lock.shield", label: "Privacy Policy") { PrivacyPolicyView() }
+                        dividerLine()
+                        userIDRow()
+                        dividerLine()
+                        staticRow(systemImage: "info.circle", label: "Version", value: versionInfo)
                     }
-                    
+
                     // LOG OUT
                     Button(action: { showLogoutConfirmation = true }) {
                         Text("Log Out")
@@ -240,10 +145,9 @@ struct SettingsView: View {
                             secondaryButton: .cancel()
                         )
                     }
-                    .padding(.top, 20)
                     .padding(.bottom, 100)
-                    .background(Color.black)
                 }
+                .padding(.horizontal)
                 .padding(.top)
             }
             .background(Color.black.ignoresSafeArea())
@@ -265,63 +169,84 @@ struct SettingsView: View {
         }
         .preferredColorScheme(.dark)
     }
-    
-    private func saveNameToFirestore(_ newName: String) {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        let db = Firestore.firestore()
-        db.collection("users").document(uid).setData([
-            "name": newName
-        ], merge: true) { error in
-            if let error = error {
-                print("Failed to update name: \(error.localizedDescription)")
-            } else {
-                print("Name successfully updated to: \(newName)")
-                // Optionally update UserDefaults cache
-                var cached = UserDefaults.standard.dictionary(forKey: "cachedUserData") ?? [:]
-                cached["name"] = newName
-                UserDefaults.standard.set(cached, forKey: "cachedUserData")
-            }
-        }
-    }
-    
-    func loadPreferences() {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        let db = Firestore.firestore()
-        db.collection("users").document(uid).getDocument { snapshot, _ in
-            if let data = snapshot?.data() {
-                if let notifications = data["notifications"] as? [String: Bool] {
-                    expiringTasks = notifications["expiringTasks"] ?? true
-                    newTasks = notifications["newTasks"] ?? true
-                    weeklyProgress = notifications["weeklyProgress"] ?? true
-                } else {
-                    // If missing, set defaults in Firestore
-                    PreferenceManager.savePreference(key: "expiringTasks", value: true)
-                    PreferenceManager.savePreference(key: "newTasks", value: true)
-                    PreferenceManager.savePreference(key: "weeklyProgress", value: true)
+
+    // MARK: - SECTION BLOCK (title + card grouped)
+    private func sectionBlock<Content: View>(_ title: String,
+                                             @ViewBuilder content: @escaping () -> Content) -> some View {
+        VStack(spacing: 6) {
+            Text(title)
+                .font(.headline).fontWeight(.semibold)
+                .foregroundStyle(gradient)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 0)
+
+            SectionCard {
+                // add a tiny top padding inside the card so content isn't glued to the corner
+                VStack(spacing: 0) {
+                    content()
                 }
             }
-            preferencesLoaded = true // safe to show toggles
         }
     }
-    
-    private func loadUserData() {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        let db = Firestore.firestore()
-        db.collection("users").document(uid).getDocument { snapshot, error in
-            if let data = snapshot?.data(), error == nil {
-                let fetchedName = data["name"] as? String ?? ""
-                let fetchedEmail = data["email"] as? String ?? ""
-                DispatchQueue.main.async {
-                    self.name = fetchedName
-                    self.userEmail = fetchedEmail
-                }
-                UserDefaults.standard.set(["name": fetchedName, "email": fetchedEmail], forKey: "cachedUserData")
-            }
-        }
-    }
-    
+
+    // MARK: - Notifications content (content-only, wrapped by sectionBlock)
     @ViewBuilder
-    private func aboutRow<Destination: View>(systemImage: String, label: String, destination: @escaping () -> Destination) -> some View {
+    private func notificationsContent() -> some View {
+        Toggle(isOn: $expiringTasks) {
+            HStack {
+                Image(systemName: "clock.badge.exclamationmark").foregroundColor(.gray).frame(width: 20)
+                Text("Expiring Tasks").foregroundColor(.white)
+            }
+        }
+        .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
+        .padding(.horizontal)
+        .padding(.vertical, 12)
+
+        dividerLine()
+
+        Toggle(isOn: $newTasks) {
+            HStack {
+                Image(systemName: "plus.square.on.square").foregroundColor(.gray).frame(width: 20)
+                Text("New Tasks").foregroundColor(.white)
+            }
+        }
+        .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
+        .padding(.horizontal)
+        .padding(.vertical, 12)
+
+        dividerLine()
+
+        Toggle(isOn: $weeklyProgress) {
+            HStack {
+                Image(systemName: "chart.bar.xaxis").foregroundColor(.gray).frame(width: 20)
+                Text("Progress Reports").foregroundColor(.white)
+            }
+        }
+        .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
+        .padding(.horizontal)
+        .padding(.vertical, 12)
+    }
+
+    // MARK: - Divider between rows (no gaps)
+    private func dividerLine() -> some View {
+        Divider()
+            .background(Color.gray.opacity(0.01))
+            .padding(.leading, 45) // align with text after the icon
+    }
+
+    // MARK: - Reusable Rows
+    private func staticRow(systemImage: String, label: String, value: String) -> some View {
+        HStack {
+            Image(systemName: systemImage).foregroundColor(.gray).frame(width: 20)
+            Text(label).foregroundColor(.white)
+            Spacer()
+            Text(value).foregroundColor(.gray)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 12)
+    }
+
+    private func navRow<Destination: View>(systemImage: String, label: String, destination: @escaping () -> Destination) -> some View {
         NavigationLink(destination: destination()) {
             HStack {
                 Image(systemName: systemImage).foregroundColor(.gray).frame(width: 20)
@@ -329,15 +254,49 @@ struct SettingsView: View {
                 Spacer()
                 Image(systemName: "chevron.right").foregroundColor(.gray)
             }
-            .padding(10)
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(10)
             .padding(.horizontal)
+            .padding(.vertical, 12)
         }
     }
-    
-    
+
+    private func buttonRow(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Image(systemName: systemImage).foregroundColor(.gray).frame(width: 20)
+                Text(label).foregroundColor(.white)
+                Spacer()
+                Image(systemName: "chevron.right").foregroundColor(.gray)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+        }
+    }
+
     @ViewBuilder
+    private func appRow<Destination: View>(systemImage: String, label: String, destination: @escaping () -> Destination) -> some View {
+        navRow(systemImage: systemImage, label: label, destination: destination)
+    }
+
+    private func userIDRow() -> some View {
+        HStack {
+            Image(systemName: "grid.circle")
+                .foregroundColor(.gray)
+                .frame(width: 20)
+            Text("User ID").foregroundColor(.white)
+            Spacer()
+            if let user = Auth.auth().currentUser {
+                Text(user.uid)
+                    .font(.footnote)
+                    .foregroundColor(.gray)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 12)
+    }
+
     private func inputRow(
         systemImage: String,
         label: String,
@@ -357,101 +316,69 @@ struct SettingsView: View {
                     .multilineTextAlignment(.trailing)
                     .foregroundColor(.white)
                     .frame(minWidth: 100)
-                    .onSubmit {    // fires when user presses return or ends editing
-                        onCommit?()
-                    }
+                    .onSubmit { onCommit?() }
             } else {
                 Text(binding.wrappedValue)
                     .foregroundColor(.gray)
                     .multilineTextAlignment(.trailing)
             }
         }
-        .padding(10)
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(10)
         .padding(.horizontal)
+        .padding(.vertical, 12)
     }
-    
-    
-    // MARK: - Notifications Section
-    struct NotificationsSection: View {
-        // Local persisted states (load instantly from UserDefaults)
-        @AppStorage("expiringTasks") private var expiringTasks = true
-        @AppStorage("newTasks") private var newTasks = true
-        @AppStorage("weeklyProgress") private var weeklyProgress = true
-        
-        let gradient = LinearGradient(
-            colors: [Color(red: 84/255, green: 0/255, blue: 232/255), Color(red: 236/255, green: 71/255, blue: 1/255)],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-        
-        var body: some View {
-            VStack(spacing: 12) {
-                Text("NOTIFICATIONS")
-                    .font(.title3)
-                    .bold()
-                    .foregroundStyle(gradient)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
-                
-                notificationToggle(systemImage: "clock.badge.exclamationmark",
-                                   label: "Expiring Tasks",
-                                   isOn: $expiringTasks)
-                .onChange(of: expiringTasks) { _, newValue in
-                    PreferenceManager.savePreference(key: "expiringTasks", value: newValue)
-                }
-                
-                notificationToggle(systemImage: "plus.square.on.square",
-                                   label: "New Tasks",
-                                   isOn: $newTasks)
-                .onChange(of: newTasks) { _, newValue in
-                    PreferenceManager.savePreference(key: "newTasks", value: newValue)
-                }
-                
-                notificationToggle(systemImage: "chart.bar.xaxis",
-                                   label: "Progress Reports",
-                                   isOn: $weeklyProgress)
-                .onChange(of: weeklyProgress) { _, newValue in
-                    PreferenceManager.savePreference(key: "weeklyProgress", value: newValue)
-                }
-            }
-            .onAppear {
-                refreshPreferencesFromFirestore()
-            }
-        }
-        
-        
-        @ViewBuilder
-        private func notificationToggle(systemImage: String, label: String, isOn: Binding<Bool>) -> some View {
-            Toggle(isOn: isOn) {
-                HStack {
-                    Image(systemName: systemImage).foregroundColor(.gray).frame(width: 20)
-                    Text(label).foregroundColor(.white)
-                }
-            }
-            .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
-            .padding(10)
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(10)
-            .padding(.horizontal)
-        }
-        
-        private func refreshPreferencesFromFirestore() {
-            guard let uid = Auth.auth().currentUser?.uid else { return }
-            let db = Firestore.firestore()
-            db.collection("users").document(uid).getDocument { snapshot, error in
-                if let data = snapshot?.data(),
-                   let notifications = data["notifications"] as? [String: Bool] {
-                    // Update AppStorage with cloud values (overrides cache if different)
-                    expiringTasks = notifications["expiringTasks"] ?? expiringTasks
-                    newTasks = notifications["newTasks"] ?? newTasks
-                    weeklyProgress = notifications["weeklyProgress"] ?? weeklyProgress
-                }
+
+    // MARK: - Firestore helpers
+    private func saveNameToFirestore(_ newName: String) {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        db.collection("users").document(uid).setData([
+            "name": newName
+        ], merge: true) { error in
+            if let error = error {
+                print("Failed to update name: \(error.localizedDescription)")
+            } else {
+                var cached = UserDefaults.standard.dictionary(forKey: "cachedUserData") ?? [:]
+                cached["name"] = newName
+                UserDefaults.standard.set(cached, forKey: "cachedUserData")
             }
         }
     }
-    
+
+    private func loadPreferences() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        db.collection("users").document(uid).getDocument { snapshot, _ in
+            if let data = snapshot?.data() {
+                if let notifications = data["notifications"] as? [String: Bool] {
+                    expiringTasks = notifications["expiringTasks"] ?? true
+                    newTasks = notifications["newTasks"] ?? true
+                    weeklyProgress = notifications["weeklyProgress"] ?? true
+                } else {
+                    PreferenceManager.savePreference(key: "expiringTasks", value: true)
+                    PreferenceManager.savePreference(key: "newTasks", value: true)
+                    PreferenceManager.savePreference(key: "weeklyProgress", value: true)
+                }
+            }
+            preferencesLoaded = true
+        }
+    }
+
+    private func loadUserData() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        db.collection("users").document(uid).getDocument { snapshot, error in
+            if let data = snapshot?.data(), error == nil {
+                let fetchedName = data["name"] as? String ?? ""
+                let fetchedEmail = data["email"] as? String ?? ""
+                DispatchQueue.main.async {
+                    self.name = fetchedName
+                    self.userEmail = fetchedEmail
+                }
+                UserDefaults.standard.set(["name": fetchedName, "email": fetchedEmail], forKey: "cachedUserData")
+            }
+        }
+    }
+
     struct PreferenceManager {
         static func savePreference(key: String, value: Bool) {
             guard let uid = Auth.auth().currentUser?.uid else { return }
