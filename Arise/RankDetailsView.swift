@@ -333,11 +333,11 @@ struct RankDetailsView: View {
     }
 
     private var currentRank: Rank {
-        ranks.first(where: { $0.id == currentRankId }) ?? ranks[0]
+        ranks.last(where: { Double(currentXP) >= $0.requiredXP }) ?? ranks[0]
     }
-
+    
     private var nextRank: Rank {
-        ranks.first(where: { $0.id == currentRankId + 1 }) ?? currentRank
+        ranks.first(where: { $0.requiredXP > Double(currentXP) }) ?? currentRank
     }
 
     private var currentXPProgress: Double {

@@ -4,8 +4,21 @@ import Firebase
 import FirebaseAuth
 
 struct HomeView: View {
+    
+    let ranks = [
+        Rank(id: 1, name: "Seeker", emblemName: "master_emblem", requiredXP: 0, subtitle: "Every journey begins with a single step."),
+        Rank(id: 2, name: "Initiate", emblemName: "master_emblem", requiredXP: 2000, subtitle: "Commitment is your first victory."),
+        Rank(id: 3, name: "Pioneer", emblemName: "master_emblem", requiredXP: 4000, subtitle: "Forge new paths, leave a mark."),
+        Rank(id: 4, name: "Explorer", emblemName: "master_emblem", requiredXP: 8000, subtitle: "Seek the unknown, learn from everything."),
+        Rank(id: 5, name: "Challenger", emblemName: "challenger_emblem", requiredXP: 12000, subtitle: "You only lose when you stop fighting."),
+        Rank(id: 6, name: "Refiner", emblemName: "master_emblem", requiredXP: 16000, subtitle: "Strength is forged in relentless practice."),
+        Rank(id: 7, name: "Master", emblemName: "master_emblem", requiredXP: 18000, subtitle: "Discipline shapes mastery."),
+        Rank(id: 8, name: "Conquerer", emblemName: "master_emblem", requiredXP: 19000, subtitle: "Pain is the path to triumph."),
+        Rank(id: 9, name: "Ascendant", emblemName: "master_emblem", requiredXP: 19500, subtitle: "Only by fighting do you rise."),
+        Rank(id: 10, name: "Transcendent", emblemName: "transcendent_emblem", requiredXP: 19800, subtitle: "All limits fall before you.")
+    ]
+    
     @State private var glowPulse = false
-
     @State private var rank: String = "Loading..."
     @State private var totalXP: Int = 0
     @State private var skillData: [String: [String: Int]] = [:]  // [skill: ["level": Int, "xp": Int]]
@@ -21,6 +34,23 @@ struct HomeView: View {
         "Network": "person.2.fill"
     ]
 
+    private var currentRank: Rank {
+        ranks.last(where: { Double(totalXP) >= $0.requiredXP }) ?? ranks[0]
+    }
+    private var nextRank: Rank {
+        ranks.first(where: { $0.requiredXP > Double(totalXP) }) ?? currentRank
+    }
+    private var xpProgress: Double {
+        let prevXP = currentRank.requiredXP
+        let nextXP = nextRank.requiredXP
+        return min(max((Double(totalXP) - prevXP) / (nextXP - prevXP), 0), 1)
+    }
+    private var xpDisplay: String {
+        let current = totalXP
+        let next = Int(nextRank.requiredXP)
+        return "\(current) / \(next) XP"
+    }
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -49,14 +79,14 @@ struct HomeView: View {
                                         .blur(radius: 30)
                                         .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: glowPulse)
 
-                                    Image("master_emblem")
+                                    Image(currentRank.emblemName)
                                         .resizable()
                                         .scaledToFit()
-                                        .frame(width: 130, height: 130)
+                                        .frame(width: 130, height: 130 )
                                 }
 
                                 VStack(alignment: .leading, spacing: 8) {
-                                    Text(rank.uppercased())
+                                    Text(currentRank.name.uppercased())
                                         .font(.system(size: 20, weight: .bold, design: .rounded))
                                         .foregroundStyle(
                                             LinearGradient(
@@ -69,7 +99,7 @@ struct HomeView: View {
                                             )
                                         )
 
-                                    Text("\(totalXP) XP")
+                                    Text(xpDisplay)
                                         .font(.caption)
                                         .foregroundColor(.white.opacity(0.6))
 
@@ -80,7 +110,7 @@ struct HomeView: View {
                                             .foregroundColor(Color.white.opacity(0.1))
 
                                         Capsule()
-                                            .frame(width: CGFloat(Double(totalXP % 16000) / 16000) * 180, height: 8)
+                                            .frame(width: 180 * xpProgress, height: 8)
                                             .foregroundStyle(
                                                 LinearGradient(
                                                     colors: [
