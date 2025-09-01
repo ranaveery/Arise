@@ -34,7 +34,7 @@ struct SettingsView: View {
     @State private var navigateToChangePassword = false
     
 //    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.4.0.2" // APPSTAGE.MAJOR.MINOR.PATCH
+    let versionInfo = "0.4.0.3" // APPSTAGE.MAJOR.MINOR.PATCH
 
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
@@ -228,6 +228,9 @@ struct SettingsView: View {
         .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
         .padding(.horizontal)
         .padding(.vertical, 12)
+        .onChange(of: expiringTasks) { _, newValue in
+            PreferenceManager.savePreference(key: "expiringTasks", value: newValue)
+        }
 
         dividerLine()
 
@@ -240,6 +243,9 @@ struct SettingsView: View {
         .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
         .padding(.horizontal)
         .padding(.vertical, 12)
+        .onChange(of: newTasks) { _, newValue in
+            PreferenceManager.savePreference(key: "newTasks", value: newValue)
+        }
 
         dividerLine()
 
@@ -252,6 +258,9 @@ struct SettingsView: View {
         .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
         .padding(.horizontal)
         .padding(.vertical, 12)
+        .onChange(of: weeklyProgress) { _, newValue in
+            PreferenceManager.savePreference(key: "weeklyProgress", value: newValue)
+        }
     }
 
     // MARK: - Divider between rows (no gaps)
