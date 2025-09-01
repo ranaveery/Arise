@@ -165,7 +165,7 @@ struct SignUpView: View {
                 userRef.setData([
                     "name": name,
                     "email": email,
-                    "rank": "Novice",
+                    "rank": "Seeker",
                     "xp": 0,
                     "skills": [
                         "Resilience": ["level": 1, "xp": 0],
@@ -246,7 +246,7 @@ struct SignUpView: View {
                         userRef.setData([
                             "name": name,
                             "email": email,
-                            "rank": "Novice",
+                            "rank": "Seeker",
                             "xp": 0,
                             "skills": [
                                 "Resilience": ["level": 1, "xp": 0],

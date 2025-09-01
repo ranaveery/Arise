@@ -170,7 +170,7 @@ struct OnboardingView: View {
             if let snap = snapshot, snap.exists {
                 let existing = snap.data() ?? [:]
                 if existing["xp"] == nil { data["xp"] = 0 }
-                if existing["rank"] == nil { data["rank"] = "Novice" }
+                if existing["rank"] == nil { data["rank"] = "Seeker" }
                 if existing["skills"] == nil {
                     data["skills"] = [
                         "Resilience": ["level": 1, "xp": 0],
@@ -191,7 +191,7 @@ struct OnboardingView: View {
             } else {
                 // Brand new doc
                 data["xp"] = 0
-                data["rank"] = "Novice"
+                data["rank"] = "Seeker"
                 data["skills"] = [
                     "Resilience": ["level": 1, "xp": 0],
                     "Fuel": ["level": 1, "xp": 0],
