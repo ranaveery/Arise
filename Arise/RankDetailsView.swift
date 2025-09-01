@@ -389,7 +389,7 @@ struct RankDetailsView: View {
         let currentRankId: Int
         
         var body: some View {
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(spacing: 16) {
                     
                     Text("All Ranks")
@@ -443,6 +443,8 @@ struct RankDetailsView: View {
                 .padding()
                 .background(Color.black.ignoresSafeArea())
             }
+            .background(Color.black)
+            .ignoresSafeArea()
         }
     }
     
