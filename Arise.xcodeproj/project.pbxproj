@@ -32,9 +32,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		F5270A662E663960009727A4 /* Arise.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = Arise.app; path = "/Users/ranaveer/repositories/Arise/build/Debug-iphoneos/Arise.app"; sourceTree = "<absolute>"; };
-		F570B6112E662B9000E7B99C /* AriseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = AriseTests.xctest; path = "/Users/ranaveer/repositories/Arise/build/Debug-iphoneos/Arise.app/PlugIns/AriseTests.xctest"; sourceTree = "<absolute>"; };
-		F570B6122E662B9000E7B99C /* AriseUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = AriseUITests.xctest; path = "/Users/ranaveer/repositories/Arise/build/Debug-iphoneos/AriseUITests-Runner.app/PlugIns/AriseUITests.xctest"; sourceTree = "<absolute>"; };
+		F5E9D9712E66646200A081CF /* Arise.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = Arise.app; path = "/Users/ranaveer/repositories/Arise/build/Debug-iphoneos/Arise.app"; sourceTree = "<absolute>"; };
+		F5E9D9722E66646200A081CF /* AriseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = AriseTests.xctest; path = "/Users/ranaveer/repositories/Arise/build/Debug-iphoneos/Arise.app/PlugIns/AriseTests.xctest"; sourceTree = "<absolute>"; };
+		F5E9D9732E66646200A081CF /* AriseUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = AriseUITests.xctest; path = "/Users/ranaveer/repositories/Arise/build/Debug-iphoneos/AriseUITests-Runner.app/PlugIns/AriseUITests.xctest"; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -150,7 +150,7 @@
 				F5EEDB502E2EFD2D00217333 /* GoogleSignIn */,
 			);
 			productName = Arise;
-			productReference = F5270A662E663960009727A4 /* Arise.app */;
+			productReference = F5E9D9712E66646200A081CF /* Arise.app */;
 			productType = "com.apple.product-type.application";
 		};
 		F59AA44B2E2B0F4500EECDB1 /* AriseTests */ = {
@@ -173,7 +173,7 @@
 			packageProductDependencies = (
 			);
 			productName = AriseTests;
-			productReference = F570B6112E662B9000E7B99C /* AriseTests.xctest */;
+			productReference = F5E9D9722E66646200A081CF /* AriseTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		F59AA4552E2B0F4500EECDB1 /* AriseUITests */ = {
@@ -196,7 +196,7 @@
 			packageProductDependencies = (
 			);
 			productName = AriseUITests;
-			productReference = F570B6122E662B9000E7B99C /* AriseUITests.xctest */;
+			productReference = F5E9D9732E66646200A081CF /* AriseUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
