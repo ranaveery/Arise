@@ -36,7 +36,10 @@ struct SignUpView: View {
                     .background(Color.white.opacity(0.05))
                     .cornerRadius(25)
                     .foregroundColor(.white)
-                    .autocapitalization(.words)
+                    .autocapitalization(.none)
+                    .onChange(of: name) { oldValue, newValue in
+                        name = Self.sanitizeName(newValue)
+                    }
 
                 TextField("Email", text: $email)
                     .padding(.horizontal, 16)
@@ -132,6 +135,31 @@ struct SignUpView: View {
         .padding()
         .background(Color.black.ignoresSafeArea())
     }
+    
+    private static func sanitizeName(_ input: String) -> String {
+        let allowed = CharacterSet.letters.union(CharacterSet(charactersIn: "-"))
+        let filtered = input.unicodeScalars
+            .filter { allowed.contains($0) }
+            .map { String($0) }
+            .joined()
+
+        var result = ""
+        var capitalizeNext = true
+        for char in filtered {
+            if char == "-" {
+                result.append(char)
+                capitalizeNext = true
+            } else {
+                if capitalizeNext {
+                    result.append(char.uppercased())
+                    capitalizeNext = false
+                } else {
+                    result.append(char.lowercased())
+                }
+            }
+        }
+        return result
+    }
 
     private func registerUser() {
         isLoading = true
@@ -163,7 +191,7 @@ struct SignUpView: View {
                 let userRef = db.collection("users").document(user.uid)
 
                 userRef.setData([
-                    "name": name,
+                    "name": Self.sanitizeName(name),
                     "email": email,
                     "rank": "Seeker",
                     "xp": 0,
