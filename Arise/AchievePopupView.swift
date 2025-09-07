@@ -26,9 +26,10 @@ struct AchievementPopupView: View {
                     if achievement.unlocked {
                         Image(achievement.imageName)
                             .resizable()
-                            .scaledToFit()
-                            .frame(width: 300, height: 300)
+                            .scaledToFill()
+                            .frame(width: 350, height: 350)
                             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .clipped()
                     } else {
                         Image(systemName: "questionmark")
                             .resizable()
@@ -102,6 +103,7 @@ struct AchievementPopupView: View {
             }
             .padding()
         }
+        .scrollIndicators(.hidden)
         .background(Color.black.ignoresSafeArea())
     }
 }

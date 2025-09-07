@@ -167,6 +167,30 @@ struct HomeView: View {
         }
     }
     
+    private func syncRankIfNeeded() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let userRef = Firestore.firestore().collection("users").document(uid)
+        
+        // Get what rank Firestore has
+        userRef.getDocument { snapshot, error in
+            guard let data = snapshot?.data() else { return }
+            let firestoreRank = data["rank"] as? String ?? "Seeker"
+            
+            // Compare with currentRank
+            if firestoreRank != currentRank.name {
+                userRef.updateData([
+                    "rank": currentRank.name
+                ]) { error in
+                    if let error = error {
+                        print("Failed to update rank in Firestore: \(error.localizedDescription)")
+                    } else {
+                        print("Updated rank in Firestore to \(currentRank.name)")
+                    }
+                }
+            }
+        }
+    }
+    
     func fetchUserData() {
         // First try loading from cache
         if let cached = UserDefaults.standard.dictionary(forKey: "cachedUserData") {
@@ -186,7 +210,7 @@ struct HomeView: View {
                 self.rank = data["rank"] as? String ?? "Novice"
                 self.totalXP = data["xp"] as? Int ?? 0
                 self.skillData = data["skills"] as? [String: [String: Int]] ?? [:]
-
+                syncRankIfNeeded()
                 // Save to cache
                 UserDefaults.standard.set(data, forKey: "cachedUserData")
             } else {
