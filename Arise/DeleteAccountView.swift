@@ -4,6 +4,36 @@ import FirebaseFirestore
 import GoogleSignIn
 import FirebaseCore
 
+struct DeleteOptionButton: View {
+    let text: String
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            Text(text)
+                .fontWeight(.medium)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(20)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(LinearGradient(
+                            gradient: Gradient(colors: isSelected
+                                ? [Color(red: 84/255, green: 0/255, blue: 232/255),
+                                   Color(red: 236/255, green: 71/255, blue: 1/255)]
+                                : [.clear, .clear]
+                            ),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ), lineWidth: isSelected ? 2 : 1)
+                )
+                .foregroundColor(.white)
+        }
+    }
+}
+
 struct DeleteAccountView: View {
     @Environment(\.presentationMode) var presentationMode
     @State private var selectedReasons: Set<String> = []
@@ -33,7 +63,7 @@ struct DeleteAccountView: View {
                 
                 VStack(spacing: 16) {
                     ForEach(reasons, id: \.self) { reason in
-                        OptionButton(
+                        DeleteOptionButton(
                             text: reason,
                             isSelected: selectedReasons.contains(reason)
                         ) {

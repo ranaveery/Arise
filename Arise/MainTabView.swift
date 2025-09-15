@@ -1,4 +1,3 @@
-// CustomTabView.swift
 import SwiftUI
 
 struct MainTabView: View {
