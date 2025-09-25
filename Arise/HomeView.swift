@@ -6,14 +6,14 @@ import FirebaseAuth
 struct HomeView: View {
     
     let ranks = [
-        Rank(id: 1, name: "Seeker", emblemName: "master_emblem", requiredXP: 0, subtitle: "Every journey begins with a single step."),
-        Rank(id: 2, name: "Initiate", emblemName: "master_emblem", requiredXP: 1000, subtitle: "Commitment is your first victory."),
-        Rank(id: 3, name: "Pioneer", emblemName: "master_emblem", requiredXP: 2000, subtitle: "Forge new paths, leave a mark."),
-        Rank(id: 4, name: "Explorer", emblemName: "master_emblem", requiredXP: 3000, subtitle: "Seek the unknown, learn from everything."),
-        Rank(id: 5, name: "Challenger", emblemName: "challenger_emblem", requiredXP: 5000, subtitle: "You only lose when you stop fighting."),
-        Rank(id: 6, name: "Refiner", emblemName: "master_emblem", requiredXP: 7000, subtitle: "Strength is forged in relentless practice."),
+        Rank(id: 1, name: "Seeker", emblemName: "seeker_emblem", requiredXP: 0, subtitle: "Every journey begins with a single step."),
+        Rank(id: 2, name: "Initiate", emblemName: "initiate_emblem", requiredXP: 1000, subtitle: "Commitment is your first victory."),
+        Rank(id: 3, name: "Pioneer", emblemName: "pioneer_emblem", requiredXP: 2000, subtitle: "Forge new paths, leave a mark."),
+        Rank(id: 4, name: "Explorer", emblemName: "explorer_emblem", requiredXP: 3000, subtitle: "Seek the unknown, learn from everything."),
+        Rank(id: 5, name: "Challenger", emblemName: "master_emblem", requiredXP: 5000, subtitle: "You only lose when you stop fighting."),
+        Rank(id: 6, name: "Refiner", emblemName: "refiner_emblem", requiredXP: 7000, subtitle: "Strength is forged in relentless practice."),
         Rank(id: 7, name: "Master", emblemName: "master_emblem", requiredXP: 9000, subtitle: "Discipline shapes mastery."),
-        Rank(id: 8, name: "Conquerer", emblemName: "master_emblem", requiredXP: 12000, subtitle: "Pain is the path to triumph."),
+        Rank(id: 8, name: "Conquerer", emblemName: "conquerer_emblem", requiredXP: 12000, subtitle: "Pain is the path to triumph."),
         Rank(id: 9, name: "Ascendant", emblemName: "master_emblem", requiredXP: 15000, subtitle: "Only by fighting do you rise."),
         Rank(id: 10, name: "Transcendent", emblemName: "transcendent_emblem", requiredXP: 20000, subtitle: "All limits fall before you.")
     ]

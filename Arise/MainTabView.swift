@@ -2,9 +2,9 @@ import SwiftUI
 
 struct MainTabView: View {
     @Binding var isUserLoggedIn: Bool
+    @AppStorage("animationsEnabled") private var animationsEnabled = true
     @State private var selectedTab: Tab = .home
     
-
     enum Tab {
         case home, logging, trends, settings
     }
@@ -31,16 +31,16 @@ struct MainTabView: View {
                 Divider().background(Color.gray.opacity(0.2))
 
                 HStack {
-                    TabButtonView(icon: "house", label: "Home", tab: .home, selectedTab: $selectedTab)
+                    TabButton(icon: "house", label: "Home", tab: .home, selectedTab: $selectedTab, animationsEnabled: animationsEnabled)
                     Spacer()
-                    TabButtonView(icon: "list.bullet.clipboard", label: "Tasks", tab: .logging, selectedTab: $selectedTab)
+                    TabButton(icon: "list.bullet.clipboard", label: "Tasks", tab: .logging, selectedTab: $selectedTab, animationsEnabled: animationsEnabled)
                     Spacer()
-                    TabButtonView(icon: "chart.bar", label: "Trend", tab: .trends, selectedTab: $selectedTab)
+                    TabButton(icon: "chart.bar", label: "Trend", tab: .trends, selectedTab: $selectedTab, animationsEnabled: animationsEnabled)
                     Spacer()
-                    TabButtonView(icon: "gearshape", label: "Settings", tab: .settings, selectedTab: $selectedTab)
+                    TabButton(icon: "gearshape", label: "Settings", tab: .settings, selectedTab: $selectedTab, animationsEnabled: animationsEnabled)
                 }
                 .padding(.horizontal, 30)
-                .frame(height: 55) // Controls total tab bar height
+                .frame(height: 55)
                 .background(Color.black)
             }
             .frame(maxWidth: .infinity)
@@ -48,21 +48,31 @@ struct MainTabView: View {
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
     }
+}
 
+struct TabButton: View {
+    let icon: String
+    let label: String
+    let tab: MainTabView.Tab
+    @Binding var selectedTab: MainTabView.Tab
+    let animationsEnabled: Bool
+    
+    @State private var isAnimating = false
 
-    func tabButton(icon: String, label: String, tab: Tab) -> some View {
-        @State var isAnimating = false
+    var body: some View {
+        let isSelected = selectedTab == tab
+        let displayedIcon = isSelected ? icon + ".fill" : icon
 
-        return Button(action: {
-            // Trigger animation
-            isAnimating = true
-            selectedTab = tab
-
-            // Reset after delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                isAnimating = false
+        Button(action: {
+            if animationsEnabled {
+                isAnimating = true
+                selectedTab = tab
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    isAnimating = false
+                }
+            } else {
+                selectedTab = tab
             }
-
         }) {
             VStack(spacing: 4) {
                 ZStack {
@@ -70,55 +80,22 @@ struct MainTabView: View {
                         .fill(Color.black)
                         .frame(width: 32, height: 32)
 
-                    Image(systemName: icon)
+                    Image(systemName: displayedIcon)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 24, height: 24)
                         .foregroundColor(.white)
-                        .overlay(
-                            selectedTab == tab ? LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color(red: 84/255, green: 0/255, blue: 232/255),
-                                    Color(red: 236/255, green: 71/255, blue: 1/255)
-                                ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                            .mask(
-                                Image(systemName: icon)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 24, height: 24)
-                            ) : nil
-                        )
-                        .scaleEffect(isAnimating ? 1.3 : 1.0) // Add scale animation
-                        .animation(.easeOut(duration: 0.2), value: isAnimating)
+                        .scaleEffect(isAnimating ? 1.3 : 1.0) // same as your original
+                        .animation(animationsEnabled ? .easeOut(duration: 0.2) : nil,
+                                   value: isAnimating) // conditional animation
                 }
 
                 Text(label)
                     .font(.caption2)
                     .fontWeight(.medium)
-                    .foregroundColor(selectedTab == tab ? .clear : .white.opacity(0.7))
-                    .overlay(
-                        selectedTab == tab ?
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color(red: 84/255, green: 0/255, blue: 232/255),
-                                Color(red: 236/255, green: 71/255, blue: 1/255)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .mask(
-                            Text(label)
-                                .font(.caption2)
-                                .fontWeight(.medium)
-                        ) : nil
-                    )
+                    .foregroundColor(isSelected ? .white : .white.opacity(0.7))
             }
             .padding(.top, 6)
         }
     }
-
-
 }

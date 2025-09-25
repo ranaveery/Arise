@@ -25,6 +25,7 @@ struct SettingsView: View {
     @AppStorage("expiringTasks") private var expiringTasks = true
     @AppStorage("newTasks") private var newTasks = true
     @AppStorage("weeklyProgress") private var weeklyProgress = true
+    @AppStorage("animationsEnabled") private var animationsEnabled = true
     @State private var userEmail = ""
     @State private var name = ""
     @State private var showLogoutConfirmation = false
@@ -34,7 +35,7 @@ struct SettingsView: View {
     @State private var navigateToChangePassword = false
     
 //    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.6.0.0" // APPSTAGE.MAJOR.MINOR.PATCH
+    let versionInfo = "0.7.0.0" // APPSTAGE.MAJOR.MINOR.PATCH
 
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
@@ -104,7 +105,20 @@ struct SettingsView: View {
                     sectionBlock("APPEARANCE") {
                         staticRow(systemImage: "circle.lefthalf.filled", label: "Mode", value: "Dark")
                         dividerLine()
-                        staticRow(systemImage: "circle.dotted.and.circle", label: "Animations", value: "Enabled")
+                        Toggle(isOn: $animationsEnabled) {
+                            HStack {
+                                Image(systemName: "circle.dotted.and.circle")
+                                    .foregroundColor(.gray)
+                                    .frame(width: 20)
+                                Text("Animations").foregroundColor(.white)
+                            }
+                        }
+                        .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
+                        .padding(.horizontal)
+                        .padding(.vertical, 12)
+                        .onChange(of: animationsEnabled) { _, newValue in
+                            PreferenceManager.saveTopLevelPreference(key: "animationsEnabled", value: newValue)
+                        }
                     }
 
                     // APP / ABOUT
@@ -388,10 +402,9 @@ struct SettingsView: View {
                     expiringTasks = notifications["expiringTasks"] ?? true
                     newTasks = notifications["newTasks"] ?? true
                     weeklyProgress = notifications["weeklyProgress"] ?? true
-                } else {
-                    PreferenceManager.savePreference(key: "expiringTasks", value: true)
-                    PreferenceManager.savePreference(key: "newTasks", value: true)
-                    PreferenceManager.savePreference(key: "weeklyProgress", value: true)
+                }
+                if let animationsPref = data["animationsEnabled"] as? Bool {
+                    animationsEnabled = animationsPref
                 }
             }
             preferencesLoaded = true
@@ -420,6 +433,14 @@ struct SettingsView: View {
             let db = Firestore.firestore()
             db.collection("users").document(uid).setData([
                 "notifications": [key: value]
+            ], merge: true)
+        }
+        
+        static func saveTopLevelPreference(key: String, value: Bool) {
+            guard let uid = Auth.auth().currentUser?.uid else { return }
+            let db = Firestore.firestore()
+            db.collection("users").document(uid).setData([
+                key: value
             ], merge: true)
         }
     }

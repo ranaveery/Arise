@@ -195,6 +195,7 @@ struct SignUpView: View {
                     "email": email,
                     "rank": "Seeker",
                     "xp": 0,
+                    "animationsEnabled": true,
                     "skills": [
                         "Resilience": ["level": 1, "xp": 0],
                         "Fuel": ["level": 1, "xp": 0],
@@ -276,6 +277,7 @@ struct SignUpView: View {
                             "email": email,
                             "rank": "Seeker",
                             "xp": 0,
+                            "animationsEnabled": true,
                             "skills": [
                                 "Resilience": ["level": 1, "xp": 0],
                                 "Fuel": ["level": 1, "xp": 0],
