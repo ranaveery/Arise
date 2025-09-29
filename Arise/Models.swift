@@ -17,6 +17,7 @@ struct Rank: Identifiable {
     let emblemName: String
     let requiredXP: Double
     let subtitle: String
+    let themeColors: [Color]
 }
 
 // MARK: - Achievement Model

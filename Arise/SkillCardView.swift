@@ -7,24 +7,7 @@ struct SkillCardView: View {
     let progress: Double
     let trend: Int? // Use positive for up, negative for down
     let destination: AnyView
-
-    let gradient = LinearGradient(
-        gradient: Gradient(colors: [
-            Color(red: 84/255, green: 0/255, blue: 232/255), //Purple
-            Color(red: 236/255, green: 71/255, blue: 1/255) //Orange
-        ]),
-        startPoint: .leading,
-        endPoint: .trailing
-    )
-    
-    let gradient2 = LinearGradient(
-        gradient: Gradient(colors: [
-            Color(red: 152/255, green: 35/255, blue: 115/255),
-            Color(red: 236/255, green: 71/255, blue: 1/255)
-        ]),
-        startPoint: .leading,
-        endPoint: .trailing
-    )
+    let gradient: LinearGradient  // <- new
 
     var body: some View {
         NavigationLink(destination: destination) {
@@ -46,8 +29,6 @@ struct SkillCardView: View {
                                 .scaledToFit()
                                 .font(.caption)
                                 .foregroundColor(trend > 0 ? .green : .red)
-
-
                         }
                     }
 
@@ -58,11 +39,10 @@ struct SkillCardView: View {
 
                         Capsule()
                             .frame(width: CGFloat(progress) * 200, height: 6) // filled amount changes
-                            .foregroundStyle(gradient2)
+                            .foregroundStyle(gradient)
                     }
                     .frame(maxWidth: 200)
                 }
-
 
                 Text("LVL \(level)")
                     .font(.subheadline.bold())
