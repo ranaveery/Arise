@@ -9,12 +9,12 @@ struct RankDetailsView: View {
              themeColors: [Color(red: 85/255, green: 64/255, blue: 44/255),
                            Color(red: 18/255, green: 13/255, blue: 9/255)]),
 
-        Rank(id: 2, name: "Initiate", emblemName: "initiate_emblem", requiredXP: 1000,
+        Rank(id: 2, name: "Initiate", emblemName: "initiate_emblem", requiredXP: 900,
              subtitle: "Commitment is your first victory.",
              themeColors: [Color(red: 85/255, green: 85/255, blue: 85/255),
                            Color(red: 169/255, green: 169/255, blue: 169/255)]),
 
-        Rank(id: 3, name: "Pioneer", emblemName: "pioneer_emblem", requiredXP: 2000,
+        Rank(id: 3, name: "Pioneer", emblemName: "pioneer_emblem", requiredXP: 2100,
              subtitle: "Forge new paths, leave a mark.",
              themeColors: [Color(red: 184/255, green: 115/255, blue: 51/255),
                            Color(red: 93/255, green: 46/255, blue: 12/255)]),
@@ -24,12 +24,12 @@ struct RankDetailsView: View {
              themeColors: [Color(red: 153/255, green: 0/255, blue: 0/255),
                            Color(red: 255/255, green: 85/255, blue: 0/255)]),
 
-        Rank(id: 5, name: "Challenger", emblemName: "challenger_emblem", requiredXP: 5000,
+        Rank(id: 5, name: "Challenger", emblemName: "challenger_emblem", requiredXP: 5100,
              subtitle: "You only lose when you stop fighting.",
              themeColors: [Color(red: 155/255, green: 102/255, blue: 75/255),
                            Color(red: 33/255, green: 64/255, blue: 68/255)]),
 
-        Rank(id: 6, name: "Refiner", emblemName: "refiner_emblem", requiredXP: 7000,
+        Rank(id: 6, name: "Refiner", emblemName: "refiner_emblem", requiredXP: 6900,
              subtitle: "Strength is forged in relentless practice.",
              themeColors: [Color(red: 4/255, green: 99/255, blue: 7/255),
                            Color(red: 212/255, green: 175/255, blue: 55/255)]),
@@ -43,13 +43,14 @@ struct RankDetailsView: View {
              subtitle: "Pain is the path to triumph.",
              themeColors: [Color(red: 71/255, green: 12/255, blue: 17/255),
                            Color(red: 86/255, green: 105/255, blue: 162/255)]),
-        
+
         Rank(id: 9, name: "Ascendant", emblemName: "ascendant_emblem", requiredXP: 15000,
              subtitle: "Only by fighting do you rise.",
              themeColors: [Color(red: 10/255, green: 55/255, blue: 126/255),
                            Color(red: 180/255, green: 124/255, blue: 28/255)]),
+        
 
-        Rank(id: 10, name: "Transcendent", emblemName: "transcendent_emblem", requiredXP: 20000,
+        Rank(id: 10, name: "Transcendent", emblemName: "transcendent_emblem", requiredXP: 20100,
              subtitle: "All limits fall before you.",
              themeColors: [Color(red: 84/255, green: 0/255, blue: 232/255),
                            Color(red: 236/255, green: 71/255, blue: 1/255)])
