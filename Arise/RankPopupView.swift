@@ -39,13 +39,10 @@ struct RankPopupView: View {
                                 .font(.caption2.bold())
                                 .foregroundStyle(
                                     LinearGradient(
-                                        colors: [
-                                            Color(red: 153/255, green: 0/255, blue: 0/255),
-                                            Color(red: 255/255, green: 85/255, blue: 0/255)
-                                        ],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
+                                            colors: rank.themeColors,
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
                                 )
                         }
                     }

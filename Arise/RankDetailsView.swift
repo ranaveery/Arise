@@ -431,7 +431,7 @@ struct SkillContributionsView: View {
                 .font(.headline)
                 .foregroundStyle(gradient)
             
-            Text("This shows how much each skill has contributed to your rank.")
+            Text("This shows each individual skills cumulative contribution to your rank so far.")
                 .font(.caption)
                 .foregroundColor(.white.opacity(0.6))
             
