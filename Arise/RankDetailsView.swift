@@ -496,6 +496,7 @@ struct AchievementsView: View {
                         AchievementCard(achievement: achievement)
                     }
                     .buttonStyle(.plain)
+                    .disabled(!achievement.unlocked)
                 }
             }
         }

@@ -30,12 +30,6 @@ struct AchievementPopupView: View {
                             .frame(width: 350, height: 350)
                             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                             .clipped()
-                    } else {
-                        Image(systemName: "questionmark")
-                            .resizable()
-                            .scaledToFit()
-                            .foregroundColor(.white.opacity(0.7))
-                            .frame(width: 150, height: 150)
                     }
                 }
                 
@@ -69,23 +63,8 @@ struct AchievementPopupView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 3)
                     
-                } else {
-                    // Goal Card
-                    VStack(spacing: 12) {
-
-                        Text(achievement.description)
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.6))
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color.white.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 3)
                 }
                 
-                // Got It Button
                 Button(action: {
                     dismiss()
                 }) {
