@@ -36,7 +36,7 @@ struct RankPopupView: View {
                         
                         if rank.id == currentRankId {
                             Text("You are here")
-                                .font(.caption2.bold())
+                                .font(.caption.bold())
                                 .foregroundStyle(
                                     LinearGradient(
                                             colors: rank.themeColors,

@@ -23,23 +23,18 @@ struct AchievementPopupView: View {
                                 .stroke(Color.white.opacity(0.3), lineWidth: 2)
                         )
                     
-                    if achievement.unlocked {
-                        Image(achievement.imageName)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 350, height: 350)
-                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            .clipped()
-                    }
+                    Image(achievement.imageName)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 350, height: 350)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .clipped()
                 }
                 
-                if achievement.unlocked {
-                    // Title
                     Text(achievement.title)
                         .font(.title2.bold())
                         .foregroundColor(.white)
-                    
-                    // Text Card
+                
                     VStack(spacing: 12) {
                         Text(achievement.description)
                             .font(.subheadline)
@@ -62,8 +57,6 @@ struct AchievementPopupView: View {
                     .background(Color.white.opacity(0.05))
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 3)
-                    
-                }
                 
                 Button(action: {
                     dismiss()

@@ -14,7 +14,7 @@ struct SectionCard<Content: View>: View {
         VStack(spacing: 0) {
             content
         }
-        .background(Color.white.opacity(0.05)) // the card color you wanted
+        .background(Color.white.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: Color.black.opacity(0.25), radius: 8, x: 0, y: 4)
     }
@@ -35,7 +35,7 @@ struct SettingsView: View {
     @State private var navigateToChangePassword = false
     
 //    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.7.6.0" // APPSTAGE.MAJOR.MINOR.PATCH
+    let versionInfo = "0.7.6.1" // APPSTAGE.MAJOR.MINOR.PATCH
 
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
