@@ -2,7 +2,6 @@ import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
 
-// Reusable top-level card so nested types can use it too
 struct SectionCard<Content: View>: View {
     private let content: Content
 
@@ -35,7 +34,7 @@ struct SettingsView: View {
     @State private var navigateToChangePassword = false
     
 //    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.7.6.1" // APPSTAGE.MAJOR.MINOR.PATCH
+    let versionInfo = "0.7.6.2" // APPSTAGE.MAJOR.MINOR.PATCH
 
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
@@ -222,7 +221,6 @@ struct SettingsView: View {
                 .padding(.horizontal, 0)
 
             SectionCard {
-                // add a tiny top padding inside the card so content isn't glued to the corner
                 VStack(spacing: 0) {
                     content()
                 }
@@ -281,7 +279,7 @@ struct SettingsView: View {
     private func dividerLine() -> some View {
         Divider()
             .background(Color.gray.opacity(0.01))
-            .padding(.leading, 45) // align with text after the icon
+            .padding(.leading, 45)
     }
 
     // MARK: - Reusable Rows
@@ -453,7 +451,7 @@ struct SettingsView: View {
         var body: some View {
             TextField("", text: $text)
                 .multilineTextAlignment(.trailing)
-                .foregroundColor(isFocused ? .white : .gray) // gray by default, white when editing
+                .foregroundColor(isFocused ? .white : .gray)
                 .frame(minWidth: 100)
                 .focused($isFocused)
                 .onChange(of: text) { _, newValue in

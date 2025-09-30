@@ -8,14 +8,18 @@ struct RankPopupView: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 16) {
                 
-                Text("All Ranks")
+                Capsule()
+                    .fill(Color.white.opacity(0.4))
+                    .frame(width: 37, height: 5)
+                    .padding(.top, 5)
+                
+                Text("Rank Progression")
                     .font(.title2.bold())
                     .foregroundColor(.white)
                     .padding(.top)
                 
                 ForEach(ranks) { rank in
                     HStack(spacing: 12) {
-                        // Placeholder emblem
                         Image(rank.emblemName)
                             .resizable()
                             .scaledToFit()

@@ -13,14 +13,12 @@ struct PrivacyPolicyView: View {
         )
     }
 
-    // Fixed icon column width used for all rows (keeps text aligned)
     private let iconColumnWidth: CGFloat = 36
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Title
                     Text("Privacy Policy")
                         .font(.largeTitle.weight(.bold))
                         .foregroundStyle(brandGradient)
@@ -28,7 +26,6 @@ struct PrivacyPolicyView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, 16)
 
-                    // Sections
                     policySection(
                         icon: "lock.shield",
                         title: "Data Collection",
@@ -59,7 +56,6 @@ struct PrivacyPolicyView: View {
                         description: "We may revise this policy occasionally. Significant changes will be communicated to you via the app."
                     )
 
-                    // Footer note
                     Text("By continuing to use this app, you agree to this privacy policy.")
                         .font(.footnote)
                         .foregroundColor(.white.opacity(0.6))
@@ -67,8 +63,8 @@ struct PrivacyPolicyView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
                 }
-                .padding(.horizontal, 16)   // horizontal padding applied once for perfect alignment
-                .padding(.bottom, 48)      // bottom spacing for tab bar
+                .padding(.horizontal, 16)
+                .padding(.bottom, 48)
             }
             .background(Color.black.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
@@ -83,7 +79,7 @@ struct PrivacyPolicyView: View {
             Image(systemName: icon)
                 .font(.system(size: 20, weight: .regular))
                 .foregroundColor(.white.opacity(0.9))
-                .frame(width: iconColumnWidth, alignment: .center) // <-- fixed column width
+                .frame(width: iconColumnWidth, alignment: .center)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
@@ -93,7 +89,7 @@ struct PrivacyPolicyView: View {
                 Text(description)
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.85))
-                    .fixedSize(horizontal: false, vertical: true) // allow multiline
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.vertical, 8)
