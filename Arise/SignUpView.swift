@@ -208,7 +208,8 @@ struct SignUpView: View {
                         "expiringTasks": true,
                         "newTasks": true,
                         "weeklyProgress": true
-                    ]
+                    ],
+                    "isOnboarded": false
                 ]) { error in
                     if let error = error {
                         print("Failed to save user data: \(error.localizedDescription)")
@@ -290,7 +291,8 @@ struct SignUpView: View {
                                 "expiringTasks": true,
                                 "newTasks": true,
                                 "weeklyProgress": true
-                            ]
+                            ],
+                            "isOnboarded": false
                         ]) { error in
                             if let error = error {
                                 print("Error saving Google user data:", error.localizedDescription)

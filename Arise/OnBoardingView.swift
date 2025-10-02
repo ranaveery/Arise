@@ -41,7 +41,6 @@ struct OnboardingView: View {
     
     // Workout
     @State private var workoutMinutesPerDay: Int = 30
-    @State private var workoutDaysPerWeek: Int = 3
     @State private var workoutDays: Set<Int> = [1,3,5] // Monday=1 ... Sunday=7
     
     // Screen time
@@ -50,20 +49,24 @@ struct OnboardingView: View {
     
     // Weight -> water
     @State private var weightLbs: Int = 160
-    private var waterOunces: Double { Double(weightLbs) * (2.0/3.0) }
-    
+    private var waterOunces: Int { Int((Double(weightLbs) * (2.0/3.0)).rounded()) }
+
     // Cold showers
     @State private var takeColdShowers: Bool = false
-    @State private var coldShowersPerWeek: Int = 2
+    @State private var coldShowerDays: Set<Int> = [1,3,5]
     
     // Extra activities
-    let activityOptions = ["Meditation","Cold Water Plunge","Reading","Pray","Study","Walk","Run","Sauna"]
-    @State private var selectedActivities: [String: Int] = [:] // activity -> times per week
-    
+    let activityOptions = ["Meditation","Reading","Pray","Study","Walk","Run"]
+    struct ActivityConfig {
+        var frequency: Int
+        var days: Set<Int>
+    }
+    @State private var selectedActivities: [String: ActivityConfig] = [:]
+
     // Revisit addictions severity
     @State private var addictionChoices: [String] = ["Screentime","Porn","Vaping","Smoking","Alcohol","Gaming"]
     @State private var selectedAddiction: String = ""
-    @State private var addictionSeverity: Int = 3 // 1-10
+    @State private var addictionDaysPerWeek: Int = 3
     
     // Final overview note
     @State private var finalNote: String = ""
@@ -431,257 +434,399 @@ struct OnboardingView: View {
         return formatter.string(from: bedtime)
     }
 
-    
     // --- 4: Workout preferences
     private var workoutStep: some View {
-        VStack(spacing: 24) {
-            // Title
-            Text("Workout preferences")
-                .font(.title.bold())
-                .multilineTextAlignment(.center)
-                .foregroundColor(.white)
-                .padding(.top, 8)
+        ZStack {
+            // Background
+            Color.black.ignoresSafeArea()
+            
+            VStack(spacing: 24) {
+                // Title
+                Text("Workout Preferences")
+                    .font(.title.bold())
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.white)
+                    .padding(.top, 8)
+                
+                // Subtitle
+                Text("Set your weekly workout goals.")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                
+                Spacer()
+                
+                VStack(spacing: 24) {
+                    // --- Minutes per day card
+                    VStack(spacing: 16) {
+                        HStack {
+                            Image(systemName: "clock.fill")
+                                .foregroundColor(.white)
+                            Text("Minutes per day")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text("\(workoutMinutesPerDay) min")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                        }
+                        
+                        Slider(
+                            value: Binding(
+                                get: { Double(workoutMinutesPerDay) },
+                                set: { newValue in
+                                    // snap to nearest 15
+                                    let stepped = Int((newValue / 15.0).rounded() * 15)
+                                    workoutMinutesPerDay = min(max(30, stepped), 180)
+                                }
+                            ),
+                            in: 30...180,
+                            step: 1
+                        )
+                        .frame(maxWidth: .infinity)
+                        
+                        Text("Set how long you’d like to workout.")
+                            .font(.footnote)
+                            .foregroundColor(.gray)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(appGradient, lineWidth: 2)
+                    )
+                    .cornerRadius(18)
 
-            // Subtitle
-            Text("Set how much you want to work out each week.")
-                .font(.subheadline)
-                .foregroundColor(.gray)
-                .multilineTextAlignment(.center)
+                    
+                    // --- Preferred days card
+                    VStack(spacing: 16) {
+                        HStack {
+                            Image(systemName: "calendar")
+                                .foregroundColor(.white)
+                            Text("Preferred Days")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            Spacer()
+                        }
+                        
+                        DaysOfWeekPicker(selection: $workoutDays)
+                        
+                        Text("Pick which days you’re most consistent.")
+                            .font(.footnote)
+                            .foregroundColor(.gray)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(appGradient, lineWidth: 2)
+                    )
+                    .cornerRadius(18)
+                }
                 .padding(.horizontal)
+                
+                Spacer()
+                
+                // Tip
+                Text("Consistency matters more than intensity — choose what you can stick to.")
+                    .font(.footnote)
+                    .foregroundColor(.white.opacity(0.75))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+        }
+    }
 
-            Spacer()
 
-            VStack(spacing: 20) {
-                // Minutes per day
-                VStack(spacing: 12) {
-                    HStack {
-                        Text("Minutes per day")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                        Spacer()
-                        Text("\(workoutMinutesPerDay) min")
-                            .foregroundColor(.white)
-                    }
-
-                    Stepper("", value: $workoutMinutesPerDay, in: 15...180, step: 15)
-                        .labelsHidden()
-                }
-                .padding()
-                .background(Color.white.opacity(0.03))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(appGradient, lineWidth: 2)
-                )
-                .cornerRadius(16)
-
-                // Days per week
-                VStack(spacing: 12) {
-                    HStack {
-                        Text("Days per week")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                        Spacer()
-                        Text("\(workoutDaysPerWeek) days")
-                            .foregroundColor(.white)
-                    }
-
-                    Stepper("", value: $workoutDaysPerWeek, in: 0...7)
-                        .labelsHidden()
-                }
-                .padding()
-                .background(Color.white.opacity(0.03))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(appGradient, lineWidth: 2)
-                )
-                .cornerRadius(16)
-
-                // Preferred days
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Pick days of the week you prefer")
+    private var screenTimeStep: some View {
+        VStack(spacing: 28) {
+            // Title + recommendation
+            VStack(spacing: 6) {
+                Text("Daily screen time limit")
+                    .font(.title.bold())
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.white)
+                
+                Text("We recommend about 3 hours a day to maintain a balanced lifestyle.")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+            .padding(.top, 16)
+            
+            // Slider input
+            VStack(spacing: 12) {
+                HStack {
+                    Text("Daily limit")
                         .font(.subheadline)
                         .foregroundColor(.gray)
-
-                    DaysOfWeekPicker(selection: $workoutDays)
+                    Spacer()
+                    Text("\(screenLimitMinutes) min")
+                        .font(.headline)
+                        .foregroundColor(screenLimitMinutes > 180 ? .red : .white)
                 }
-                .padding()
-                .background(Color.white.opacity(0.03))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(appGradient, lineWidth: 2)
-                )
-                .cornerRadius(16)
+                
+                Slider(value: Binding(
+                    get: { Double(screenLimitMinutes) },
+                    set: { newValue in
+                        // snap to nearest 15
+                        let snapped = Int(round(newValue / 15.0) * 15)
+                        screenLimitMinutes = snapped
+                    }
+                ), in: 15...360)
+                
+                // Dynamic description below the slider
+                Text(sliderDescription(for: screenLimitMinutes))
+                    .font(.footnote)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
             }
+            .padding()
+            .background(Color.white.opacity(0.05))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(appGradient, lineWidth: 2)
+            )
+            .cornerRadius(16)
             .padding(.horizontal)
-
+            
+            // Comparison bar: user's choice vs recommended
+            VStack(spacing: 12) {
+                GeometryReader { geo in
+                    let totalWidth = geo.size.width
+                    let recommendedWidth = totalWidth * 0.5
+                    let userWidth = totalWidth * (Double(screenLimitMinutes) / 360)
+                    
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.08))
+                            .frame(height: 12)
+                        
+                        // Left segment (0 → recommended)
+                        if userWidth <= recommendedWidth {
+                            Capsule()
+                                .fill(LinearGradient(
+                                    gradient: Gradient(colors: [.red, .green]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ))
+                                .frame(width: userWidth, height: 12)
+                        } else {
+                            Capsule()
+                                .fill(LinearGradient(
+                                    gradient: Gradient(colors: [.red, .green]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ))
+                                .frame(width: recommendedWidth, height: 12)
+                            
+                            Capsule()
+                                .fill(LinearGradient(
+                                    gradient: Gradient(colors: [.green, .red]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ))
+                                .frame(width: userWidth - recommendedWidth, height: 12)
+                                .offset(x: recommendedWidth)
+                        }
+                        
+                        // Recommended marker
+                        Rectangle()
+                            .fill(Color.green)
+                            .frame(width: 3, height: 20)
+                            .offset(x: recommendedWidth - 1.5)
+                    }
+                }
+                .frame(height: 20)
+                
+                HStack {
+                    Text("You: \(screenLimitMinutes) min")
+                        .foregroundColor(screenLimitMinutes > 180 ? .red : .white)
+                        .font(.footnote.bold())
+                    Spacer()
+                    Text("Recommended: 180 min")
+                        .foregroundColor(.green)
+                        .font(.footnote.bold())
+                }
+            }
+            .padding()
+            .background(Color.white.opacity(0.05))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(appGradient, lineWidth: 2)
+            )
+            .cornerRadius(16)
+            .padding(.horizontal)
+            
             Spacer()
-
-            // Tip
-            Text("Choose a frequency that you can be consistent with — consistency > intensity.")
-                .font(.footnote)
-                .foregroundColor(.white.opacity(0.7))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black.ignoresSafeArea())
     }
 
-    
-    // --- 5: Screen time
-    private var screenTimeStep: some View {
-        VStack(spacing: 24) {
+    // MARK: - Dynamic slider description
+    private func sliderDescription(for minutes: Int) -> String {
+        switch minutes {
+        case ..<90:
+            return "You're keeping your screen time very low — great for focus and sleep!"
+        case 90..<180:
+            return "You're within a healthy range. Keep it balanced."
+        case 180:
+            return "Exactly at the recommended daily limit. Perfect!"
+        case 181..<300:
+            return "A bit high — consider taking breaks to reduce screen fatigue."
+        default:
+            return "Very high screen time — try to limit usage for better wellbeing."
+        }
+    }
+
+
+
+    private var weightWaterStep: some View {
+        VStack(spacing: 28) {
             // Title
-            Text("Set your daily screen time limit")
-                .font(.title.bold())
-                .multilineTextAlignment(.center)
-                .foregroundColor(.white)
-                .padding(.top, 8)
+            VStack(spacing: 6) {
+                Text("Daily water intake")
+                    .font(.title.bold())
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.white)
+                
+                Text("Your recommended intake is based on your body weight.")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+            .padding(.top, 16)
             
-            // Screen time input (slider + value)
-            VStack(spacing: 12) {
-                Text("Daily limit")
+            // Weight input card
+            VStack(spacing: 16) {
+                Text("Your weight")
                     .font(.subheadline)
                     .foregroundColor(.gray)
                 
                 HStack(spacing: 12) {
                     Slider(value: Binding(
-                        get: { Double(screenLimitMinutes) },
-                        set: { screenLimitMinutes = Int($0) }
-                    ), in: 15...360, step: 15)
+                        get: { Double(weightLbs) },
+                        set: { weightLbs = Int($0) }
+                    ), in: 50...400, step: 5)
                     
-                    Text("\(screenLimitMinutes) min")
+                    Text("\(weightLbs) lbs")
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(width: 80)
                 }
             }
+            .padding()
+            .background(Color.white.opacity(0.05))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(appGradient, lineWidth: 2)
+            )
+            .cornerRadius(16)
             .padding(.horizontal)
             
-            Spacer() // pushes the result card down
-            
-            // Result card with gradient ring
+            // Recommended water card
             VStack(spacing: 8) {
-                Text("Your daily screen goal")
+                Text("Recommended daily water")
                     .font(.subheadline)
                     .foregroundColor(.gray)
                 
-                Text("\(screenLimitMinutes) minutes")
+                Text("\(waterOunces) oz")
                     .font(.system(size: 34, weight: .bold))
                     .foregroundColor(.white)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 24)
-            .background(Color.white.opacity(0.03))
+            .background(Color.white.opacity(0.05))
             .overlay(
-                RoundedRectangle(cornerRadius: 18)
+                RoundedRectangle(cornerRadius: 16)
                     .stroke(appGradient, lineWidth: 2)
             )
-            .cornerRadius(18)
-            .padding(.horizontal, 40)
-            .padding(.bottom, 40)
+            .cornerRadius(16)
+            .padding(.horizontal)
+            
+            Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black.ignoresSafeArea())
     }
 
-
-    private var weightWaterStep: some View {
-        ZStack {
-            // Fullscreen background image
-            Image("onboarding_waterimage")
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity, maxHeight: .infinity) // take full space
-                .ignoresSafeArea() // extend behind safe areas
-            
-            // Dark overlay to dim the background
-            Color.black.opacity(0.55)
-                .ignoresSafeArea()
-            
-            // Content
-            VStack(spacing: 24) {
-                Text("Let’s calculate your daily water intake")
+    // --- 7: Cold Showers
+    private var coldShowerStep: some View {
+        VStack(spacing: 28) {
+            // Title + description
+            VStack(spacing: 6) {
+                Text("Cold showers")
                     .font(.title.bold())
                     .multilineTextAlignment(.center)
                     .foregroundColor(.white)
-                    .padding(.top, 8)
-
-                VStack(spacing: 12) {
-                    Text("Your weight")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-
-                    HStack(spacing: 12) {
-                        Slider(value: Binding(
-                            get: { Double(weightLbs) },
-                            set: { weightLbs = Int($0) }
-                        ), in: 50...400, step: 5)
-
-                        Text("\(weightLbs) lbs")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(width: 80)
-                    }
-                }
-                .padding(.horizontal)
-
-                Spacer()
-
-                VStack(spacing: 8) {
-                    Text("Recommended Daily Water")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-
-                    Text("\(String(format: "%.0f", waterOunces)) oz")
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundColor(.white)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
-                .background(Color.white.opacity(0.08))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(appGradient, lineWidth: 2)
-                )
-                .cornerRadius(18)
-                .padding(.horizontal, 40)
-                .padding(.bottom, 40)
+                
+                Text("We really recommend cold showers — they can boost mood, recovery, and discipline. But don’t worry if you can’t — just tap Continue to skip.")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        }
-    }
-
-
-    // --- 7: Cold showers
-    private var coldShowerStep: some View {
-        VStack(spacing: 16) {
-            Text("Cold showers").font(.title2).bold().foregroundColor(.white)
-            Toggle(isOn: $takeColdShowers) {
-                Text(takeColdShowers ? "Yes — add to plan" : "No, thanks")
-                    .foregroundColor(.white)
+            .padding(.top, 16)
+            
+            // Cold shower days card
+            VStack(spacing: 16) {
+                Text("Which days will you take cold showers?")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                
+                DaysOfWeekPicker(selection: $coldShowerDays)
+                
+                if coldShowerDays.isEmpty {
+                    Text("You can skip this step if you don’t want to include cold showers.")
+                        .font(.footnote)
+                        .foregroundColor(.gray.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 4)
+                }
             }
+            .padding()
+            .background(Color.white.opacity(0.05))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(appGradient, lineWidth: 2)
+            )
+            .cornerRadius(16)
             .padding(.horizontal)
-            if takeColdShowers {
-                Stepper("Times per week: \(coldShowersPerWeek)", value: $coldShowersPerWeek, in: 1...7)
-            }
+            
+            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.black.ignoresSafeArea())
     }
+
     
     // --- 8: Extra activities
     private var activitiesStep: some View {
         VStack(spacing: 16) {
-            Text("Add other activities").font(.title2).bold().foregroundColor(.white)
-            Text("Select activities you want and set weekly frequency.")
+            Text("Add other activities")
+                .font(.title2).bold().foregroundColor(.white)
+            
+            Text("Pick up to 2 activities, then choose which days.")
                 .foregroundColor(.gray).font(.footnote)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
             VStack(spacing: 10) {
                 ForEach(activityOptions, id: \.self) { activity in
-                    HStack {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // --- Select / Deselect activity
                         Button(action: {
                             if selectedActivities[activity] != nil {
                                 selectedActivities.removeValue(forKey: activity)
-                            } else {
-                                selectedActivities[activity] = 1
+                            } else if selectedActivities.count < 2 {
+                                selectedActivities[activity] = ActivityConfig(frequency: 1, days: [])
                             }
                         }) {
                             HStack(spacing: 12) {
@@ -698,13 +843,17 @@ struct OnboardingView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                         
-                        if selectedActivities[activity] != nil {
-                            Stepper("\(selectedActivities[activity] ?? 1)", value: Binding(
-                                get: { selectedActivities[activity] ?? 1 },
-                                set: { selectedActivities[activity] = $0 }
-                            ), in: 1...14)
-                            .labelsHidden()
+                        // --- Days picker if selected
+                        if let config = selectedActivities[activity] {
+                            DaysOfWeekPicker(selection: Binding(
+                                get: { config.days },
+                                set: { newValue in
+                                    selectedActivities[activity]?.days = newValue
+                                }
+                            ))
+                            .padding(.leading, 34)
                         }
+
                     }
                     .padding(.vertical, 6)
                 }
@@ -712,21 +861,26 @@ struct OnboardingView: View {
         }
     }
     
-    // --- 9: Revisit addiction severity
+    // --- 9: Revisit addiction frequency
     private var revisitAddictionStep: some View {
-        VStack(spacing: 16) {
-            Text("Let’s revisit your main focus")
-                .font(.title2).bold().foregroundColor(.white)
-            if selectedAddictionNonEmpty {
-                HStack {
-                    Image(systemName: addictionIcon(for: selectedAddiction))
-                    Text("You chose: \(selectedAddiction)")
-                        .foregroundColor(.white.opacity(0.9))
+        VStack(spacing: 28) {
+            // Title
+            VStack(spacing: 6) {
+                if selectedAddictionNonEmpty {
+                    Text("Let’s learn some more about your focus: \(selectedAddiction)")
+                        .font(.title.bold())
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(.white)
+                } else {
+                    Text("Let’s revisit your main focus")
+                        .font(.title.bold())
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(.white)
                 }
-            } else {
-                Text("You didn't pick a specific item earlier — choose one now or skip.")
-                    .foregroundColor(.gray).font(.footnote).multilineTextAlignment(.center)
             }
+            .padding(.top, 16)
+            
+            // Picker for addiction (fallback if empty)
             Picker("Which habit?", selection: $selectedAddiction) {
                 Text("None").tag("")
                 ForEach(addictionChoices, id: \.self) { s in
@@ -734,52 +888,180 @@ struct OnboardingView: View {
                 }
             }
             .pickerStyle(MenuPickerStyle())
+            .padding(.horizontal)
             
-            VStack(alignment: .leading) {
-                Text("How bad is it on a scale 1–10?").foregroundColor(.white)
-                Slider(value: Binding(
-                    get: { Double(addictionSeverity) },
-                    set: { addictionSeverity = Int($0) }
-                ), in: 1...10, step: 1)
-                Text("Severity: \(addictionSeverity) / 10").foregroundColor(.gray)
+            // Days per week input
+            if selectedAddictionNonEmpty {
+                VStack(spacing: 20) {
+                    // Question changes based on addiction
+                    Text(questionForAddiction(selectedAddiction))
+                        .font(.headline)
+                             .foregroundColor(.white)
+                             .multilineTextAlignment(.center)
+                             .lineLimit(nil)
+                             .fixedSize(horizontal: false, vertical: true)
+                             .padding(.horizontal)
+                    
+                    Stepper(value: $addictionDaysPerWeek, in: 0...7) {
+                        Text("\(addictionDaysPerWeek) \(addictionDaysPerWeek == 1 ? "day" : "days") per week")
+                            .font(.title3.bold())
+                            .foregroundColor(.white)
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(appGradient, lineWidth: 2)
+                    )
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+                }
             }
             
-            Text("It’s okay — change is gradual. We’ll help you slowly decrease it over time. You can edit this later.")
-                .font(.footnote).foregroundColor(.white.opacity(0.75)).multilineTextAlignment(.center)
-                .padding(.top, 6)
+            // Encouragement message (changes based on chosen days)
+            if selectedAddictionNonEmpty {
+                Text(footnoteForAddiction(selectedAddiction, days: addictionDaysPerWeek))
+                    .font(.footnote)
+                    .foregroundColor(.white.opacity(0.75))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+            }
+            
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.black.ignoresSafeArea())
+    }
+
+    // MARK: - Helpers
+    private func questionForAddiction(_ addiction: String) -> String {
+        switch addiction.lowercased() {
+        case "screentime": return "How many days a week do you spend too much time on screens?"
+        case "porn": return "How many days a week do you watch it?"
+        case "vaping": return "How many days a week do you vape?"
+        case "smoking": return "How many days a week do you smoke?"
+        case "alcohol": return "How many days a week do you drink?"
+        case "gaming": return "How many days a week do you game excessively?"
+        default: return "How many days a week do you usually do this?"
         }
     }
+
+    private func footnoteForAddiction(_ addiction: String, days: Int) -> String {
+        let activityWord: String
+        switch addiction.lowercased() {
+        case "screentime": activityWord = "screen time"
+        case "porn": activityWord = "watching"
+        case "vaping": activityWord = "vaping"
+        case "smoking": activityWord = "smoking"
+        case "alcohol": activityWord = "drinking"
+        case "gaming": activityWord = "gaming"
+        default: activityWord = "this habit"
+        }
+        
+        if days == 0 {
+            return "Amazing! You’re already ahead — we’ll help you stay consistent and free from \(activityWord)."
+        } else if days <= 3 {
+            return "That’s manageable. Over time, we’ll help you reduce those \(days) days of \(activityWord) even further."
+        } else {
+            return "Don’t worry — even with \(days) days of \(activityWord), we’ll guide you so that by the end of your journey, you can quit completely."
+        }
+    }
+
+
     
     // --- 10: Overview & final note
     private var overviewStep: some View {
         ScrollView {
-            VStack(spacing: 12) {
-                Text("Your plan overview").font(.title2).bold().foregroundColor(.white)
+            VStack(spacing: 24) {
+                Text("Your Plan Overview")
+                    .font(.title)
+                    .bold()
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 8)
                 
-                Group {
-                    summaryRow(title: "Major focus", value: selectedAddiction.isEmpty ? "None" : selectedAddiction)
-                    summaryRow(title: "Wake (wk/wknd)", value: "\(timeString(wakeWeekday)) / \(timeString(wakeWeekend))")
-                    summaryRow(title: "Sleep (hrs wk/wknd)", value: String(format: "%.1f / %.1f", sleepHoursWeekday, sleepHoursWeekend))
-                    summaryRow(title: "Workout", value: "\(workoutMinutesPerDay) min • \(workoutDaysPerWeek) days • days: \(prettyDays(workoutDays))")
-                    summaryRow(title: "Screen time limit", value: limitScreenTime ? "\(screenLimitMinutes) min/day" : "No limit")
-                    summaryRow(title: "Weight / Water", value: "\(weightLbs) lbs / \(String(format: "%.0f oz", waterOunces))")
-                    summaryRow(title: "Cold showers", value: takeColdShowers ? "\(coldShowersPerWeek)/week" : "No")
-                    summaryRow(title: "Activities", value: selectedActivities.isEmpty ? "None" : selectedActivities.map { "\($0.key): \($0.value)/wk" }.joined(separator: ", "))
-                    summaryRow(title: "Addiction severity", value: selectedAddiction.isEmpty ? "N/A" : "\(addictionSeverity)/10")
+                // --- Main Summary Card
+                VStack(alignment: .leading, spacing: 16) {
+                    summarySection(title: "Focus") {
+                        summaryRow(icon: "target", title: "Major focus", value: selectedAddiction.isEmpty ? "None" : selectedAddiction)
+                        summaryRow(icon: "flame", title: "Addiction severity", value: selectedAddiction.isEmpty ? "N/A" : "\(addictionDaysPerWeek) days/wk")
+                    }
+                    
+                    summarySection(title: "Lifestyle") {
+                        summaryRow(icon: "sunrise", title: "Wake", value: "\(timeString(wakeWeekday)) / \(timeString(wakeWeekend))")
+                        summaryRow(icon: "moon.stars", title: "Sleep", value: String(format: "%.1f / %.1f hrs", sleepHoursWeekday, sleepHoursWeekend))
+                        summaryRow(icon: "figure.strengthtraining.traditional", title: "Workout", value: workoutDays.isEmpty ? "None" : "\(workoutMinutesPerDay) min • \(prettyDays(workoutDays))")
+                    }
+                    
+                    summarySection(title: "Health") {
+                        summaryRow(icon: "iphone", title: "Screen time", value: limitScreenTime ? "\(screenLimitMinutes) min/day" : "No limit")
+                        summaryRow(icon: "scalemass", title: "Weight", value: "\(weightLbs) lbs")
+                        summaryRow(icon: "drop", title: "Water", value: "\(waterOunces) oz")
+                        summaryRow(icon: "snowflake", title: "Cold showers", value: takeColdShowers ? "\(coldShowerDays)/week" : "No")
+                    }
+//                    COLD SHOWERS AND SCREENTIME NEED FIX
+                    summarySection(title: "Extra") {
+                        summaryRow(icon: "star", title: "Activities", value: selectedActivities.isEmpty
+                            ? "None"
+                            : selectedActivities.map { "\($0.key): \($0.value.days.count)x" }.joined(separator: ", ")
+                        )
+                    }
                 }
+                .padding()
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(20)
+                .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
                 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Leave a note for your future self:").foregroundColor(.white).bold()
+                // --- Final note section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Leave a note for your future self")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
                     TextEditor(text: $finalNote)
-                        .frame(height: 120)
-                        .padding(8)
-                        .background(Color.white.opacity(0.03))
-                        .cornerRadius(12)
+                        .frame(height: 140)
+                        .padding(10)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(16)
+                        .foregroundColor(.white)
                 }
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.bottom, 40)
         }
     }
+
+    // --- Section wrapper
+    @ViewBuilder
+    private func summarySection(title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(.caption)
+                .foregroundColor(.gray)
+            VStack(spacing: 8) {
+                content()
+            }
+        }
+    }
+
+    // --- Row with icon
+    @ViewBuilder
+    private func summaryRow(icon: String, title: String, value: String) -> some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundColor(.purple)
+                .frame(width: 20)
+            Text(title)
+                .foregroundColor(.gray)
+            Spacer()
+            Text(value)
+                .foregroundColor(.white)
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.vertical, 4)
+    }
+
     
     // --- Completion view
     private var completionView: some View {
@@ -827,18 +1109,23 @@ struct OnboardingView: View {
             // Require a major focus selection
             return selectedAddiction.isEmpty
         case 4:
-            // If they want to work out >0 days/wk, ensure they actually picked days
-            return workoutDaysPerWeek > 0 && workoutDays.isEmpty
+            return workoutDays.isEmpty
         case 5:
             // If they enabled limits, ensure a positive limit
             return limitScreenTime && screenLimitMinutes <= 0
         case 7:
-            // If they enabled cold showers, ensure times > 0
-            return takeColdShowers && coldShowersPerWeek <= 0
+            // If they enabled cold showers, ensure at least 1 day
+            return takeColdShowers && coldShowerDays.isEmpty
+        case 8:
+            // If any selected activity has no days chosen, disable "Next"
+            return selectedActivities.contains { _, config in
+                config.days.isEmpty
+            }
         default:
             return false
         }
     }
+
     
 //    private var selectedAddictionNonEmpty: Bool { !majorFocus.isEmpty || !selectedAddiction.isEmpty }
     private var selectedAddictionNonEmpty: Bool {
@@ -862,23 +1149,6 @@ struct OnboardingView: View {
             }
         }
     }
-    
-    private func completeOnboarding() {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        isSaving = true
-        
-        let db = Firestore.firestore()
-        db.collection("users").document(uid).setData([
-            "isOnboarded": true
-        ], merge: true) { error in
-            isSaving = false
-            if let error = error {
-                print("Error marking onboarded: \(error)")
-                return
-            }
-            onFinish()
-        }
-    }
 
     
     private func handleContinue() {
@@ -899,23 +1169,22 @@ struct OnboardingView: View {
         let docRef = db.collection("users").document(uid)
 
         let payload: [String: Any] = [
-            "isOnboarded": true,
             "majorFocus": selectedAddiction,
             "wakeWeekday": militaryTimeInt(from: wakeWeekday),
             "wakeWeekend": militaryTimeInt(from: wakeWeekend),
             "sleepHoursWeekday": sleepHoursWeekday,
             "sleepHoursWeekend": sleepHoursWeekend,
             "workoutMinutesPerDay": workoutMinutesPerDay,
-            "workoutDaysPerWeek": workoutDaysPerWeek, // WE HAVE TO REMOVE
             "workoutDays": Array(workoutDays),
             "screenLimitMinutes": screenLimitMinutes,
             "weightLbs": weightLbs,
             "waterOunces": waterOunces,
             "takeColdShowers": takeColdShowers,
-            "coldShowersPerWeek": coldShowersPerWeek, // WE HAVE TO REMOVE
+            "coldShowerDays": Array(coldShowerDays),
             "selectedActivities": selectedActivities,
-            "addictionSeverity": addictionSeverity,
+            "addictionDaysPerWeek": addictionDaysPerWeek,
             "finalNote": finalNote,
+            "isOnboarded": true
         ]
 
         isSaving = true
@@ -924,11 +1193,12 @@ struct OnboardingView: View {
             if let error = error {
                 print("Failed to save plan: \(error.localizedDescription)")
             } else {
-                print("Plan saved")
+                print("Plan saved and onboarding marked complete")
                 onFinish()
             }
         }
     }
+
 
 
     // MARK: - Utilities
@@ -956,16 +1226,6 @@ struct OnboardingView: View {
         return names.joined(separator: ", ")
     }
     
-    @ViewBuilder
-    private func summaryRow(title: String, value: String) -> some View {
-        HStack {
-            Text(title).foregroundColor(.gray)
-            Spacer()
-            Text(value).foregroundColor(.white)
-        }
-        .padding(.vertical, 6)
-    }
-    
     private func addictionIcon(for name: String) -> String {
         switch name {
         case "Screentime": return "iphone.gen3.slash"
@@ -981,13 +1241,11 @@ struct OnboardingView: View {
     private func activityIcon(for name: String) -> String {
         switch name {
         case "Meditation": return "leaf"
-        case "Cold Water Plunge": return "drop.fill"
         case "Reading": return "book"
         case "Pray": return "heart"
         case "Study": return "graduationcap"
         case "Walk": return "figure.walk"
         case "Run": return "figure.run"
-        case "Sauna": return "flame"
         default: return "circle"
         }
     }
@@ -996,38 +1254,53 @@ struct OnboardingView: View {
 // MARK: - DaysOfWeekPicker
 struct DaysOfWeekPicker: View {
     @Binding var selection: Set<Int>
-    // We'll show Mon..Sun as 1..7 for clarity
-    let days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+    private let days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
     
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(Array(1...7), id: \.self) { idx in
-                let isSelected = selection.contains(idx)
-                Button(action: {
-                    if isSelected {
-                        selection.remove(idx)
-                    } else {
-                        selection.insert(idx)
+        GeometryReader { geo in
+            let totalSpacing: CGFloat = 10 * 6
+            let buttonWidth = (geo.size.width - totalSpacing) / 7
+
+            
+            HStack(spacing: 10) {
+                ForEach(1...7, id: \.self) { idx in
+                    let isSelected = selection.contains(idx)
+                    Button {
+                        if isSelected {
+                            selection.remove(idx)
+                        } else {
+                            selection.insert(idx)
+                        }
+                    } label: {
+                        Text(days[idx-1])
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(isSelected ? .white : .gray)
+                            .frame(width: buttonWidth, height: 46)
+                            .background(
+                                ZStack {
+                                    if isSelected {
+                                        appGradient
+                                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    } else {
+                                        Color.white.opacity(0.05)
+                                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    }
+                                }
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(appGradient, lineWidth: isSelected ? 0 : 1.5)
+                            )
                     }
-                }) {
-                    Text(days[idx-1])
-                        .font(.caption)
-                        .foregroundColor(isSelected ? .white : .gray)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 10)
-                        .background(Color.white.opacity(0.02))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(appGradient)
-                                .opacity(isSelected ? 1 : 0)
-                        )
-                        .cornerRadius(8)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(PlainButtonStyle())
             }
         }
+        .frame(height: 46)
     }
 }
+
+
 
 // MARK: - OptionButton (with SF Symbol)
 struct OptionButton: View {
