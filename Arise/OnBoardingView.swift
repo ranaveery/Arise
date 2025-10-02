@@ -906,13 +906,13 @@ struct OnboardingView: View {
             "sleepHoursWeekday": sleepHoursWeekday,
             "sleepHoursWeekend": sleepHoursWeekend,
             "workoutMinutesPerDay": workoutMinutesPerDay,
-            "workoutDaysPerWeek": workoutDaysPerWeek,
+            "workoutDaysPerWeek": workoutDaysPerWeek, // WE HAVE TO REMOVE
             "workoutDays": Array(workoutDays),
             "screenLimitMinutes": screenLimitMinutes,
             "weightLbs": weightLbs,
             "waterOunces": waterOunces,
             "takeColdShowers": takeColdShowers,
-            "coldShowersPerWeek": coldShowersPerWeek,
+            "coldShowersPerWeek": coldShowersPerWeek, // WE HAVE TO REMOVE
             "selectedActivities": selectedActivities,
             "addictionSeverity": addictionSeverity,
             "finalNote": finalNote,

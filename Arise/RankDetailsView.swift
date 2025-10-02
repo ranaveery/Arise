@@ -182,11 +182,11 @@ struct RankDetailsView: View {
     }
     
     var body: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(spacing: 32) {
                 CurrentRankView(currentRank: currentRank, nextRank: nextRank, currentXP: currentXP, currentXPProgress: currentXPProgress, gradient: rankGradient)
                 
-                NextRankView(nextRank: nextRank, showPopup: $showRankPopup, gradient: rankGradient)
+                NextRankView(nextRank: nextRank, showPopup: $showRankPopup)
                 
                 SkillContributionsView(skillXPs: skillXPs, animatedSkillProgress: $animatedSkillProgress, gradient: rankGradient)
                 
@@ -354,9 +354,9 @@ struct ProgressBar: View {
     let nextXP: Double
     let progress: Double
     let gradient: LinearGradient
-    
+
     @AppStorage("animationsEnabled") private var animationsEnabled = true
-    
+
     var body: some View {
         VStack(spacing: 12) {
             HStack {
@@ -368,37 +368,53 @@ struct ProgressBar: View {
                     .font(.caption2)
                     .foregroundColor(.white.opacity(0.6))
             }
-            
+
             ZStack(alignment: .leading) {
+                // Background track
                 Capsule()
                     .fill(Color.white.opacity(0.1))
                     .frame(height: 10)
-                
-                Capsule()
-                    .fill(gradient)
-                    .frame(width: max(0, (UIScreen.main.bounds.width - 48) * CGFloat(progress)), height: 10)
-                    .if(animationsEnabled) { view in
-                        view.animation(.easeInOut(duration: 0.5), value: progress)
-                    }
+
+                // Fill using the available width from GeometryReader
+                GeometryReader { geo in
+                    Capsule()
+                        .fill(gradient)
+                        .frame(
+                            width: max(0, (geo.size.width - 48) * CGFloat(progress)),
+                            height: 10
+                        )
+                        .animation(
+                            animationsEnabled ? .easeInOut(duration: 0.5) : nil,
+                            value: progress
+                        )
+                }
+                .frame(height: 10) // constrain the GeometryReader
             }
         }
     }
 }
 
+
 struct NextRankView: View {
     let nextRank: Rank
     @Binding var showPopup: Bool
-    let gradient: LinearGradient
     
     var body: some View {
-        Button {
+        // compute next rank gradient instead
+        let nextGradient = LinearGradient(
+            colors: nextRank.themeColors,
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        
+        return Button {
             showPopup = true
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Next Rank: \(nextRank.name.uppercased())")
                         .font(.system(size: 18, weight: .semibold, design: .rounded))
-                        .foregroundStyle(gradient)
+                        .foregroundStyle(nextGradient) // use next rank gradient
                     
                     Text("Requires \(Int(nextRank.requiredXP)) XP")
                         .font(.caption)
@@ -453,16 +469,19 @@ struct SkillContributionsView: View {
                                 .fill(Color.white.opacity(0.1))
                                 .frame(height: 8)
                             
-                            Capsule()
-                                .fill(gradient)
-                                .frame(
-                                    width: max(0, (UIScreen.main.bounds.width - 48) * CGFloat(animatedSkillProgress[skill.name] ?? 0)),
-                                    height: 8
-                                )
-                                .if(animationsEnabled) { view in
-                                    view.animation(.easeInOut(duration: 0.6), value: animatedSkillProgress[skill.name])
-                                }
+                            GeometryReader { geo in
+                                Capsule()
+                                    .fill(gradient)
+                                    .frame(
+                                        width: max(0, (geo.size.width - 48) * CGFloat(animatedSkillProgress[skill.name] ?? 0)),
+                                        height: 8
+                                    )
+                                    .if(animationsEnabled) { view in
+                                        view.animation(.easeInOut(duration: 0.6), value: animatedSkillProgress[skill.name])
+                                    }
+                            }
                         }
+                        .frame(height: 8)
                     }
                 }
             }
@@ -472,6 +491,7 @@ struct SkillContributionsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
+
 
 struct AchievementsView: View {
     let achievements: [Achievement]

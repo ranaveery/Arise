@@ -22,11 +22,16 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     }
 
     // Handle Google Sign-In redirect
-    func application(_ app: UIApplication,
-                     open url: URL,
-                     options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
-        return GIDSignIn.sharedInstance.handle(url)
+    func scene(_ scene: UIScene,
+               openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        for context in URLContexts {
+            let url = context.url
+            if GIDSignIn.sharedInstance.handle(url) {
+                return
+            }
+        }
     }
+
 
     //  Lock orientation to portrait only
     func application(_ application: UIApplication,

@@ -2,28 +2,46 @@ import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
 
+extension Comparable {
+    func clamped(to limits: ClosedRange<Self>) -> Self {
+        return min(max(self, limits.lowerBound), limits.upperBound)
+    }
+}
+
 struct ManagePreferencesView: View {
-    @State private var gender = ""
-    @State private var ageRange = ""
-    @State private var selectedAddictions: Set<String> = []
-    @State private var workoutTypes: Set<String> = []
-    @State private var dietaryPreference = ""
-    @State private var healthProblems: Set<String> = []
+    // MARK: - Stored Preferences
+    @State private var majorFocus = ""
+    @State private var wakeWeekday = 420
+    @State private var wakeWeekend = 480
+    @State private var sleepHoursWeekday: Double = 8
+    @State private var sleepHoursWeekend: Double = 8
+    @State private var workoutMinutesPerDay = 60
+    @State private var workoutDaysPerWeek = 3
+    @State private var workoutDays: Set<Int> = []
+    @State private var screenLimitMinutes = 120
+    @State private var weightLbs = 160
+    @State private var waterOunces: Double = 120
+    @State private var takeColdShowers = false
+    @State private var coldShowersPerWeek = 0
+    @State private var selectedActivities: [String: Int] = [:]
+    @State private var addictionSeverity = 5
+    @State private var finalNote = ""
+    @State private var showWakeTimePicker = false
+    @State private var showSleepHoursPicker = false
+    @State private var showWorkoutMinutesPicker = false
+    @State private var showScreenLimitPicker = false
+    @State private var showColdShowerPicker = false
+    // MARK: - UI State
     @State private var isSaving = false
     @State private var savedSuccessfully = false
+    @State private var showFocusPicker = false
+    @State private var showWorkoutDayPicker = false
+    @State private var showActivityPicker = false
     
-    // Dropdown states
-    @State private var showAgePicker = false
-    @State private var showAddictionsPicker = false
-    @State private var showWorkoutPicker = false
-    @State private var showDietaryPicker = false
-    @State private var showHealthPicker = false
-    
-    // Constants
-    private let workoutOptions = ["Strength training", "Cardio", "Yoga/Pilates", "HIIT", "Mixed"]
-    private let dietaryOptions = ["Vegan", "Vegetarian", "Keto", "Paleo", "None"]
-    private let healthProblemOptions = ["Back Pain", "Joint Pain", "High Blood Pressure", "Diabetes", "Asthma", "None"]
-    private let addictionOptions = ["Social Media", "Porn", "Vaping", "Smoking", "Alcohol", "Gaming", "None"]
+    // MARK: - Constants
+    private let focusOptions = ["Smoking", "Gaming", "Screentime", "Alcohol", "Vaping", "Porn", "Other"]
+    private let weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    private let activityOptions = ["Meditation", "Reading", "Journaling", "Exercise", "Breathing"]
     
     private let gradient = LinearGradient(
         gradient: Gradient(colors: [Color(red: 84/255, green: 0/255, blue: 232/255),
@@ -41,85 +59,179 @@ struct ManagePreferencesView: View {
                     .padding(.top, 20)
                 
                 VStack(spacing: 1) {
-                    preferenceRow(title: "Gender", value: gender.isEmpty ? "Not set" : gender, systemImage: "person.fill", isEditable: false)
                     
-                    preferenceRow(title: "Age Range", value: ageRange.isEmpty ? "Not set" : ageRange, systemImage: "calendar", isEditable: true, isExpanded: $showAgePicker) {
+                    // Major Focus
+                    preferenceRow(title: "Major Focus", value: majorFocus.isEmpty ? "Not set" : majorFocus, systemImage: "flame.fill", isEditable: true, isExpanded: $showFocusPicker) {
                         VStack(spacing: 5) {
-                            ForEach(["Under 18", "18–24", "25–34", "35+"], id: \.self) { option in
-                                dropdownOption(option, isSelected: ageRange == option) { changePreference { ageRange = option } }
-                                .transition(.opacity)                            }
-                        }
-                        .padding(.vertical, 5)
-                    }
-                    
-                    preferenceRow(title: "Habits to Work On", value: selectedAddictions.isEmpty ? "None" : selectedAddictions.joined(separator: ", "), systemImage: "flame.fill", isEditable: true, isExpanded: $showAddictionsPicker) {
-                        VStack(spacing: 5) {
-                            ForEach(addictionOptions, id: \.self) { option in
-                                MultiSelectOptionButton(text: option, isSelected: selectedAddictions.contains(option)) { changePreference { toggleSelection(option: option, in: &selectedAddictions) } }
-                                .transition(.opacity)                            }
-                        }
-                        .padding(.vertical, 5)
-                    }
-                    
-                    preferenceRow(title: "Workout Types", value: workoutTypes.isEmpty ? "None" : workoutTypes.joined(separator: ", "), systemImage: "figure.walk", isEditable: true, isExpanded: $showWorkoutPicker) {
-                        VStack(spacing: 5) {
-                            ForEach(workoutOptions, id: \.self) { option in
-                                MultiSelectOptionButton(text: option, isSelected: workoutTypes.contains(option)) { changePreference { toggleSelection(option: option, in: &workoutTypes) } }
-                                    .transition(.opacity)
+                            ForEach(focusOptions, id: \.self) { option in
+                                dropdownOption(option, isSelected: majorFocus == option) { changePreference { majorFocus = option } }
                             }
-                        }
-                        .padding(.vertical, 5)
+                        }.padding(.vertical, 5)
                     }
                     
-                    preferenceRow(title: "Dietary Preference", value: dietaryPreference.isEmpty ? "None" : dietaryPreference, systemImage: "leaf.fill", isEditable: true, isExpanded: $showDietaryPicker) {
+                    // Workout Days
+                    preferenceRow(title: "Workout Days", value: workoutDays.isEmpty ? "Not set" : workoutDays.map { weekDays[$0-1] }.joined(separator: ", "), systemImage: "figure.strengthtraining.traditional", isEditable: true, isExpanded: $showWorkoutDayPicker) {
                         VStack(spacing: 5) {
-                            ForEach(dietaryOptions, id: \.self) { option in
-                                dropdownOption(option, isSelected: dietaryPreference == option) { changePreference { dietaryPreference = option } }
-                                    .transition(.opacity)
+                            ForEach(1...7, id: \.self) { day in
+                                MultiSelectOptionButton(text: weekDays[day-1], isSelected: workoutDays.contains(day)) {
+                                    changePreference { toggleDaySelection(day) }
+                                }
                             }
-                        }
-                        .padding(.vertical, 5)
+                        }.padding(.vertical, 5)
                     }
                     
-                    preferenceRow(title: "Health Concerns", value: healthProblems.isEmpty ? "None" : healthProblems.joined(separator: ", "), systemImage: "cross.case.fill", isEditable: true, isExpanded: $showHealthPicker) {
+                    // Activities
+                    preferenceRow(title: "Activities", value: selectedActivities.isEmpty ? "None" : selectedActivities.map { "\($0.key): \($0.value)x" }.joined(separator: ", "), systemImage: "star.fill", isEditable: true, isExpanded: $showActivityPicker) {
                         VStack(spacing: 5) {
-                            ForEach(healthProblemOptions, id: \.self) { option in
-                                MultiSelectOptionButton(text: option, isSelected: healthProblems.contains(option)) { changePreference { toggleSelection(option: option, in: &healthProblems) } }
-                                    .transition(.opacity)
+                            ForEach(activityOptions, id: \.self) { option in
+                                Stepper("\(option): \(selectedActivities[option] ?? 0)x", value: Binding(
+                                    get: { selectedActivities[option] ?? 0 },
+                                    set: { newValue in changePreference { selectedActivities[option] = newValue } }
+                                ), in: 0...7)
+                                .padding()
+                                .background(Color.white.opacity(0.05))
+                                .cornerRadius(10)
                             }
-                        }
-                        .padding(.vertical, 5)
+                        }.padding(.vertical, 5)
                     }
+                    
+                    // Wake Times
+                    preferenceRow(
+                        title: "Wake Times",
+                        value: "Weekday: \(wakeWeekday / 100):\(String(format: "%02d", wakeWeekday % 100)), Weekend: \(wakeWeekend / 100):\(String(format: "%02d", wakeWeekend % 100))",
+                        systemImage: "alarm.fill",
+                        isEditable: true,
+                        isExpanded: $showWakeTimePicker
+                    ) {
+                        VStack {
+                            Stepper("Weekday: \(timeString(from: wakeWeekday))", onIncrement: {
+                                stepTime(&wakeWeekday, step: 15)
+                            }, onDecrement: {
+                                stepTime(&wakeWeekday, step: -15)
+                            })
+                            .padding()
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(10)
+
+                            Stepper("Weekend: \(timeString(from: wakeWeekend))", onIncrement: {
+                                stepTime(&wakeWeekend, step: 15)
+                            }, onDecrement: {
+                                stepTime(&wakeWeekend, step: -15)
+                            })
+                            .padding()
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(10)
+                        }.padding(.vertical, 5)
+                    }
+
+                    // Sleep Hours
+                    preferenceRow(
+                        title: "Sleep Hours",
+                        value: "Weekday: \(Int(sleepHoursWeekday))h, Weekend: \(Int(sleepHoursWeekend))h",
+                        systemImage: "bed.double.fill",
+                        isEditable: true,
+                        isExpanded: $showSleepHoursPicker
+                    ) {
+                        VStack {
+                            Stepper("Weekday: \(Int(sleepHoursWeekday))h", value: $sleepHoursWeekday, in: 4...12, step: 1)
+                                .padding()
+                                .background(Color.white.opacity(0.05))
+                                .cornerRadius(10)
+                            Stepper("Weekend: \(Int(sleepHoursWeekend))h", value: $sleepHoursWeekend, in: 4...12, step: 1)
+                                .padding()
+                                .background(Color.white.opacity(0.05))
+                                .cornerRadius(10)
+                        }.padding(.vertical, 5)
+                    }
+
+                    // Workout Minutes per Day
+                    preferenceRow(
+                        title: "Workout Duration",
+                        value: "\(workoutMinutesPerDay) min",
+                        systemImage: "timer",
+                        isEditable: true,
+                        isExpanded: $showWorkoutMinutesPicker
+                    ) {
+                        Stepper("Minutes: \(workoutMinutesPerDay)", value: $workoutMinutesPerDay, in: 15...180, step: 15)
+                            .padding()
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(10)
+                    }
+
+                    // Screen Limit
+                    preferenceRow(
+                        title: "Screen Limit",
+                        value: "\(screenLimitMinutes / 60) hr",
+                        systemImage: "iphone",
+                        isEditable: true,
+                        isExpanded: $showScreenLimitPicker
+                    ) {
+                        Stepper("Hours: \(screenLimitMinutes / 60)", value: Binding(
+                            get: { screenLimitMinutes / 60 },
+                            set: { newValue in changePreference { screenLimitMinutes = newValue * 60 } }
+                        ), in: 1...12)
+                        .padding()
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(10)
+                    }
+
+                    // Cold Showers
+                    preferenceRow(
+                        title: "Cold Showers",
+                        value: takeColdShowers ? "\(coldShowersPerWeek)x / week" : "Off",
+                        systemImage: "snowflake",
+                        isEditable: true,
+                        isExpanded: $showColdShowerPicker
+                    ) {
+                        VStack(spacing: 10) {
+                            Toggle("Enable Cold Showers", isOn: Binding(
+                                get: { takeColdShowers },
+                                set: { newValue in changePreference { takeColdShowers = newValue } }
+                            ))
+                            .padding()
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(10)
+                            .tint(Color.blue)
+                            
+                            if takeColdShowers {
+                                Stepper("Times per week: \(coldShowersPerWeek)", value: $coldShowersPerWeek, in: 0...7)
+                                    .padding()
+                                    .background(Color.white.opacity(0.05))
+                                    .cornerRadius(10)
+                                
+                                HStack {
+                                    ForEach(1...7, id: \.self) { day in
+                                        MultiSelectOptionButton(text: weekDays[day-1], isSelected: workoutDays.contains(day)) {
+                                            changePreference { toggleDaySelection(day) }
+                                        }
+                                    }
+                                }
+                            }
+                        }.padding(.vertical, 5)
+                    }
+                    
                 }
                 .background(Color.white.opacity(0.05))
                 .cornerRadius(12)
                 .padding(.horizontal)
                 
+                // Save Button
                 Button(action: savePreferences) {
                     ZStack {
                         if isSaving {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                .frame(height: 50)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.white.opacity(0.05))
-                                .cornerRadius(12)
+                            ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
                         } else {
                             HStack {
                                 if savedSuccessfully {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                        .transition(.scale)
+                                    Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
                                 }
                                 Text(savedSuccessfully ? "Saved" : "Save Changes")
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.white)
+                                    .fontWeight(.bold).foregroundColor(.white)
                             }
                             .frame(height: 50)
                             .frame(maxWidth: .infinity)
                             .background(gradient)
                             .cornerRadius(12)
-                            .animation(.spring(), value: savedSuccessfully)
                         }
                     }
                 }
@@ -127,20 +239,59 @@ struct ManagePreferencesView: View {
                 .padding(.bottom, 40)
                 .disabled(isSaving)
                 
-                Text("Once set, gender cannot be changed.")
+                Text("Options unavailable here cannot be changed once set.")
                     .font(.footnote)
                     .foregroundColor(.gray)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
                     .padding(.bottom, 80)
-
+                
             }
         }
         .background(Color.black.ignoresSafeArea())
         .onAppear(perform: loadPreferences)
     }
     
+    private func timeString(from value: Int) -> String {
+        let hour = value / 60
+        let minute = value % 60
+        return String(format: "%d:%02d", hour, minute)
+    }
+
+    private func stepTime(_ value: inout Int, step: Int) {
+        value = (value + step).clamped(to: 0...24*60)
+    }
+    
     // MARK: - UI Helpers
+    private func toggleDaySelection(_ day: Int) {
+        if workoutDays.contains(day) {
+            workoutDays.remove(day)
+        } else {
+            workoutDays.insert(day)
+        }
+    }
+    
+    private func changePreference(_ action: @escaping () -> Void) {
+        action()
+        savedSuccessfully = false
+    }
+    
+    @ViewBuilder
+    private func dropdownOption(_ text: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(text).foregroundColor(.white)
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(Color(red: 84/255, green: 0/255, blue: 232/255))
+                }
+            }
+            .padding()
+            .background(Color.white.opacity(0.05))
+            .cornerRadius(10)
+        }
+    }
     
     struct MultiSelectOptionButton: View {
         let text: String
@@ -224,78 +375,50 @@ struct ManagePreferencesView: View {
         .background(Color.black.opacity(0.1))
         .cornerRadius(12)
     }
-
-    
-    @ViewBuilder
-    private func dropdownOption(_ text: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                Text(text).foregroundColor(.white)
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(Color(red: 84/255, green: 0/255, blue: 232/255))
-                }
-            }
-            .padding()
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(10)
-        }
-    }
-    
-    private func toggleSelection(option: String, in set: inout Set<String>) {
-        if option == "None" {
-            if set.contains("None") {
-                set.remove("None")
-            } else {
-                set = ["None"]
-            }
-        } else {
-            if set.contains(option) {
-                set.remove(option)
-            } else {
-                set.insert(option)
-                set.remove("None")
-            }
-        }
-    }
-    
-    private func changePreference(_ action: @escaping () -> Void) {
-        action()
-        savedSuccessfully = false
-    }
     
     private func loadPreferences() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
-        let db = Firestore.firestore()
-        db.collection("users").document(uid).getDocument { snapshot, _ in
+        Firestore.firestore().collection("users").document(uid).getDocument { snapshot, _ in
             guard let data = snapshot?.data() else { return }
-            gender = data["gender"] as? String ?? ""
-            ageRange = data["ageRange"] as? String ?? ""
-            dietaryPreference = data["dietaryPreference"] as? String ?? ""
-            
-            if let addictions = data["addictions"] as? [String] {
-                selectedAddictions = Set(addictions)
-            }
-            if let workouts = data["workoutTypes"] as? [String] {
-                workoutTypes = Set(workouts)
-            }
-            if let healths = data["healthProblems"] as? [String] {
-                healthProblems = Set(healths)
-            }
+            majorFocus = data["majorFocus"] as? String ?? ""
+            wakeWeekday = data["wakeWeekday"] as? Int ?? 700
+            wakeWeekend = data["wakeWeekend"] as? Int ?? 800
+            sleepHoursWeekday = data["sleepHoursWeekday"] as? Double ?? 8
+            sleepHoursWeekend = data["sleepHoursWeekend"] as? Double ?? 8
+            workoutMinutesPerDay = data["workoutMinutesPerDay"] as? Int ?? 60
+            workoutDaysPerWeek = data["workoutDaysPerWeek"] as? Int ?? 3
+            if let days = data["workoutDays"] as? [Int] { workoutDays = Set(days) }
+            screenLimitMinutes = data["screenLimitMinutes"] as? Int ?? 120
+            weightLbs = data["weightLbs"] as? Int ?? 160
+            waterOunces = data["waterOunces"] as? Double ?? Double(weightLbs) * 2/3
+            takeColdShowers = data["takeColdShowers"] as? Bool ?? false
+            coldShowersPerWeek = data["coldShowersPerWeek"] as? Int ?? 0
+            selectedActivities = data["selectedActivities"] as? [String: Int] ?? [:]
+            addictionSeverity = data["addictionSeverity"] as? Int ?? 5
+            finalNote = data["finalNote"] as? String ?? ""
         }
     }
     
     private func savePreferences() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         isSaving = true
-        let db = Firestore.firestore()
-        db.collection("users").document(uid).setData([
-            "ageRange": ageRange,
-            "addictions": Array(selectedAddictions),
-            "workoutTypes": Array(workoutTypes),
-            "dietaryPreference": dietaryPreference,
-            "healthProblems": Array(healthProblems)
+        Firestore.firestore().collection("users").document(uid).setData([
+            "majorFocus": majorFocus,
+            "wakeWeekday": wakeWeekday,
+            "wakeWeekend": wakeWeekend,
+            "sleepHoursWeekday": sleepHoursWeekday,
+            "sleepHoursWeekend": sleepHoursWeekend,
+            "workoutMinutesPerDay": workoutMinutesPerDay,
+            "workoutDaysPerWeek": workoutDaysPerWeek,
+            "workoutDays": Array(workoutDays),
+            "screenLimitMinutes": screenLimitMinutes,
+            "weightLbs": weightLbs,
+            "waterOunces": waterOunces,
+            "takeColdShowers": takeColdShowers,
+            "coldShowersPerWeek": coldShowersPerWeek,
+            "selectedActivities": selectedActivities,
+            "addictionSeverity": addictionSeverity,
+            "finalNote": finalNote
         ], merge: true) { _ in
             isSaving = false
             withAnimation { savedSuccessfully = true }
