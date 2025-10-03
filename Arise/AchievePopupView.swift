@@ -46,8 +46,8 @@ struct AchievementPopupView: View {
                             .foregroundColor(.white.opacity(0.8))
                             .multilineTextAlignment(.center)
                         
-                        if let date = achievement.unlockedDate {
-                            Text("Unlocked on \(date.formatted(date: .abbreviated, time: .omitted))")
+                        if let dateString = achievement.unlockedDate {
+                            Text("Unlocked \(dateString)")
                                 .font(.caption)
                                 .foregroundColor(.white.opacity(0.6))
                         }

@@ -243,6 +243,24 @@ struct RankDetailsView: View {
                 currentRankId = rank.id
             }
             
+            if let achievementsData = data["achievements"] as? [String: [String: Any]] {
+                achievements = achievements.map { achievement in
+                    if let achData = achievementsData["\(achievement.index)"],
+                       let unlocked = achData["unlocked"] as? Bool {
+                        var updated = achievement
+                        updated.unlocked = unlocked
+                        
+                        if let dateString = achData["unlockedDate"] as? String {
+                            updated.unlockedDate = dateString
+                        }
+                        
+                        return updated
+                    }
+
+                    return achievement
+                }
+            }
+
             if let skillsDict = data["skills"] as? [String: [String: Any]] {
                 let updatedSkills = skillXPs.map { skill -> SkillXP in
                     if let values = skillsDict[skill.name] {
@@ -265,6 +283,8 @@ struct RankDetailsView: View {
     }
     
     private func updateAchievements() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let userRef = Firestore.firestore().collection("users").document(uid)
         achievements = achievements.map { achievement in
             var updated = achievement
 
@@ -310,8 +330,21 @@ struct RankDetailsView: View {
             }
 
             if updated.unlocked && updated.unlockedDate == nil {
-                updated.unlockedDate = Date()
+                let formatter = DateFormatter()
+                formatter.dateFormat = "MMM yyyy"
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                let monthYear = formatter.string(from: Date())
+
+                updated.unlockedDate = monthYear
+                
+                userRef.setData([
+                    "achievements.\(updated.index)" : [
+                        "unlocked": true,
+                        "unlockedDate": monthYear
+                    ]
+                ], merge: true)
             }
+
 
             return updated
         }
@@ -526,6 +559,12 @@ struct AchievementsView: View {
         .background(Color.white.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
+}
+
+private func formatMonthYear(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "MMM yyyy"
+    return formatter.string(from: date)
 }
 
 extension View {

@@ -47,5 +47,5 @@ struct Achievement: Identifiable {
     var imageName: String
     var description: String
     var quote: String
-    var unlockedDate: Date?
+    var unlockedDate: String? = nil
 }

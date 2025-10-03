@@ -300,7 +300,26 @@ struct HomeView: View {
             }
         }
     }
-    
+    func safeForUserDefaults(_ dict: [String: Any]) -> [String: Any] {
+        var safe = [String: Any]()
+        
+        for (key, value) in dict {
+            if let ts = value as? Timestamp {
+                // convert to month-year string
+                let formatter = DateFormatter()
+                formatter.dateFormat = "MMM yyyy"
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                safe[key] = formatter.string(from: ts.dateValue())
+            } else if let subDict = value as? [String: Any] {
+                safe[key] = safeForUserDefaults(subDict) // recursive
+            } else {
+                safe[key] = value
+            }
+        }
+        
+        return safe
+    }
+
     func fetchUserData() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let docRef = Firestore.firestore().collection("users").document(uid)
@@ -320,7 +339,8 @@ struct HomeView: View {
             
             updateSkillLevelsAndTotalXP()
             syncRankIfNeeded()
-            UserDefaults.standard.set(data, forKey: "cachedUserData")
+            let safeData = safeForUserDefaults(data)
+            UserDefaults.standard.set(safeData, forKey: "cachedUserData")
         }
     }
 
