@@ -322,7 +322,7 @@ struct OnboardingView: View {
     private var sleepDurationStep: some View {
         VStack(spacing: 24) {
             // Title
-            Text("How long do you want to sleep?")
+            Text("Sleep Duration Goals")
                 .font(.title.bold())
                 .multilineTextAlignment(.center)
                 .foregroundColor(.white)
@@ -337,81 +337,114 @@ struct OnboardingView: View {
 
             Spacer()
 
-            VStack(spacing: 20) {
-                // --- Weekdays
-                VStack(spacing: 12) {
+            VStack(spacing: 24) {
+                // --- Weekdays Card
+                VStack(spacing: 16) {
                     HStack {
+                        Image(systemName: "bed.double.fill")
+                            .foregroundColor(.white)
                         Text("Weekdays")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
+                            .font(.headline)
+                            .foregroundColor(.white)
                         Spacer()
+
                         let hours = Int(sleepHoursWeekday)
                         let minutes = Int((sleepHoursWeekday - Double(hours)) * 60)
-
                         Text("\(hours)h\(minutes > 0 ? " \(minutes)m" : "")")
+                            .font(.headline)
                             .foregroundColor(.white)
                     }
-                    VStack {
-                        Slider(value: $sleepHoursWeekday, in: 6...12, step: 0.25)
-                    }
+
+                    Slider(
+                        value: Binding(
+                            get: { sleepHoursWeekday },
+                            set: { newValue in
+                                // snap to nearest 0.25 hr (15 minutes)
+                                let stepped = (newValue / 0.25).rounded() * 0.25
+                                sleepHoursWeekday = min(max(6.0, stepped), 12.0)
+                            }
+                        ),
+                        in: 6...12,
+                        step: 0.01 // smooth but snaps via Binding
+                    )
                     .tint(.gray)
 
                     if let bedtime = calculateBedtime(wakeTime: wakeWeekday, sleepHours: sleepHoursWeekday) {
-                        Text("You should go to bed around **\(bedtime)**")
+                        Text("Suggested bedtime: **\(bedtime)**")
                             .font(.footnote)
                             .foregroundColor(.gray)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .padding()
-                .background(Color.white.opacity(0.03))
+                .background(Color.white.opacity(0.05))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 18)
                         .stroke(appGradient, lineWidth: 2)
                 )
-                .cornerRadius(16)
+                .cornerRadius(18)
 
-                // --- Weekends
-                VStack(spacing: 12) {
+                // --- Weekends Card
+                VStack(spacing: 16) {
                     HStack {
+                        Image(systemName: "bed.double.circle.fill")
+                            .foregroundColor(.white)
                         Text("Weekends")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
+                            .font(.headline)
+                            .foregroundColor(.white)
                         Spacer()
-                        let hours_end = Int(sleepHoursWeekend)
-                        let minutes_end = Int((sleepHoursWeekend - Double(hours_end)) * 60)
 
-                        Text("\(hours_end)h\(minutes_end > 0 ? " \(minutes_end)m" : "")")
+                        let hours = Int(sleepHoursWeekend)
+                        let minutes = Int((sleepHoursWeekend - Double(hours)) * 60)
+                        Text("\(hours)h\(minutes > 0 ? " \(minutes)m" : "")")
+                            .font(.headline)
                             .foregroundColor(.white)
                     }
 
-                    VStack {
-                        Slider(value: $sleepHoursWeekend, in: 6...12, step: 0.25)
-                    }
+                    Slider(
+                        value: Binding(
+                            get: { sleepHoursWeekend },
+                            set: { newValue in
+                                // snap to nearest 0.25 hr (15 minutes)
+                                let stepped = (newValue / 0.25).rounded() * 0.25
+                                sleepHoursWeekend = min(max(6.0, stepped), 12.0)
+                            }
+                        ),
+                        in: 6...12,
+                        step: 0.01 // smooth but snaps via Binding
+                    )
                     .tint(.gray)
 
                     if let bedtime = calculateBedtime(wakeTime: wakeWeekend, sleepHours: sleepHoursWeekend) {
-                        Text("You should go to bed around **\(bedtime)**")
+                        Text("Suggested bedtime: **\(bedtime)**")
                             .font(.footnote)
                             .foregroundColor(.gray)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .padding()
-                .background(Color.white.opacity(0.03))
+                .background(Color.white.opacity(0.05))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 18)
                         .stroke(appGradient, lineWidth: 2)
                 )
-                .cornerRadius(16)
+                .cornerRadius(18)
             }
             .padding(.horizontal)
 
             Spacer()
+
+            // Tip
+            Text("Good sleep improves focus, recovery, and energy — aim for consistency.")
+                .font(.footnote)
+                .foregroundColor(.white.opacity(0.75))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black.ignoresSafeArea())
     }
+
 
     private func roundToNearest15(_ date: Date) -> Date {
         let calendar = Calendar.current
