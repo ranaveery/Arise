@@ -12,7 +12,6 @@ private let appGradient = LinearGradient(
     endPoint: .trailing
 )
 
-// PreferenceKey to measure bottom nav height (keeps UI above nav)
 private struct NavHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
@@ -29,7 +28,7 @@ struct OnboardingView: View {
 
     // --- Answers state ---
     // Intro has no inputs
-    @State private var majorFocus: String = "" // placeholder (not used directly in final plan)
+    @State private var majorFocus: String = ""
     
     // Wake time (weekday/weekend)
     @State private var wakeWeekday: Date = Calendar.current.date(bySettingHour: 7, minute: 0, second: 0, of: Date()) ?? Date()
@@ -40,12 +39,11 @@ struct OnboardingView: View {
     @State private var sleepHoursWeekend: Double = 9
     
     // Workout
-    @State private var workoutMinutesPerDay: Int = 60
+    @State private var workoutHoursPerDay: Double = 1.0
     @State private var workoutDays: Set<Int> = []
     
     // Screen time
-    @State private var limitScreenTime: Bool = false
-    @State private var screenLimitMinutes: Int = 180
+    @State private var screenLimitHours: Double = 3.0
     
     // Weight -> water
     @State private var weightLbs: Int = 140
@@ -472,18 +470,15 @@ struct OnboardingView: View {
     // --- 4: Workout preferences
     private var workoutStep: some View {
         ZStack {
-            // Background
             Color.black.ignoresSafeArea()
             
             VStack(spacing: 24) {
-                // Title
                 Text("Workout Preferences")
                     .font(.title.bold())
                     .multilineTextAlignment(.center)
                     .foregroundColor(.white)
                     .padding(.top, 8)
                 
-                // Subtitle
                 Text("Set your weekly workout goals.")
                     .font(.subheadline)
                     .foregroundColor(.gray)
@@ -493,33 +488,35 @@ struct OnboardingView: View {
                 Spacer()
                 
                 VStack(spacing: 24) {
-                    // --- Minutes per day card
+                    // --- Hours per day card
                     VStack(spacing: 16) {
                         HStack {
                             Image(systemName: "clock.fill")
                                 .foregroundColor(.white)
-                            Text("Minutes per day")
+                            Text("Duration per day")
                                 .font(.headline)
                                 .foregroundColor(.white)
                             Spacer()
-                            Text("\(workoutMinutesPerDay) min")
+                            
+                            let hours = Int(workoutHoursPerDay)
+                            let minutes = Int((workoutHoursPerDay - Double(hours)) * 60)
+                            Text("\(hours)h\(minutes > 0 ? " \(minutes)m" : "")")
                                 .font(.headline)
                                 .foregroundColor(.white)
                         }
                         
                         Slider(
                             value: Binding(
-                                get: { Double(workoutMinutesPerDay) },
+                                get: { workoutHoursPerDay },
                                 set: { newValue in
-                                    // snap to nearest 15
-                                    let stepped = Int((newValue / 15.0).rounded() * 15)
-                                    workoutMinutesPerDay = min(max(30, stepped), 180)
+                                    // snap to nearest 0.25 hr (15 min)
+                                    let stepped = (newValue / 0.25).rounded() * 0.25
+                                    workoutHoursPerDay = min(max(0.5, stepped), 3.0) // 30 min – 3h
                                 }
                             ),
-                            in: 30...180,
-                            step: 1
+                            in: 0.5...3.0,
+                            step: 0.01
                         )
-                        .frame(maxWidth: .infinity)
                         .tint(.gray)
                         
                         Text("Set how long you’d like to workout.")
@@ -534,7 +531,6 @@ struct OnboardingView: View {
                             .stroke(appGradient, lineWidth: 2)
                     )
                     .cornerRadius(18)
-
                     
                     // --- Preferred days card
                     VStack(spacing: 16) {
@@ -566,7 +562,6 @@ struct OnboardingView: View {
                 
                 Spacer()
                 
-                // Tip
                 Text("Consistency matters more than intensity — choose what you can stick to.")
                     .font(.footnote)
                     .foregroundColor(.white.opacity(0.75))
@@ -576,10 +571,9 @@ struct OnboardingView: View {
         }
     }
 
-
     private var screenTimeStep: some View {
         VStack(spacing: 28) {
-            // Title + recommendation
+            // --- Title + recommendation
             VStack(spacing: 6) {
                 Text("Daily screen time limit")
                     .font(.title.bold())
@@ -594,105 +588,80 @@ struct OnboardingView: View {
             }
             .padding(.top, 16)
             
-            // Slider input
-            VStack(spacing: 12) {
+            // --- Slider + comparison
+            VStack(spacing: 16) {
+                // --- Value row
                 HStack {
                     Text("Daily limit")
                         .font(.subheadline)
                         .foregroundColor(.gray)
                     Spacer()
-                    Text("\(screenLimitMinutes) min")
+                    
+                    let hours = Int(screenLimitHours)
+                    let minutes = Int((screenLimitHours - Double(hours)) * 60)
+                    let displayText = "\(hours)h" + (minutes > 0 ? " \(minutes)m" : "")
+                    
+                    Text(displayText)
                         .font(.headline)
-                        .foregroundColor(screenLimitMinutes > 180 ? .red : .white)
+                        .foregroundColor(
+                            screenLimitHours == 3.0 ? .green :
+                            (screenLimitHours > 3.5 ? .red : .white)
+                        )
                 }
+
                 
+                // --- Slider input
                 Slider(
                     value: Binding(
-                        get: { Double(screenLimitMinutes) },
+                        get: { screenLimitHours },
                         set: { newValue in
-                            // snap to nearest 15
-                            let snapped = Int(round(newValue / 15.0) * 15)
-                            screenLimitMinutes = snapped
+                            // snap to nearest 0.25 hr (15 min)
+                            let stepped = (newValue / 0.25).rounded() * 0.25
+                            screenLimitHours = min(max(0.25, stepped), 6.0) // 15 min – 6h
                         }
                     ),
-                    in: 15...360
+                    in: 0.25...6.0,
+                    step: 0.01
                 )
                 .tint(.gray)
                 
-                // Dynamic description below the slider
-                Text(sliderDescription(for: screenLimitMinutes))
+                // --- Comparison bar
+                VStack(spacing: 6) {
+                    ZStack(alignment: .leading) {
+                        // Gradient background
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                .yellow, .green, .red
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(height: 12)
+                        .clipShape(Capsule())
+                        
+                        // User marker
+                        GeometryReader { geo in
+                            let fraction = min(max(screenLimitHours / 6.0, 0), 1)
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 16, height: 16)
+                                .offset(x: fraction * (geo.size.width - 16))
+                        }
+                    }
+                    .frame(height: 16)
+                    
+                    // Ideal indicator
+                    Text("Ideal: ~3h/day")
+                        .font(.footnote)
+                        .foregroundColor(.gray)
+                }
+                
+                // --- Text description
+                Text(sliderDescription(for: Int(screenLimitHours * 60)))
                     .font(.footnote)
                     .foregroundColor(.gray)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
-            }
-            .padding()
-            .background(Color.white.opacity(0.05))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(appGradient, lineWidth: 2)
-            )
-            .cornerRadius(16)
-            .padding(.horizontal)
-            
-            // Comparison bar: user's choice vs recommended
-            VStack(spacing: 12) {
-                GeometryReader { geo in
-                    let totalWidth = geo.size.width
-                    let recommendedWidth = totalWidth * 0.5
-                    let userWidth = totalWidth * (Double(screenLimitMinutes) / 360)
-                    
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.08))
-                            .frame(height: 12)
-                        
-                        // Left segment (0 → recommended)
-                        if userWidth <= recommendedWidth {
-                            Capsule()
-                                .fill(LinearGradient(
-                                    gradient: Gradient(colors: [.red, .green]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                ))
-                                .frame(width: userWidth, height: 12)
-                        } else {
-                            Capsule()
-                                .fill(LinearGradient(
-                                    gradient: Gradient(colors: [.red, .green]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                ))
-                                .frame(width: recommendedWidth, height: 12)
-                            
-                            Capsule()
-                                .fill(LinearGradient(
-                                    gradient: Gradient(colors: [.green, .red]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                ))
-                                .frame(width: userWidth - recommendedWidth, height: 12)
-                                .offset(x: recommendedWidth)
-                        }
-                        
-                        // Recommended marker
-                        Rectangle()
-                            .fill(Color.green)
-                            .frame(width: 3, height: 20)
-                            .offset(x: recommendedWidth - 1.5)
-                    }
-                }
-                .frame(height: 20)
-                
-                HStack {
-                    Text("You: \(screenLimitMinutes) min")
-                        .foregroundColor(screenLimitMinutes > 180 ? .red : .white)
-                        .font(.footnote.bold())
-                    Spacer()
-                    Text("Recommended: 180 min")
-                        .foregroundColor(.green)
-                        .font(.footnote.bold())
-                }
             }
             .padding()
             .background(Color.white.opacity(0.05))
@@ -709,21 +678,25 @@ struct OnboardingView: View {
         .background(Color.black.ignoresSafeArea())
     }
 
+
     // MARK: - Dynamic slider description
     private func sliderDescription(for minutes: Int) -> String {
         switch minutes {
-        case ..<90:
-            return "You're keeping your screen time very low — great for focus and sleep!"
-        case 90..<180:
-            return "You're within a healthy range. Keep it balanced."
-        case 180:
-            return "Exactly at the recommended daily limit. Perfect!"
-        case 181..<300:
-            return "A bit high — consider taking breaks to reduce screen fatigue."
+        case 0..<150:
+            return "Very low screen time — great for focus and better sleep!"
+        case 150..<210:
+            return "Healthy range — you're keeping things balanced."
+        case 210..<270:
+            return "Slightly high — consider taking short breaks to rest your eyes."
+        case 270..<330:
+            return "High screen time — try reducing usage for better wellbeing."
+        case 330..<360:
+            return "Very high — limiting time will help your focus and mood."
         default:
-            return "Very high screen time — try to limit usage for better wellbeing."
+            return "Extremely high screen time — important to cut back for your health."
         }
     }
+
 
 
 
@@ -1110,13 +1083,62 @@ struct OnboardingView: View {
                     }
                     
                     summarySection(title: "Lifestyle") {
+                        
                         summaryRow(icon: "sunrise", title: "Wake", value: "\(timeString(wakeWeekday)) / \(timeString(wakeWeekend))")
-                        summaryRow(icon: "moon.stars", title: "Sleep", value: String(format: "%.1f / %.1f hrs", sleepHoursWeekday, sleepHoursWeekend))
-                        summaryRow(icon: "figure.strengthtraining.traditional", title: "Workout", value: workoutDays.isEmpty ? "None" : "\(workoutMinutesPerDay) min • \(prettyDays(workoutDays))")
+                        summaryRow(
+                            icon: "moon.stars",
+                            title: "Sleep",
+                            value: {
+                                let weekdayHours = Int(sleepHoursWeekday)
+                                let weekdayMinutes = Int((sleepHoursWeekday - Double(weekdayHours)) * 60)
+                                let weekendHours = Int(sleepHoursWeekend)
+                                let weekendMinutes = Int((sleepHoursWeekend - Double(weekendHours)) * 60)
+
+                                let weekdayString = "\(weekdayHours)h" + (weekdayMinutes > 0 ? " \(weekdayMinutes)m" : "")
+                                let weekendString = "\(weekendHours)h" + (weekendMinutes > 0 ? " \(weekendMinutes)m" : "")
+                                return "\(weekdayString) / \(weekendString)"
+                            }()
+                        )
+                        summaryRow(
+                            icon: "figure.strengthtraining.traditional",
+                            title: "Workout",
+                            value: {
+                                guard !workoutDays.isEmpty else { return "None" }
+
+                                let hours = Int(workoutHoursPerDay)
+                                let minutes = Int((workoutHoursPerDay - Double(hours)) * 60)
+
+                                let duration: String
+                                if hours > 0 {
+                                    duration = "\(hours)h" + (minutes > 0 ? " \(minutes)m" : "")
+                                } else {
+                                    duration = "\(minutes)m"
+                                }
+
+                                return "\(duration) • \(prettyDays(workoutDays))"
+                            }()
+                        )
+
                     }
                     
                     summarySection(title: "Health") {
-                        summaryRow( icon: "iphone", title: "Screen time", value: (limitScreenTime && screenLimitMinutes > 0) ? "\(screenLimitMinutes) min/day" : "No")
+                        
+                        summaryRow(
+                            icon: "iphone",
+                            title: "Screen time",
+                            value: {
+                                guard screenLimitHours > 0 else { return "No" }
+
+                                let hours = Int(screenLimitHours)
+                                let minutes = Int((screenLimitHours - Double(hours)) * 60)
+
+                                if hours > 0 {
+                                    return "\(hours)h" + (minutes > 0 ? " \(minutes)m" : "") + "/day"
+                                } else {
+                                    return "\(minutes)m/day"
+                                }
+                            }()
+                        )
                         summaryRow(icon: "scalemass", title: "Weight", value: "\(weightLbs) lbs")
                         summaryRow(icon: "drop", title: "Water", value: "\(waterOunces) oz")
                         summaryRow(icon: "snowflake", title: "Cold showers", value: (!coldShowerDays.isEmpty) ? "\(coldShowerDays.count)/week" : "No")
@@ -1220,7 +1242,7 @@ struct OnboardingView: View {
                     .preference(key: NavHeightPreferenceKey.self, value: proxy.size.height)
             }
         }
-        .frame(height: 84) // keeps nav bar at a predictable size
+        .frame(height: 84)
     }
 
     
@@ -1234,7 +1256,7 @@ struct OnboardingView: View {
             return workoutDays.isEmpty
         case 5:
             // If they enabled limits, ensure a positive limit
-            return limitScreenTime && screenLimitMinutes <= 0
+            return screenLimitHours <= 0
         case 7:
             // If they enabled cold showers, ensure at least 1 day
             return takeColdShowers && coldShowerDays.isEmpty
@@ -1249,7 +1271,6 @@ struct OnboardingView: View {
     }
 
     
-//    private var selectedAddictionNonEmpty: Bool { !majorFocus.isEmpty || !selectedAddiction.isEmpty }
     private var selectedAddictionNonEmpty: Bool {
         !selectedAddiction.isEmpty
     }
@@ -1301,9 +1322,9 @@ struct OnboardingView: View {
             "wakeWeekend": militaryTimeInt(from: wakeWeekend),
             "sleepHoursWeekday": sleepHoursWeekday,
             "sleepHoursWeekend": sleepHoursWeekend,
-            "workoutMinutesPerDay": workoutMinutesPerDay,
+            "workoutHoursPerDay": workoutHoursPerDay,
             "workoutDays": Array(workoutDays),
-            "screenLimitMinutes": screenLimitMinutes,
+            "screenLimitHours": screenLimitHours,
             "weightLbs": weightLbs,
             "waterOunces": waterOunces,
             "takeColdShowers": takeColdShowers,
@@ -1449,14 +1470,14 @@ struct OptionButton: View {
     
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 6) { // tighter spacing
+            HStack(spacing: 6) {
                 Image(systemName: iconName())
                     .frame(width: 18)
                 
                 Text(text)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .layoutPriority(1) // keeps text from shrinking too much
+                    .layoutPriority(1)
                 
                 Spacer()
                 
@@ -1467,9 +1488,9 @@ struct OptionButton: View {
                 }
             }
             .font(.subheadline.weight(.medium))
-            .padding(.vertical, 14) // more vertical padding
+            .padding(.vertical, 14)
             .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, minHeight: 56) // bigger tap area
+            .frame(maxWidth: .infinity, minHeight: 56)
             .background(Color.white.opacity(0.02))
             .foregroundColor(isSelected ? .white : .gray)
             .overlay(
@@ -1523,7 +1544,7 @@ struct SquareActionButton: View {
                     .font(.headline)
                     .foregroundColor(.white)
                 }
-                .frame(maxWidth: .infinity, minHeight: 56) // takes entire width
+                .frame(maxWidth: .infinity, minHeight: 56)
                 .opacity(disabled ? 0.55 : 1)
             }
         }
