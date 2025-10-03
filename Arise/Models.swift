@@ -1,5 +1,18 @@
 import SwiftUI
 
+let skillLevelThresholds: [Int] = [
+    0,    // Level 1
+    150,  // Level 2
+    350,  // Level 3
+    500,  // Level 4
+    850,  // Level 5
+    1150, // Level 6
+    1500, // Level 7
+    2000, // Level 8
+    2500, // Level 9
+    3350  // Level 10
+]
+
 struct SkillXP: Identifiable, Equatable {
     var id: String { name }
     let name: String
@@ -7,9 +20,14 @@ struct SkillXP: Identifiable, Equatable {
     let xp: Int
     
     var xpProgress: Double {
-        min(Double(xp % 1000) / 1000.0, 1.0)
+        min(Double(xp) / Double(currentLevelCap), 1.0)
+    }
+
+    var currentLevelCap: Int {
+        skillLevelThresholds[min(level, skillLevelThresholds.count - 1)]
     }
 }
+
 
 struct Rank: Identifiable {
     let id: Int

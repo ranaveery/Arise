@@ -5,6 +5,19 @@ import FirebaseAuth
 
 struct HomeView: View {
     
+    let skillLevelThresholds: [Int] = [
+        0,    // Level 1
+        150,  // Level 2
+        350,  // Level 3
+        500,  // Level 4
+        850,  // Level 5
+        1150, // Level 6
+        1500, // Level 7
+        2000, // Level 8
+        2500, // Level 9
+        3350  // Level 10
+    ]
+    
     let ranks = [
         Rank(id: 1, name: "Seeker", emblemName: "seeker_emblem", requiredXP: 0,
              subtitle: "Every journey begins with a single step.",
@@ -61,9 +74,9 @@ struct HomeView: View {
     @State private var glowPulse = false
     @State private var rank: String = "Loading..."
     @State private var totalXP: Int = 0
-    @State private var skillData: [String: [String: Int]] = [:]  // [skill: ["level": Int, "xp": Int]]
+    @State private var skillData: [String: [String: Int]] = [:]
 
-    private let maxSkillXP: Double = 1000  // Example XP cap per level for % bar
+    private let maxSkillXP: Double = 1000
 
     let skillIcons: [String: String] = [
         "Resilience": "brain",
@@ -171,7 +184,7 @@ struct HomeView: View {
                             ForEach(skillIcons.sorted(by: { $0.key < $1.key }), id: \.key) { skill, icon in
                                 let level = skillData[skill]?["level"] ?? 1
                                 let xp = skillData[skill]?["xp"] ?? 0
-                                let progress = min(Double(xp) / maxSkillXP, 1.0)
+                                let progress = skillProgress(for: xp)
 
                                 SkillCardView(
                                     symbolName: icon,
@@ -203,6 +216,67 @@ struct HomeView: View {
         }
     }
     
+    func updateSkillLevelsAndTotalXP() {
+        var newSkillData: [String: [String: Int]] = [:]
+        var accumulatedXP = 0
+        
+        for (skill, values) in skillData {
+            let xp = values["xp"] ?? 0
+            let newLevel = calculateSkillLevel(from: xp)
+            accumulatedXP += xp
+            newSkillData[skill] = ["xp": xp, "level": newLevel]
+        }
+        
+        self.skillData = newSkillData
+        
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let userRef = Firestore.firestore().collection("users").document(uid)
+        userRef.updateData([
+            "xp": accumulatedXP,
+            "skills": newSkillData
+        ]) { error in
+            if let error = error {
+                print("Failed to update XP in Firestore: \(error.localizedDescription)")
+            } else {
+                print("Updated total XP in Firestore: \(accumulatedXP)")
+            }
+        }
+    }
+
+    
+    func calculateSkillLevel(from xp: Int) -> Int {
+        for (index, threshold) in skillLevelThresholds.enumerated().reversed() {
+            if xp >= threshold {
+                return index + 1 // Levels 1–10
+            }
+        }
+        return 1
+    }
+    
+    func skillProgress(for xp: Int) -> Double {
+        let level = calculateSkillLevel(from: xp)
+        let currentThreshold = skillLevelThresholds[level - 1]
+        let nextThreshold = level < skillLevelThresholds.count
+            ? skillLevelThresholds[level]
+            : skillLevelThresholds.last! // max level
+        
+        let range = nextThreshold - currentThreshold
+        guard range > 0 else { return 1 } // already maxed
+        
+        let progress = Double(xp - currentThreshold) / Double(range)
+        return min(max(progress, 0), 1.0)
+    }
+
+    func addXP(to skill: String, amount: Int) {
+        var xp = skillData[skill]?["xp"] ?? 0
+        xp += amount
+        skillData[skill]?["xp"] = xp
+        skillData[skill]?["level"] = calculateSkillLevel(from: xp)
+        
+        updateSkillLevelsAndTotalXP()
+        
+    }
+    
     private func syncRankIfNeeded() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let userRef = Firestore.firestore().collection("users").document(uid)
@@ -228,31 +302,27 @@ struct HomeView: View {
     }
     
     func fetchUserData() {
-        // First try loading from cache
-        if let cached = UserDefaults.standard.dictionary(forKey: "cachedUserData") {
-            print("Loaded user data from cache.")
-            self.rank = cached["rank"] as? String ?? "Novice"
-            self.totalXP = cached["xp"] as? Int ?? 0
-            self.skillData = cached["skills"] as? [String: [String: Int]] ?? [:]
-        }
-
-        // Then try updating from Firestore (runs in background)
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let docRef = Firestore.firestore().collection("users").document(uid)
 
-        docRef.getDocument { snapshot, error in
-            if let data = snapshot?.data() {
-                print("Pulled fresh data from Firestore.")
-                self.rank = data["rank"] as? String ?? "Novice"
-                self.totalXP = data["xp"] as? Int ?? 0
-                self.skillData = data["skills"] as? [String: [String: Int]] ?? [:]
-                syncRankIfNeeded()
-                // Save to cache
-                UserDefaults.standard.set(data, forKey: "cachedUserData")
-            } else {
-                print("Failed to fetch Firestore data: \(error?.localizedDescription ?? "Unknown error")")
+        // Realtime listener instead of getDocument
+        docRef.addSnapshotListener { snapshot, error in
+            if let error = error {
+                print("Error fetching user data: \(error.localizedDescription)")
+                return
             }
+            guard let data = snapshot?.data() else { return }
+
+            print("Realtime update from Firestore.")
+            self.rank = data["rank"] as? String ?? "Novice"
+            self.totalXP = data["xp"] as? Int ?? 0
+            self.skillData = data["skills"] as? [String: [String: Int]] ?? [:]
+            
+            updateSkillLevelsAndTotalXP()
+            syncRankIfNeeded()
+            UserDefaults.standard.set(data, forKey: "cachedUserData")
         }
     }
+
 
 }

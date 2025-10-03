@@ -67,6 +67,8 @@ struct RankDetailsView: View {
         SkillXP(name: "Resilience", level: 1, xp: 0),
         SkillXP(name: "Wisdom", level: 1, xp: 0)
     ]
+    let skillLevelThresholds: [Int] = [0, 150, 350, 500, 850, 1150, 1500, 2000, 2500, 3350]
+
     @State private var animatedSkillProgress: [String: Double] = [:]
     
     @State private var achievements: [Achievement] = [
@@ -188,7 +190,7 @@ struct RankDetailsView: View {
                 
                 NextRankView(nextRank: nextRank, showPopup: $showRankPopup)
                 
-                SkillContributionsView(skillXPs: skillXPs, animatedSkillProgress: $animatedSkillProgress, gradient: rankGradient)
+                SkillContributionsView(skillXPs: skillXPs, gradient: rankGradient)
                 
                 AchievementsView(achievements: achievements, selectedAchievement: $selectedAchievement, gradient: rankGradient)
                 
@@ -436,7 +438,6 @@ struct NextRankView: View {
 
 struct SkillContributionsView: View {
     let skillXPs: [SkillXP]
-    @Binding var animatedSkillProgress: [String: Double]
     let gradient: LinearGradient
     
     @AppStorage("animationsEnabled") private var animationsEnabled = true
@@ -447,7 +448,7 @@ struct SkillContributionsView: View {
                 .font(.headline)
                 .foregroundStyle(gradient)
             
-            Text("This shows each individual skills cumulative contribution to your rank so far.")
+            Text("This shows each skill's progress towards to your rank.")
                 .font(.caption)
                 .foregroundColor(.white.opacity(0.6))
             
@@ -459,7 +460,7 @@ struct SkillContributionsView: View {
                                 .font(.subheadline.bold())
                                 .foregroundColor(.white)
                             Spacer()
-                            Text("\(skill.xp) / 1000 XP")
+                            Text("\(skill.xp) / \(skill.currentLevelCap) XP")
                                 .font(.caption2)
                                 .foregroundStyle(gradient)
                         }
@@ -473,11 +474,11 @@ struct SkillContributionsView: View {
                                 Capsule()
                                     .fill(gradient)
                                     .frame(
-                                        width: max(0, (geo.size.width - 48) * CGFloat(animatedSkillProgress[skill.name] ?? 0)),
+                                        width: geo.size.width * CGFloat(skill.xpProgress),
                                         height: 8
                                     )
                                     .if(animationsEnabled) { view in
-                                        view.animation(.easeInOut(duration: 0.6), value: animatedSkillProgress[skill.name])
+                                        view.animation(.easeInOut(duration: 0.6), value: skill.xpProgress)
                                     }
                             }
                         }
@@ -491,6 +492,7 @@ struct SkillContributionsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
+
 
 
 struct AchievementsView: View {
