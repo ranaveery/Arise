@@ -14,7 +14,6 @@ struct SignUpView: View {
     @State private var isLoading = false
     @Environment(\.dismiss) private var dismiss
 
-
     var body: some View {
         VStack(spacing: 24) {
             Spacer(minLength: 20)
@@ -96,9 +95,7 @@ struct SignUpView: View {
                 Text("Have an account?")
                     .foregroundColor(.white)
                 Button(action: {
-                    withAnimation {
-                        dismiss()  // Takes user back to LandingView
-                    }
+                    withAnimation { dismiss() }
                 }) {
                     Text("Log in")
                         .foregroundColor(Color.blue)
@@ -165,7 +162,6 @@ struct SignUpView: View {
         isLoading = true
         errorMessage = ""
 
-        // Validation
         guard !name.isEmpty else {
             errorMessage = "Name is required."
             isLoading = false
@@ -190,35 +186,19 @@ struct SignUpView: View {
                 let db = Firestore.firestore()
                 let userRef = db.collection("users").document(user.uid)
 
-                userRef.setData([
+                let basicData: [String: Any] = [
+                    "uid": user.uid,
                     "name": Self.sanitizeName(name),
-                    "email": email,
-                    "rank": "Seeker",
-                    "xp": 0,
-                    "animationsEnabled": true,
-                    "skills": [
-                        "Resilience": ["level": 1, "xp": 0],
-                        "Fuel": ["level": 1, "xp": 0],
-                        "Fitness": ["level": 1, "xp": 0],
-                        "Wisdom": ["level": 1, "xp": 0],
-                        "Discipline": ["level": 1, "xp": 0],
-                        "Network": ["level": 1, "xp": 0]
-                    ],
-                    "notifications": [
-                        "expiringTasks": true,
-                        "newTasks": true,
-                        "weeklyProgress": true
-                    ],
-                    "isOnboarded": false
-                ]) { error in
+                    "email": email
+                ]
+
+                userRef.setData(basicData, merge: true) { error in
                     if let error = error {
-                        print("Failed to save user data: \(error.localizedDescription)")
-                    } else {
-                        print("User data saved successfully.")
+                        print("Error saving user basic data:", error.localizedDescription)
                     }
-                }
-                DispatchQueue.main.async {
-                    isUserLoggedIn = true
+                    DispatchQueue.main.async {
+                        isUserLoggedIn = true
+                    }
                 }
             }
         }
@@ -263,41 +243,22 @@ struct SignUpView: View {
                 let db = Firestore.firestore()
                 let userRef = db.collection("users").document(firebaseUser.uid)
 
-                userRef.getDocument { snapshot, error in
-                    if let snapshot = snapshot, snapshot.exists {
-                        print("User already exists in Firestore")
+                userRef.getDocument { document, error in
+                    if let document = document, document.exists {
+                        print("User already exists in Firestore, skipping init")
                         DispatchQueue.main.async {
                             isUserLoggedIn = true
                         }
                     } else {
                         let name = user.profile?.name ?? "Unnamed"
                         let email = user.profile?.email ?? firebaseUser.email ?? ""
-
-                        userRef.setData([
+                        let basicData: [String: Any] = [
                             "name": name,
-                            "email": email,
-                            "rank": "Seeker",
-                            "xp": 0,
-                            "animationsEnabled": true,
-                            "skills": [
-                                "Resilience": ["level": 1, "xp": 0],
-                                "Fuel": ["level": 1, "xp": 0],
-                                "Fitness": ["level": 1, "xp": 0],
-                                "Wisdom": ["level": 1, "xp": 0],
-                                "Discipline": ["level": 1, "xp": 0],
-                                "Network": ["level": 1, "xp": 0]
-                            ],
-                            "notifications": [
-                                "expiringTasks": true,
-                                "newTasks": true,
-                                "weeklyProgress": true
-                            ],
-                            "isOnboarded": false
-                        ]) { error in
+                            "email": email
+                        ]
+                        userRef.setData(basicData, merge: true) { error in
                             if let error = error {
-                                print("Error saving Google user data:", error.localizedDescription)
-                            } else {
-                                print("Google user data saved")
+                                print("Error saving Google user basic data:", error.localizedDescription)
                             }
                             DispatchQueue.main.async {
                                 isUserLoggedIn = true
@@ -308,6 +269,4 @@ struct SignUpView: View {
             }
         }
     }
-    
-    
 }

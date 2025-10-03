@@ -1316,7 +1316,7 @@ struct OnboardingView: View {
             partial[activity.lowercased()] = Array(config.days).sorted()
         }
 
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "majorFocus": selectedAddiction,
             "wakeWeekday": militaryTimeInt(from: wakeWeekday),
             "wakeWeekend": militaryTimeInt(from: wakeWeekend),
@@ -1335,17 +1335,39 @@ struct OnboardingView: View {
             "isOnboarded": true
         ]
 
+        let defaults: [String: Any] = [
+            "rank": "Seeker",
+            "xp": 0,
+            "animationsEnabled": true,
+            "skills": [
+                "Resilience": ["level": 1, "xp": 0],
+                "Fuel": ["level": 1, "xp": 0],
+                "Fitness": ["level": 1, "xp": 0],
+                "Wisdom": ["level": 1, "xp": 0],
+                "Discipline": ["level": 1, "xp": 0],
+                "Network": ["level": 1, "xp": 0]
+            ],
+            "notifications": [
+                "expiringTasks": true,
+                "newTasks": true,
+                "weeklyProgress": true
+            ]
+        ]
+
+        payload.merge(defaults) { current, _ in current }
+
         isSaving = true
         docRef.setData(payload, merge: true) { error in
             isSaving = false
             if let error = error {
                 print("Failed to save plan: \(error.localizedDescription)")
             } else {
-                print("Plan saved and onboarding marked complete")
+                print("Plan + defaults saved, onboarding marked complete")
                 onFinish()
             }
         }
     }
+
 
 
 
