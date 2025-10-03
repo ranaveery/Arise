@@ -36,24 +36,24 @@ struct OnboardingView: View {
     @State private var wakeWeekend: Date = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
     
     // Sleep duration (hours)
-    @State private var sleepHoursWeekday: Double = 7.5
-    @State private var sleepHoursWeekend: Double = 8.5
+    @State private var sleepHoursWeekday: Double = 8
+    @State private var sleepHoursWeekend: Double = 9
     
     // Workout
-    @State private var workoutMinutesPerDay: Int = 30
-    @State private var workoutDays: Set<Int> = [1,3,5] // Monday=1 ... Sunday=7
+    @State private var workoutMinutesPerDay: Int = 60
+    @State private var workoutDays: Set<Int> = []
     
     // Screen time
     @State private var limitScreenTime: Bool = false
-    @State private var screenLimitMinutes: Int = 120
+    @State private var screenLimitMinutes: Int = 180
     
     // Weight -> water
-    @State private var weightLbs: Int = 160
+    @State private var weightLbs: Int = 140
     private var waterOunces: Int { Int((Double(weightLbs) * (2.0/3.0)).rounded()) }
 
     // Cold showers
     @State private var takeColdShowers: Bool = false
-    @State private var coldShowerDays: Set<Int> = [1,3,5]
+    @State private var coldShowerDays: Set<Int> = []
     
     // Extra activities
     let activityOptions = ["Meditation","Reading","Pray","Study","Walk","Run"]
@@ -67,6 +67,8 @@ struct OnboardingView: View {
     @State private var addictionChoices: [String] = ["Screentime","Porn","Vaping","Smoking","Alcohol","Gaming"]
     @State private var selectedAddiction: String = ""
     @State private var addictionDaysPerWeek: Int = 3
+    @State private var showAddictionSheet = false
+
     
     // Final overview note
     @State private var finalNote: String = ""
@@ -485,6 +487,7 @@ struct OnboardingView: View {
                             step: 1
                         )
                         .frame(maxWidth: .infinity)
+                        .tint(.gray)
                         
                         Text("Set how long you’d like to workout.")
                             .font(.footnote)
@@ -570,14 +573,18 @@ struct OnboardingView: View {
                         .foregroundColor(screenLimitMinutes > 180 ? .red : .white)
                 }
                 
-                Slider(value: Binding(
-                    get: { Double(screenLimitMinutes) },
-                    set: { newValue in
-                        // snap to nearest 15
-                        let snapped = Int(round(newValue / 15.0) * 15)
-                        screenLimitMinutes = snapped
-                    }
-                ), in: 15...360)
+                Slider(
+                    value: Binding(
+                        get: { Double(screenLimitMinutes) },
+                        set: { newValue in
+                            // snap to nearest 15
+                            let snapped = Int(round(newValue / 15.0) * 15)
+                            screenLimitMinutes = snapped
+                        }
+                    ),
+                    in: 15...360
+                )
+                .tint(.gray)
                 
                 // Dynamic description below the slider
                 Text(sliderDescription(for: screenLimitMinutes))
@@ -714,7 +721,7 @@ struct OnboardingView: View {
                     Slider(value: Binding(
                         get: { Double(weightLbs) },
                         set: { weightLbs = Int($0) }
-                    ), in: 50...400, step: 5)
+                    ), in: 50...400, step: 5).tint(.gray)
                     
                     Text("\(weightLbs) lbs")
                         .font(.headline)
@@ -880,17 +887,8 @@ struct OnboardingView: View {
             }
             .padding(.top, 16)
             
-            // Picker for addiction (fallback if empty)
-            Picker("Which habit?", selection: $selectedAddiction) {
-                Text("None").tag("")
-                ForEach(addictionChoices, id: \.self) { s in
-                    Label(s, systemImage: addictionIcon(for: s)).tag(s)
-                }
-            }
-            .pickerStyle(MenuPickerStyle())
-            .padding(.horizontal)
+            addictionPickerButton
             
-            // Days per week input
             if selectedAddictionNonEmpty {
                 VStack(spacing: 20) {
                     // Question changes based on addiction
@@ -935,6 +933,96 @@ struct OnboardingView: View {
     }
 
     // MARK: - Helpers
+    
+    private var addictionPickerButton: some View {
+        VStack(spacing: 12) {
+            Text("Your main focus")
+                .font(.subheadline.bold())
+                .foregroundColor(.gray)
+            
+            Button(action: {
+                showAddictionSheet.toggle()
+            }) {
+                HStack {
+                    Text(selectedAddiction.isEmpty ? "Choose habit" : selectedAddiction)
+                        .foregroundColor(selectedAddiction.isEmpty ? .gray : .white)
+                        .bold()
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                .padding()
+                .background(Color.white.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(appGradient, lineWidth: 2)
+                )
+                .cornerRadius(16)
+            }
+            .sheet(isPresented: $showAddictionSheet) {
+                VStack(spacing: 16) {
+                    // Header
+                    Text("Select your main focus")
+                        .font(.title2.bold())
+                        .foregroundColor(.white)
+                        .padding(.top)
+                    
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(addictionChoices, id: \.self) { choice in
+                                Button(action: {
+                                    selectedAddiction = choice
+                                }) {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: addictionIcon(for: choice))
+                                            .foregroundColor(.white.opacity(0.7))
+                                            .frame(width: 24)
+                                        Text(choice)
+                                            .foregroundColor(.white)
+                                            .bold()
+                                        Spacer()
+                                        // Show checkmark if currently selected
+                                        if selectedAddiction == choice {
+                                            Image(systemName: "checkmark")
+                                                .foregroundColor(.green)
+                                        }
+                                    }
+                                    .padding()
+                                    .background(
+                                        selectedAddiction == choice
+                                            ? Color.green.opacity(0.2)
+                                            : Color.white.opacity(0.05)
+                                    )
+                                    .cornerRadius(16)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                    }
+                    
+                    // Done button
+                    Button(action: {
+                        showAddictionSheet = false
+                    }) {
+                        Text("Done")
+                            .font(.headline.bold())
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.gray.opacity(0.3))
+                            .cornerRadius(16)
+                            .padding(.horizontal)
+                    }
+                    .padding(.bottom, 16)
+                }
+                .background(Color.black.ignoresSafeArea())
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    
     private func questionForAddiction(_ addiction: String) -> String {
         switch addiction.lowercased() {
         case "screentime": return "How many days a week do you spend too much time on screens?"
@@ -995,18 +1083,19 @@ struct OnboardingView: View {
                     }
                     
                     summarySection(title: "Health") {
-                        summaryRow(icon: "iphone", title: "Screen time", value: limitScreenTime ? "\(screenLimitMinutes) min/day" : "No limit")
+                        summaryRow( icon: "iphone", title: "Screen time", value: (limitScreenTime && screenLimitMinutes > 0) ? "\(screenLimitMinutes) min/day" : "No")
                         summaryRow(icon: "scalemass", title: "Weight", value: "\(weightLbs) lbs")
                         summaryRow(icon: "drop", title: "Water", value: "\(waterOunces) oz")
-                        summaryRow(icon: "snowflake", title: "Cold showers", value: takeColdShowers ? "\(coldShowerDays)/week" : "No")
+                        summaryRow(icon: "snowflake", title: "Cold showers", value: (!coldShowerDays.isEmpty) ? "\(coldShowerDays.count)/week" : "No")
                     }
-//                    COLD SHOWERS AND SCREENTIME NEED FIX
+                    
                     summarySection(title: "Extra") {
                         summaryRow(icon: "star", title: "Activities", value: selectedActivities.isEmpty
                             ? "None"
                             : selectedActivities.map { "\($0.key): \($0.value.days.count)x" }.joined(separator: ", ")
                         )
                     }
+                    
                 }
                 .padding()
                 .background(Color.white.opacity(0.05))
@@ -1168,6 +1257,11 @@ struct OnboardingView: View {
         let db = Firestore.firestore()
         let docRef = db.collection("users").document(uid)
 
+        let activitiesPayload: [String: [Int]] = selectedActivities.reduce(into: [String: [Int]]()) { partial, pair in
+            let (activity, config) = pair
+            partial[activity.lowercased()] = Array(config.days).sorted()
+        }
+
         let payload: [String: Any] = [
             "majorFocus": selectedAddiction,
             "wakeWeekday": militaryTimeInt(from: wakeWeekday),
@@ -1181,7 +1275,7 @@ struct OnboardingView: View {
             "waterOunces": waterOunces,
             "takeColdShowers": takeColdShowers,
             "coldShowerDays": Array(coldShowerDays),
-            "selectedActivities": selectedActivities,
+            "selectedActivities": activitiesPayload,
             "addictionDaysPerWeek": addictionDaysPerWeek,
             "finalNote": finalNote,
             "isOnboarded": true
