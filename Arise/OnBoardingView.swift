@@ -332,6 +332,8 @@ struct OnboardingView: View {
                 .foregroundColor(.gray)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
 
@@ -459,12 +461,23 @@ struct OnboardingView: View {
     // MARK: - Helper
     private func calculateBedtime(wakeTime: Date, sleepHours: Double) -> String? {
         let calendar = Calendar.current
-        guard let bedtime = calendar.date(byAdding: .hour, value: -Int(sleepHours), to: wakeTime) else {
-            return nil
-        }
+        // Subtract full hours + minutes
+        guard let bedtime = calendar.date(byAdding: .minute,
+                                          value: Int(-sleepHours * 60),
+                                          to: wakeTime) else { return nil }
+
+        // Round to nearest 15 minutes
+        let minutes = calendar.component(.minute, from: bedtime)
+        let remainder = minutes % 15
+        let adjustment = remainder < 8 ? -remainder : (15 - remainder)
+        guard let roundedBedtime = calendar.date(byAdding: .minute,
+                                                 value: adjustment,
+                                                 to: bedtime) else { return nil }
+
+        // Format result
         let formatter = DateFormatter()
         formatter.timeStyle = .short
-        return formatter.string(from: bedtime)
+        return formatter.string(from: roundedBedtime)
     }
 
     // --- 4: Workout preferences
@@ -1274,25 +1287,6 @@ struct OnboardingView: View {
     private var selectedAddictionNonEmpty: Bool {
         !selectedAddiction.isEmpty
     }
-
-    
-    // MARK: - Save / navigation logic (kept same as yours, slightly formatted)
-    private func saveStep(_ stepName: String, payload: [String: Any]) {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        isSaving = true
-        let db = Firestore.firestore()
-        let ref = db.collection("onboardings").document(uid)
-        var data = payload
-        data["lastStep"] = stepName
-        data["updatedAt"] = FieldValue.serverTimestamp()
-        ref.setData(data, merge: true) { err in
-            isSaving = false
-            if let err = err {
-                print("Failed saving step \(stepName): \(err)")
-            }
-        }
-    }
-
     
     private func handleContinue() {
         if currentStep < maxStepIndex {

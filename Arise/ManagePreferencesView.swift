@@ -1,427 +1,910 @@
+//import SwiftUI
+//import FirebaseAuth
+//import FirebaseFirestore
+//
+//// small helper
+//extension Comparable {
+//    func clamped(to limits: ClosedRange<Self>) -> Self {
+//        min(max(self, limits.lowerBound), limits.upperBound)
+//    }
+//}
+//
+//struct ManagePreferencesView: View {
+//    // MARK: - State
+//    @State private var majorFocus = ""
+//    @State private var wakeWeekday = Date()
+//    @State private var wakeWeekend = Date()
+//    @State private var sleepHoursWeekday = 8.0
+//    @State private var sleepHoursWeekend = 8.0
+//    @State private var workoutHoursPerDay = 1.0
+//    @State private var screenLimitHours = 2.0
+//    @State private var weightLbs = 160
+//    @State private var waterOunces = 106
+//    @State private var coldShowerDays: Set<Int> = []
+//    // activity -> selected days (1...7)
+//    @State private var selectedActivities: [String: [Int]] = [:]
+//
+//    @State private var expandedSection: String? = nil
+//    @State private var isSaving = false
+//    @State private var savedSuccessfully = false
+//
+//    // MARK: - Constants
+//    private let focusOptions = ["Smoking", "Gaming", "Screentime", "Alcohol", "Vaping", "Porn"]
+//    private let activityOptions = ["Meditation", "Reading", "Pray", "Study", "Walk", "Run"]
+//    private let weekLetters = ["M","T","W","T","F","S","S"]
+//
+//    private let gradient = LinearGradient(
+//        gradient: Gradient(colors: [
+//            Color(red: 84/255, green: 0/255, blue: 232/255),
+//            Color(red: 236/255, green: 71/255, blue: 1/255)
+//        ]),
+//        startPoint: .topLeading,
+//        endPoint: .bottomTrailing
+//    )
+//
+//    // MARK: - Body (compact; uses subviews to avoid compiler type-check explosion)
+//    var body: some View {
+//        ScrollView {
+//            VStack(spacing: 30) {
+//                Text("Manage Preferences")
+//                    .font(.largeTitle.bold())
+//                    .foregroundStyle(gradient)
+//                    .padding(.top)
+//
+//                focusSection
+//
+//                timePickerSection(title: "Wake Time (Weekday)", date: $wakeWeekday)
+//                timePickerSection(title: "Wake Time (Weekend)", date: $wakeWeekend)
+//
+//                durationPickerSection(title: "Sleep Hours (Weekday)", hours: $sleepHoursWeekday)
+//                durationPickerSection(title: "Sleep Hours (Weekend)", hours: $sleepHoursWeekend)
+//
+//                durationPickerSection(title: "Workout Duration", hours: $workoutHoursPerDay, range: 0.5...3)
+//                durationPickerSection(title: "Screen Limit", hours: $screenLimitHours, range: 0.5...8)
+//
+//                weightSection
+//
+//                coldShowerSection
+//
+//                activitiesSection
+//
+//                Button(action: savePreferences) {
+//                    ZStack {
+//                        if isSaving {
+//                            ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+//                                .frame(maxWidth: .infinity, minHeight: 50)
+//                        } else {
+//                            Text(savedSuccessfully ? "Saved" : "Save Changes")
+//                                .bold()
+//                                .frame(maxWidth: .infinity, minHeight: 50)
+//                                .background(gradient)
+//                                .cornerRadius(12)
+//                                .foregroundColor(.white)
+//                        }
+//                    }
+//                }
+//                .padding(.bottom, 40)
+//            }
+//            .padding(.horizontal)
+//            .padding(.bottom, 50)
+//        }
+//        .background(Color.black.ignoresSafeArea())
+//        .onAppear(perform: loadPreferences)
+//    }
+//
+//    // MARK: - Subviews Helpers
+//
+//    private func section<Content: View>(title: String, @ViewBuilder content: @escaping () -> Content) -> some View {
+//        VStack(alignment: .leading, spacing: 10) {
+//            Text(title)
+//                .foregroundStyle(gradient)
+//                .font(.headline)
+//            content()
+//        }
+//        .padding()
+//        .background(Color.white.opacity(0.05))
+//        .cornerRadius(12)
+//    }
+//
+//    private func timePickerSection(title: String, date: Binding<Date>) -> some View {
+//        section(title: title) {
+//            Picker("", selection: Binding(
+//                get: {
+//                    let comps = Calendar.current.dateComponents([.hour, .minute], from: date.wrappedValue)
+//                    return (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
+//                },
+//                set: { totalMinutes in
+//                    let hours = totalMinutes / 60
+//                    let minutes = totalMinutes % 60
+//                    date.wrappedValue = Calendar.current.date(from: DateComponents(hour: hours, minute: minutes)) ?? Date()
+//                }
+//            )) {
+//                ForEach(Array(stride(from: 0, to: 1440, by: 15)), id: \.self) { m in
+//                    Text(timeString(from: m)).tag(m)
+//                }
+//            }
+//            .pickerStyle(.wheel)
+//            .frame(height: 100)
+//        }
+//    }
+//
+//    private func durationPickerSection(title: String, hours: Binding<Double>, range: ClosedRange<Double> = 4...12) -> some View {
+//        section(title: title) {
+//            Picker("", selection: Binding(
+//                get: { Int(hours.wrappedValue * 60) },
+//                set: { hours.wrappedValue = Double($0) / 60.0 }
+//            )) {
+//                ForEach(Array(stride(from: Int(range.lowerBound * 60), through: Int(range.upperBound * 60), by: 15)), id: \.self) { minutes in
+//                    let h = minutes / 60
+//                    let m = minutes % 60
+//                    if m == 0 {
+//                        Text("\(h) hr").tag(minutes)
+//                    } else {
+//                        Text("\(h) hr \(m) min").tag(minutes)
+//                    }
+//                }
+//            }
+//            .pickerStyle(.wheel)
+//            .frame(height: 100)
+//        }
+//    }
+//
+//    // small sections pulled out to reduce body complexity
+//    private var focusSection: some View {
+//        expandableSection(title: "Main Focus", systemImage: "flame.fill") {
+//            VStack(spacing: 8) {
+//                ForEach(focusOptions, id: \.self) { option in
+//                    Button {
+//                        majorFocus = (majorFocus == option ? "" : option)
+//                        savedSuccessfully = false
+//                    } label: {
+//                        HStack {
+//                            Text(option)
+//                                .foregroundColor(.white)
+//                            Spacer()
+//                            if majorFocus == option {
+//                                Image(systemName: "checkmark.circle.fill")
+//                                    .foregroundColor(.purple)
+//                            }
+//                        }
+//                        .padding()
+//                        .background(Color.white.opacity(0.05))
+//                        .cornerRadius(10)
+//                    }
+//                    .buttonStyle(PlainButtonStyle())
+//                }
+//            }
+//        }
+//    }
+//
+//    private var weightSection: some View {
+//        section(title: "Weight (lbs)") {
+//            VStack(spacing: 10) {
+//                Slider(value: Binding(
+//                    get: { Double(weightLbs) },
+//                    set: {
+//                        let rounded = Int(($0 / 5.0).rounded() * 5)
+//                        weightLbs = rounded.clamped(to: 50...400)
+//                        updateWater()
+//                        savedSuccessfully = false
+//                    }
+//                ), in: 50...400, step: 5)
+//                .tint(.gray)
+//                HStack {
+//                    Text("\(weightLbs) lbs").foregroundColor(.white)
+//                    Spacer()
+//                    Text("\(waterOunces) oz water").foregroundColor(.gray)
+//                }
+//                .font(.subheadline)
+//            }
+//        }
+//    }
+//
+//    private var coldShowerSection: some View {
+//        section(title: "Cold Shower Days") {
+//            HStack(spacing: 8) {
+//                ForEach(1...7, id: \.self) { day in
+//                    Button {
+//                        if coldShowerDays.contains(day) {
+//                            coldShowerDays.remove(day)
+//                        } else {
+//                            coldShowerDays.insert(day)
+//                        }
+//                        savedSuccessfully = false
+//                    } label: {
+//                        Text(weekLetters[day - 1])
+//                            .font(.subheadline.bold())
+//                            .foregroundColor(coldShowerDays.contains(day) ? .white : .gray)
+//                            .padding(.vertical, 8)
+//                            .frame(minWidth: 35)
+//                    }
+//                    .buttonStyle(PlainButtonStyle())
+//                    .background(
+//                        Group {
+//                            if coldShowerDays.contains(day) {
+//                                RoundedRectangle(cornerRadius: 8).fill(gradient)
+//                            } else {
+//                                RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10))
+//                            }
+//                        }
+//                    )
+//                }
+//            }
+//        }
+//    }
+//
+//    private var activitiesSection: some View {
+//        section(title: "Activities (max 2)") {
+//            VStack(spacing: 12) {
+//                ForEach(activityOptions, id: \.self) { option in
+//                    VStack(alignment: .leading, spacing: 8) {
+//                        Button {
+//                            if selectedActivities.keys.contains(option) {
+//                                // deselect -> remove entirely
+//                                selectedActivities.removeValue(forKey: option)
+//                            } else if selectedActivities.count < 2 {
+//                                // add with no days initially
+//                                selectedActivities[option] = []
+//                            }
+//                            savedSuccessfully = false
+//                        } label: {
+//                            HStack {
+//                                Text(option)
+//                                    .foregroundColor(.white)
+//                                Spacer()
+//                                Image(systemName: selectedActivities.keys.contains(option) ? "checkmark.circle.fill" : "plus.circle")
+//                                    .foregroundColor(selectedActivities.keys.contains(option) ? .green : .gray)
+//                            }
+//                            .padding()
+//                            .background(Color.white.opacity(0.05))
+//                            .cornerRadius(10)
+//                        }
+//                        .buttonStyle(PlainButtonStyle())
+//
+//                        // Inline day picker for that activity
+//                        if let days = selectedActivities[option] {
+//                            HStack(spacing: 8) {
+//                                ForEach(1...7, id: \.self) { day in
+//                                    Button {
+//                                        var updated = days
+//                                        if updated.contains(day) {
+//                                            updated.removeAll { $0 == day }
+//                                        } else {
+//                                            updated.append(day)
+//                                        }
+//                                        selectedActivities[option] = updated.sorted()
+//                                        savedSuccessfully = false
+//                                    } label: {
+//                                        Text(weekLetters[day - 1])
+//                                            .font(.subheadline.bold())
+//                                            .foregroundColor(days.contains(day) ? .white : .gray)
+//                                            .padding(.vertical, 8)
+//                                            .frame(minWidth: 35)
+//                                    }
+//                                    .buttonStyle(PlainButtonStyle())
+//                                    .background(
+//                                        Group {
+//                                            if days.contains(day) {
+//                                                RoundedRectangle(cornerRadius: 8).fill(gradient)
+//                                            } else {
+//                                                RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10))
+//                                            }
+//                                        }
+//                                    )
+//                                }
+//                            }
+//                            .padding(.leading, 4)
+//                            // animate state changes
+//                            .animation(.easeInOut, value: selectedActivities)
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
+//
+//    // MARK: - Helpers
+//
+//    private func timeString(from minutes: Int) -> String {
+//        let hour = (minutes / 60) % 24
+//        let minute = minutes % 60
+//        let isPM = hour >= 12
+//        let displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)
+//        return String(format: "%d:%02d %@", displayHour, minute, isPM ? "PM" : "AM")
+//    }
+//
+//    private func updateWater() {
+//        waterOunces = Int((Double(weightLbs) * 2 / 3).rounded())
+//    }
+//
+//    private func militaryTimeInt(from date: Date) -> Int {
+//        let hour = Calendar.current.component(.hour, from: date)
+//        let minute = Calendar.current.component(.minute, from: date)
+//        return hour * 100 + minute
+//    }
+//
+//    @ViewBuilder
+//    private func expandableSection<Content: View>(
+//        title: String,
+//        systemImage: String,
+//        @ViewBuilder content: @escaping () -> Content
+//    ) -> some View {
+//        VStack(alignment: .leading, spacing: 0) {
+//            Button {
+//                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+//                    expandedSection = (expandedSection == title ? nil : title)
+//                }
+//            } label: {
+//                HStack {
+//                    Image(systemName: systemImage)
+//                        .foregroundStyle(gradient)
+//                    Text(title)
+//                        .foregroundColor(.white)
+//                    Spacer()
+//                    Image(systemName: expandedSection == title ? "chevron.up" : "chevron.down")
+//                        .foregroundColor(.gray)
+//                }
+//                .padding()
+//                .background(Color.white.opacity(0.03))
+//                .cornerRadius(12)
+//            }
+//
+//            if expandedSection == title {
+//                VStack(alignment: .leading, spacing: 12) {
+//                    content()
+//                }
+//                .padding()
+//                .background(Color.white.opacity(0.05))
+//                .cornerRadius(12)
+//                .transition(.opacity.combined(with: .move(edge: .top)))
+//            }
+//        }
+//    }
+//
+//    // MARK: - Firestore
+//
+//    private func loadPreferences() {
+//        guard let uid = Auth.auth().currentUser?.uid else { return }
+//        Firestore.firestore().collection("users").document(uid).getDocument { snapshot, _ in
+//            guard let data = snapshot?.data() else { return }
+//
+//            majorFocus = data["majorFocus"] as? String ?? ""
+//
+//            if let weekdayInt = data["wakeWeekday"] as? Int {
+//                wakeWeekday = dateFromMilitary(weekdayInt)
+//            }
+//            if let weekendInt = data["wakeWeekend"] as? Int {
+//                wakeWeekend = dateFromMilitary(weekendInt)
+//            }
+//
+//            sleepHoursWeekday = data["sleepHoursWeekday"] as? Double ?? 8
+//            sleepHoursWeekend = data["sleepHoursWeekend"] as? Double ?? 8
+//            workoutHoursPerDay = data["workoutHoursPerDay"] as? Double ?? 1
+//            screenLimitHours = data["screenLimitHours"] as? Double ?? 2
+//            weightLbs = data["weightLbs"] as? Int ?? 160
+//            updateWater()
+//
+//            if let days = data["coldShowerDays"] as? [Int] {
+//                coldShowerDays = Set(days)
+//            }
+//
+//            // Load activities mapping if present
+//            if let activities = data["selectedActivities"] as? [String: Any] {
+//                var mapped: [String: [Int]] = [:]
+//                for (key, value) in activities {
+//                    let normalizedKey = key.capitalized   // convert back for display
+//                    if let arr = value as? [Int] {
+//                        mapped[normalizedKey] = arr
+//                    } else if let single = value as? Int {
+//                        mapped[normalizedKey] = [single]
+//                    } else if let arrAny = value as? [Any] {
+//                        let ints = arrAny.compactMap { $0 as? Int }
+//                        if !ints.isEmpty { mapped[normalizedKey] = ints }
+//                    }
+//                }
+//                selectedActivities = mapped
+//            } else {
+//                selectedActivities = [:]
+//            }
+//        }
+//    }
+//
+//    private func dateFromMilitary(_ value: Int) -> Date {
+//        let hour = value / 100
+//        let minute = value % 100
+//        return Calendar.current.date(from: DateComponents(hour: hour, minute: minute)) ?? Date()
+//    }
+//
+//    private func savePreferences() {
+//        guard let uid = Auth.auth().currentUser?.uid else { return }
+//        isSaving = true
+//
+//        let docRef = Firestore.firestore().collection("users").document(uid)
+//
+//        // Build payload for fields OTHER THAN selectedActivities
+//        let otherFields: [String: Any] = [
+//            "majorFocus": majorFocus,
+//            "wakeWeekday": militaryTimeInt(from: wakeWeekday),
+//            "wakeWeekend": militaryTimeInt(from: wakeWeekend),
+//            "sleepHoursWeekday": sleepHoursWeekday,
+//            "sleepHoursWeekend": sleepHoursWeekend,
+//            "workoutHoursPerDay": workoutHoursPerDay,
+//            "screenLimitHours": screenLimitHours,
+//            "weightLbs": weightLbs,
+//            "waterOunces": waterOunces,
+//            "coldShowerDays": Array(coldShowerDays)
+//        ]
+//
+//        // First: update other fields with merge (safe create-or-update)
+//        docRef.setData(otherFields, merge: true) { setErr in
+//            if let setErr = setErr {
+//                print("Error saving other fields: \(setErr.localizedDescription)")
+//                isSaving = false
+//                savedSuccessfully = false
+//                return
+//            }
+//
+//            // Then: replace the selectedActivities field entirely so removed keys are deleted server-side.
+//            // Use updateData to set the map field to the current local value.
+//            let normalizedActivities = Dictionary(
+//                uniqueKeysWithValues: selectedActivities.map { key, value in
+//                    (key.lowercased(), value)
+//                }
+//            )
+//            docRef.updateData(["selectedActivities": normalizedActivities]) { updateErr in
+//                DispatchQueue.main.async {
+//                    self.isSaving = false
+//                    if let updateErr = updateErr {
+//                        // If updateData fails (rare), fall back to setData merge for the activities field
+//                        print("updateData(selectedActivities) failed: \(updateErr.localizedDescription). Falling back to setData(merge:true).")
+//                        docRef.setData(["selectedActivities": self.selectedActivities], merge: true) { fallbackErr in
+//                            if fallbackErr == nil {
+//                                withAnimation { self.savedSuccessfully = true }
+//                            } else {
+//                                print("Fallback failed: \(fallbackErr!.localizedDescription)")
+//                                self.savedSuccessfully = false
+//                            }
+//                        }
+//                    } else {
+//                        withAnimation { self.savedSuccessfully = true }
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
 
+// Helper to clamp numbers
 extension Comparable {
     func clamped(to limits: ClosedRange<Self>) -> Self {
-        return min(max(self, limits.lowerBound), limits.upperBound)
+        min(max(self, limits.lowerBound), limits.upperBound)
     }
 }
 
 struct ManagePreferencesView: View {
-    // MARK: - Stored Preferences
+    // MARK: - State
     @State private var majorFocus = ""
-    @State private var wakeWeekday = 420
-    @State private var wakeWeekend = 480
-    @State private var sleepHoursWeekday: Double = 8
-    @State private var sleepHoursWeekend: Double = 8
-    @State private var workoutMinutesPerDay = 60
-    @State private var workoutDaysPerWeek = 3
-    @State private var workoutDays: Set<Int> = []
-    @State private var screenLimitMinutes = 120
+    @State private var wakeWeekday = Date()
+    @State private var wakeWeekend = Date()
+    @State private var sleepHoursWeekday = 8.0
+    @State private var sleepHoursWeekend = 8.0
+    @State private var workoutHoursPerDay = 1.0
+    @State private var screenLimitHours = 2.0
     @State private var weightLbs = 160
-    @State private var waterOunces: Double = 120
-    @State private var takeColdShowers = false
-    @State private var coldShowersPerWeek = 0
-    @State private var selectedActivities: [String: Int] = [:]
-    @State private var addictionSeverity = 5
-    @State private var finalNote = ""
-    @State private var showWakeTimePicker = false
-    @State private var showSleepHoursPicker = false
-    @State private var showWorkoutMinutesPicker = false
-    @State private var showScreenLimitPicker = false
-    @State private var showColdShowerPicker = false
-    // MARK: - UI State
+    @State private var waterOunces = 106
+    @State private var coldShowerDays: Set<Int> = []
+    @State private var selectedActivities: [String: [Int]] = [:]
+
+    @State private var expandedSection: String? = nil
     @State private var isSaving = false
     @State private var savedSuccessfully = false
-    @State private var showFocusPicker = false
-    @State private var showWorkoutDayPicker = false
-    @State private var showActivityPicker = false
-    
+
     // MARK: - Constants
-    private let focusOptions = ["Smoking", "Gaming", "Screentime", "Alcohol", "Vaping", "Porn", "Other"]
-    private let weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    private let activityOptions = ["Meditation", "Reading", "Journaling", "Exercise", "Breathing"]
-    
+    private let focusOptions = ["Smoking", "Gaming", "Screentime", "Alcohol", "Vaping", "Porn"]
+    private let activityOptions = ["Meditation", "Reading", "Pray", "Study", "Walk", "Run"]
+    private let weekLetters = ["M", "T", "W", "T", "F", "S", "S"]
+
     private let gradient = LinearGradient(
-        gradient: Gradient(colors: [Color(red: 84/255, green: 0/255, blue: 232/255),
-                                    Color(red: 236/255, green: 71/255, blue: 1/255)]),
+        gradient: Gradient(colors: [
+            Color(red: 84/255, green: 0/255, blue: 232/255),
+            Color(red: 236/255, green: 71/255, blue: 1/255)
+        ]),
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
-    
+
+    // MARK: - Body
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
-                Text("Preferences")
+            VStack(spacing: 24) {
+                Text("Manage Preferences")
                     .font(.largeTitle.bold())
                     .foregroundStyle(gradient)
-                    .padding(.top, 20)
-                
-                VStack(spacing: 1) {
-                    
-                    // Major Focus
-                    preferenceRow(title: "Major Focus", value: majorFocus.isEmpty ? "Not set" : majorFocus, systemImage: "flame.fill", isEditable: true, isExpanded: $showFocusPicker) {
-                        VStack(spacing: 5) {
-                            ForEach(focusOptions, id: \.self) { option in
-                                dropdownOption(option, isSelected: majorFocus == option) { changePreference { majorFocus = option } }
-                            }
-                        }.padding(.vertical, 5)
-                    }
-                    
-                    // Workout Days
-                    preferenceRow(title: "Workout Days", value: workoutDays.isEmpty ? "Not set" : workoutDays.map { weekDays[$0-1] }.joined(separator: ", "), systemImage: "figure.strengthtraining.traditional", isEditable: true, isExpanded: $showWorkoutDayPicker) {
-                        VStack(spacing: 5) {
-                            ForEach(1...7, id: \.self) { day in
-                                MultiSelectOptionButton(text: weekDays[day-1], isSelected: workoutDays.contains(day)) {
-                                    changePreference { toggleDaySelection(day) }
-                                }
-                            }
-                        }.padding(.vertical, 5)
-                    }
-                    
-                    // Activities
-                    preferenceRow(title: "Activities", value: selectedActivities.isEmpty ? "None" : selectedActivities.map { "\($0.key): \($0.value)x" }.joined(separator: ", "), systemImage: "star.fill", isEditable: true, isExpanded: $showActivityPicker) {
-                        VStack(spacing: 5) {
-                            ForEach(activityOptions, id: \.self) { option in
-                                Stepper("\(option): \(selectedActivities[option] ?? 0)x", value: Binding(
-                                    get: { selectedActivities[option] ?? 0 },
-                                    set: { newValue in changePreference { selectedActivities[option] = newValue } }
-                                ), in: 0...7)
-                                .padding()
-                                .background(Color.white.opacity(0.05))
-                                .cornerRadius(10)
-                            }
-                        }.padding(.vertical, 5)
-                    }
-                    
-                    // Wake Times
-                    preferenceRow(
-                        title: "Wake Times",
-                        value: "Weekday: \(wakeWeekday / 100):\(String(format: "%02d", wakeWeekday % 100)), Weekend: \(wakeWeekend / 100):\(String(format: "%02d", wakeWeekend % 100))",
-                        systemImage: "alarm.fill",
-                        isEditable: true,
-                        isExpanded: $showWakeTimePicker
-                    ) {
-                        VStack {
-                            Stepper("Weekday: \(timeString(from: wakeWeekday))", onIncrement: {
-                                stepTime(&wakeWeekday, step: 15)
-                            }, onDecrement: {
-                                stepTime(&wakeWeekday, step: -15)
-                            })
-                            .padding()
-                            .background(Color.white.opacity(0.05))
-                            .cornerRadius(10)
+                    .padding(.top)
 
-                            Stepper("Weekend: \(timeString(from: wakeWeekend))", onIncrement: {
-                                stepTime(&wakeWeekend, step: 15)
-                            }, onDecrement: {
-                                stepTime(&wakeWeekend, step: -15)
-                            })
-                            .padding()
-                            .background(Color.white.opacity(0.05))
-                            .cornerRadius(10)
-                        }.padding(.vertical, 5)
-                    }
+                focusSection
+                wakeWeekdaySection
+                wakeWeekendSection
+                sleepWeekdaySection
+                sleepWeekendSection
+                workoutSection
+                screenLimitSection
+                weightSection
+                coldShowerSection
+                activitiesSection
 
-                    // Sleep Hours
-                    preferenceRow(
-                        title: "Sleep Hours",
-                        value: "Weekday: \(Int(sleepHoursWeekday))h, Weekend: \(Int(sleepHoursWeekend))h",
-                        systemImage: "bed.double.fill",
-                        isEditable: true,
-                        isExpanded: $showSleepHoursPicker
-                    ) {
-                        VStack {
-                            Stepper("Weekday: \(Int(sleepHoursWeekday))h", value: $sleepHoursWeekday, in: 4...12, step: 1)
-                                .padding()
-                                .background(Color.white.opacity(0.05))
-                                .cornerRadius(10)
-                            Stepper("Weekend: \(Int(sleepHoursWeekend))h", value: $sleepHoursWeekend, in: 4...12, step: 1)
-                                .padding()
-                                .background(Color.white.opacity(0.05))
-                                .cornerRadius(10)
-                        }.padding(.vertical, 5)
-                    }
-
-                    // Workout Minutes per Day
-                    preferenceRow(
-                        title: "Workout Duration",
-                        value: "\(workoutMinutesPerDay) min",
-                        systemImage: "timer",
-                        isEditable: true,
-                        isExpanded: $showWorkoutMinutesPicker
-                    ) {
-                        Stepper("Minutes: \(workoutMinutesPerDay)", value: $workoutMinutesPerDay, in: 15...180, step: 15)
-                            .padding()
-                            .background(Color.white.opacity(0.05))
-                            .cornerRadius(10)
-                    }
-
-                    // Screen Limit
-                    preferenceRow(
-                        title: "Screen Limit",
-                        value: "\(screenLimitMinutes / 60) hr",
-                        systemImage: "iphone",
-                        isEditable: true,
-                        isExpanded: $showScreenLimitPicker
-                    ) {
-                        Stepper("Hours: \(screenLimitMinutes / 60)", value: Binding(
-                            get: { screenLimitMinutes / 60 },
-                            set: { newValue in changePreference { screenLimitMinutes = newValue * 60 } }
-                        ), in: 1...12)
-                        .padding()
-                        .background(Color.white.opacity(0.05))
-                        .cornerRadius(10)
-                    }
-
-                    // Cold Showers
-                    preferenceRow(
-                        title: "Cold Showers",
-                        value: takeColdShowers ? "\(coldShowersPerWeek)x / week" : "Off",
-                        systemImage: "snowflake",
-                        isEditable: true,
-                        isExpanded: $showColdShowerPicker
-                    ) {
-                        VStack(spacing: 10) {
-                            Toggle("Enable Cold Showers", isOn: Binding(
-                                get: { takeColdShowers },
-                                set: { newValue in changePreference { takeColdShowers = newValue } }
-                            ))
-                            .padding()
-                            .background(Color.white.opacity(0.05))
-                            .cornerRadius(10)
-                            .tint(Color.blue)
-                            
-                            if takeColdShowers {
-                                Stepper("Times per week: \(coldShowersPerWeek)", value: $coldShowersPerWeek, in: 0...7)
-                                    .padding()
-                                    .background(Color.white.opacity(0.05))
-                                    .cornerRadius(10)
-                                
-                                HStack {
-                                    ForEach(1...7, id: \.self) { day in
-                                        MultiSelectOptionButton(text: weekDays[day-1], isSelected: workoutDays.contains(day)) {
-                                            changePreference { toggleDaySelection(day) }
-                                        }
-                                    }
-                                }
-                            }
-                        }.padding(.vertical, 5)
-                    }
-                    
-                }
-                .background(Color.white.opacity(0.05))
-                .cornerRadius(12)
-                .padding(.horizontal)
-                
-                // Save Button
-                Button(action: savePreferences) {
-                    ZStack {
-                        if isSaving {
-                            ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        } else {
-                            HStack {
-                                if savedSuccessfully {
-                                    Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
-                                }
-                                Text(savedSuccessfully ? "Saved" : "Save Changes")
-                                    .fontWeight(.bold).foregroundColor(.white)
-                            }
-                            .frame(height: 50)
-                            .frame(maxWidth: .infinity)
-                            .background(gradient)
-                            .cornerRadius(12)
-                        }
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 40)
-                .disabled(isSaving)
-                
-                Text("Options unavailable here cannot be changed once set.")
-                    .font(.footnote)
-                    .foregroundColor(.gray)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                    .padding(.bottom, 80)
-                
+                saveButton
             }
+            .padding(.horizontal)
+            .padding(.bottom, 60) // prevents tab bar overlap
         }
         .background(Color.black.ignoresSafeArea())
         .onAppear(perform: loadPreferences)
     }
-    
-    private func timeString(from value: Int) -> String {
-        let hour = value / 60
-        let minute = value % 60
-        return String(format: "%d:%02d", hour, minute)
-    }
 
-    private func stepTime(_ value: inout Int, step: Int) {
-        value = (value + step).clamped(to: 0...24*60)
-    }
-    
-    // MARK: - UI Helpers
-    private func toggleDaySelection(_ day: Int) {
-        if workoutDays.contains(day) {
-            workoutDays.remove(day)
-        } else {
-            workoutDays.insert(day)
-        }
-    }
-    
-    private func changePreference(_ action: @escaping () -> Void) {
-        action()
-        savedSuccessfully = false
-    }
-    
-    @ViewBuilder
-    private func dropdownOption(_ text: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                Text(text).foregroundColor(.white)
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(Color(red: 84/255, green: 0/255, blue: 232/255))
+    // MARK: - Expandable Sections
+    private var focusSection: some View {
+        expandableSection(title: "Main Focus", systemImage: "flame.fill") {
+            VStack(spacing: 8) {
+                ForEach(focusOptions, id: \.self) { option in
+                    Button {
+                        majorFocus = (majorFocus == option ? "" : option)
+                        savedSuccessfully = false
+                    } label: {
+                        HStack {
+                            Text(option).foregroundColor(.white)
+                            Spacer()
+                            if majorFocus == option {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.purple)
+                            }
+                        }
+                        .padding()
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(10)
+                    }
                 }
             }
-            .padding()
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(10)
         }
     }
-    
-    struct MultiSelectOptionButton: View {
-        let text: String
-        let isSelected: Bool
-        let onTap: () -> Void
 
-        var body: some View {
-            Button(action: onTap) {
-                HStack {
-                    Text(text)
-                        .fontWeight(.medium)
-                    Spacer()
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(Color(red: 84/255, green: 0/255, blue: 232/255))
-                            .font(.title2)
+    private var wakeWeekdaySection: some View {
+        expandableSection(title: "Wake Time (Weekday)", systemImage: "sunrise.fill") {
+            timePicker(for: $wakeWeekday)
+        }
+    }
+
+    private var wakeWeekendSection: some View {
+        expandableSection(title: "Wake Time (Weekend)", systemImage: "sunrise.circle.fill") {
+            timePicker(for: $wakeWeekend)
+        }
+    }
+
+    private var sleepWeekdaySection: some View {
+        expandableSection(title: "Sleep Hours (Weekday)", systemImage: "moon.zzz.fill") {
+            durationPicker(for: $sleepHoursWeekday)
+        }
+    }
+
+    private var sleepWeekendSection: some View {
+        expandableSection(title: "Sleep Hours (Weekend)", systemImage: "moon.stars.fill") {
+            durationPicker(for: $sleepHoursWeekend)
+        }
+    }
+
+    private var workoutSection: some View {
+        expandableSection(title: "Workout Duration", systemImage: "figure.run.circle.fill") {
+            durationPicker(for: $workoutHoursPerDay, range: 0.5...3)
+        }
+    }
+
+    private var screenLimitSection: some View {
+        expandableSection(title: "Screen Limit", systemImage: "iphone.gen3.circle.fill") {
+            durationPicker(for: $screenLimitHours, range: 0.5...8)
+        }
+    }
+
+    private var weightSection: some View {
+        expandableSection(title: "Weight & Water Goal", systemImage: "scalemass.fill") {
+            VStack(spacing: 10) {
+                Slider(value: Binding(
+                    get: { Double(weightLbs) },
+                    set: {
+                        let rounded = Int(($0 / 5.0).rounded() * 5)
+                        weightLbs = rounded.clamped(to: 50...400)
+                        updateWater()
+                        savedSuccessfully = false
                     }
+                ), in: 50...400, step: 5)
+                .tint(.gray)
+                HStack {
+                    Text("\(weightLbs) lbs").foregroundColor(.white)
+                    Spacer()
+                    Text("\(waterOunces) oz water").foregroundColor(.gray)
+                }
+                .font(.subheadline)
+            }
+        }
+    }
+
+    private var coldShowerSection: some View {
+        expandableSection(title: "Cold Shower Days", systemImage: "drop.fill") {
+            HStack(spacing: 8) {
+                ForEach(1...7, id: \.self) { day in
+                    Button {
+                        if coldShowerDays.contains(day) {
+                            coldShowerDays.remove(day)
+                        } else {
+                            coldShowerDays.insert(day)
+                        }
+                        savedSuccessfully = false
+                    } label: {
+                        Text(weekLetters[day - 1])
+                            .font(.subheadline.bold())
+                            .foregroundColor(coldShowerDays.contains(day) ? .white : .gray)
+                            .padding(.vertical, 8)
+                            .frame(minWidth: 35)
+                            .background(
+                                coldShowerDays.contains(day)
+                                ? AnyView(RoundedRectangle(cornerRadius: 8).fill(gradient))
+                                : AnyView(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10)))
+                            )
+                    }
+                }
+            }
+        }
+    }
+
+    private var activitiesSection: some View {
+        expandableSection(title: "Activities (Max 2)", systemImage: "figure.mind.and.body") {
+            VStack(spacing: 12) {
+                ForEach(activityOptions, id: \.self) { option in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button {
+                            if selectedActivities.keys.contains(option) {
+                                selectedActivities.removeValue(forKey: option)
+                            } else if selectedActivities.count < 2 {
+                                selectedActivities[option] = []
+                            }
+                            savedSuccessfully = false
+                        } label: {
+                            HStack {
+                                Text(option).foregroundColor(.white)
+                                Spacer()
+                                Image(systemName: selectedActivities.keys.contains(option)
+                                      ? "checkmark.circle.fill"
+                                      : "plus.circle")
+                                .foregroundColor(selectedActivities.keys.contains(option) ? .green : .gray)
+                            }
+                            .padding()
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(10)
+                        }
+
+                        if let days = selectedActivities[option] {
+                            HStack(spacing: 8) {
+                                ForEach(1...7, id: \.self) { day in
+                                    Button {
+                                        var updated = days
+                                        if updated.contains(day) {
+                                            updated.removeAll { $0 == day }
+                                        } else {
+                                            updated.append(day)
+                                        }
+                                        selectedActivities[option] = updated.sorted()
+                                        savedSuccessfully = false
+                                    } label: {
+                                        Text(weekLetters[day - 1])
+                                            .font(.subheadline.bold())
+                                            .foregroundColor(days.contains(day) ? .white : .gray)
+                                            .padding(.vertical, 8)
+                                            .frame(minWidth: 35)
+                                            .background(
+                                                days.contains(day)
+                                                ? AnyView(RoundedRectangle(cornerRadius: 8).fill(gradient))
+                                                : AnyView(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10)))
+                                            )
+                                    }
+                                }
+                            }
+                            .animation(.easeInOut, value: selectedActivities)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var saveButton: some View {
+        Button(action: savePreferences) {
+            ZStack {
+                if isSaving {
+                    ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                } else {
+                    Text(savedSuccessfully ? "Saved" : "Save Changes")
+                        .bold()
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(gradient)
+                        .cornerRadius(12)
+                        .foregroundColor(.white)
+                }
+            }
+        }
+        .padding(.bottom, 20)
+    }
+
+    // MARK: - Picker Builders
+    private func timePicker(for date: Binding<Date>) -> some View {
+        Picker("", selection: Binding(
+            get: {
+                let comps = Calendar.current.dateComponents([.hour, .minute], from: date.wrappedValue)
+                return (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
+            },
+            set: { totalMinutes in
+                let hours = totalMinutes / 60
+                let minutes = totalMinutes % 60
+                date.wrappedValue = Calendar.current.date(from: DateComponents(hour: hours, minute: minutes)) ?? Date()
+            }
+        )) {
+            ForEach(Array(stride(from: 0, to: 1440, by: 15)), id: \.self) { m in
+                Text(timeString(from: m)).tag(m)
+            }
+        }
+        .pickerStyle(.wheel)
+        .frame(height: 100)
+    }
+
+    private func durationPicker(for hours: Binding<Double>, range: ClosedRange<Double> = 4...12) -> some View {
+        Picker("", selection: Binding(
+            get: { Int(hours.wrappedValue * 60) },
+            set: { hours.wrappedValue = Double($0) / 60.0 }
+        )) {
+            ForEach(Array(stride(from: Int(range.lowerBound * 60), through: Int(range.upperBound * 60), by: 15)), id: \.self) { minutes in
+                let h = minutes / 60
+                let m = minutes % 60
+                Text(m == 0 ? "\(h) hr" : "\(h) hr \(m) min").tag(minutes)
+            }
+        }
+        .pickerStyle(.wheel)
+        .frame(height: 100)
+    }
+
+    // MARK: - Shared Expandable Section View
+    @ViewBuilder
+    private func expandableSection<Content: View>(
+        title: String,
+        systemImage: String,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    expandedSection = (expandedSection == title ? nil : title)
+                }
+            } label: {
+                HStack {
+                    Image(systemName: systemImage).foregroundStyle(gradient)
+                    Text(title).foregroundColor(.white)
+                    Spacer()
+                    Image(systemName: expandedSection == title ? "chevron.up" : "chevron.down")
+                        .foregroundColor(.gray)
+                }
+                .padding()
+                .background(Color.white.opacity(0.03))
+                .cornerRadius(12)
+            }
+
+            if expandedSection == title {
+                VStack(alignment: .leading, spacing: 12) {
+                    content()
                 }
                 .padding()
                 .background(Color.white.opacity(0.05))
-                .cornerRadius(20)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(LinearGradient(
-                            gradient: Gradient(colors: isSelected
-                                ? [Color(red: 84/255, green: 0/255, blue: 232/255),
-                                   Color(red: 236/255, green: 71/255, blue: 1/255)]
-                                : [.clear, .clear]
-                            ),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ), lineWidth: isSelected ? 2 : 1)
-                )
-                .foregroundColor(.white)
+                .cornerRadius(12)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
-    
-    @ViewBuilder
-    private func preferenceRow<Content: View>(
-        title: String,
-        value: String,
-        systemImage: String,
-        isEditable: Bool,
-        isExpanded: Binding<Bool>? = nil,
-        @ViewBuilder dropdownContent: () -> Content = { EmptyView() }
-    ) -> some View {
-        VStack(spacing: 0) {
-            Button(action: { withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { isExpanded?.wrappedValue.toggle() } }) {
-                HStack {
-                    Image(systemName: systemImage)
-                        .foregroundStyle(gradient)
-                        .frame(width: 25)
-                    
-                    Text(title)
-                        .foregroundColor(.white)
 
-                    Spacer()
-                    
-                    if title == "Gender" {
-                        Text(value)
-                            .foregroundColor(.white)
-                    }
-                    
-                    if isEditable {
-                        Image(systemName: "chevron.right")
-                            .rotationEffect(.degrees(isExpanded?.wrappedValue == true ? 90 : 0))
-                            .foregroundColor(.gray)
-                            .animation(.easeInOut(duration: 0.25), value: isExpanded?.wrappedValue)
-                    }
-                }
-                .padding()
-            }
-            
-            if isExpanded?.wrappedValue == true {
-                dropdownContent()
-                    .animation(.easeInOut(duration: 0.3), value: isExpanded?.wrappedValue)
-                    .transition(.opacity)
-            }
-        }
-        .background(Color.black.opacity(0.1))
-        .cornerRadius(12)
+    // MARK: - Helpers
+    private func timeString(from minutes: Int) -> String {
+        let hour = (minutes / 60) % 24
+        let minute = minutes % 60
+        let isPM = hour >= 12
+        let displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)
+        return String(format: "%d:%02d %@", displayHour, minute, isPM ? "PM" : "AM")
     }
-    
+
+    private func updateWater() {
+        waterOunces = Int((Double(weightLbs) * 2 / 3).rounded())
+    }
+
+    private func militaryTimeInt(from date: Date) -> Int {
+        let hour = Calendar.current.component(.hour, from: date)
+        let minute = Calendar.current.component(.minute, from: date)
+        return hour * 100 + minute
+    }
+
+    // MARK: - Firestore
     private func loadPreferences() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         Firestore.firestore().collection("users").document(uid).getDocument { snapshot, _ in
             guard let data = snapshot?.data() else { return }
+
             majorFocus = data["majorFocus"] as? String ?? ""
-            wakeWeekday = data["wakeWeekday"] as? Int ?? 700
-            wakeWeekend = data["wakeWeekend"] as? Int ?? 800
+            if let weekdayInt = data["wakeWeekday"] as? Int { wakeWeekday = dateFromMilitary(weekdayInt) }
+            if let weekendInt = data["wakeWeekend"] as? Int { wakeWeekend = dateFromMilitary(weekendInt) }
+
             sleepHoursWeekday = data["sleepHoursWeekday"] as? Double ?? 8
             sleepHoursWeekend = data["sleepHoursWeekend"] as? Double ?? 8
-            workoutMinutesPerDay = data["workoutMinutesPerDay"] as? Int ?? 60
-            workoutDaysPerWeek = data["workoutDaysPerWeek"] as? Int ?? 3
-            if let days = data["workoutDays"] as? [Int] { workoutDays = Set(days) }
-            screenLimitMinutes = data["screenLimitMinutes"] as? Int ?? 120
+            workoutHoursPerDay = data["workoutHoursPerDay"] as? Double ?? 1
+            screenLimitHours = data["screenLimitHours"] as? Double ?? 2
             weightLbs = data["weightLbs"] as? Int ?? 160
-            waterOunces = data["waterOunces"] as? Double ?? Double(weightLbs) * 2/3
-            takeColdShowers = data["takeColdShowers"] as? Bool ?? false
-            coldShowersPerWeek = data["coldShowersPerWeek"] as? Int ?? 0
-            selectedActivities = data["selectedActivities"] as? [String: Int] ?? [:]
-            addictionSeverity = data["addictionSeverity"] as? Int ?? 5
-            finalNote = data["finalNote"] as? String ?? ""
+            updateWater()
+
+            if let days = data["coldShowerDays"] as? [Int] {
+                coldShowerDays = Set(days)
+            }
+
+            if let activities = data["selectedActivities"] as? [String: Any] {
+                var mapped: [String: [Int]] = [:]
+                for (key, value) in activities {
+                    let normalizedKey = key.capitalized
+                    if let arr = value as? [Int] {
+                        mapped[normalizedKey] = arr
+                    } else if let single = value as? Int {
+                        mapped[normalizedKey] = [single]
+                    }
+                }
+                selectedActivities = mapped
+            }
         }
     }
-    
+
+    private func dateFromMilitary(_ value: Int) -> Date {
+        let hour = value / 100
+        let minute = value % 100
+        return Calendar.current.date(from: DateComponents(hour: hour, minute: minute)) ?? Date()
+    }
+
     private func savePreferences() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         isSaving = true
-        Firestore.firestore().collection("users").document(uid).setData([
+
+        let docRef = Firestore.firestore().collection("users").document(uid)
+        let otherFields: [String: Any] = [
             "majorFocus": majorFocus,
-            "wakeWeekday": wakeWeekday,
-            "wakeWeekend": wakeWeekend,
+            "wakeWeekday": militaryTimeInt(from: wakeWeekday),
+            "wakeWeekend": militaryTimeInt(from: wakeWeekend),
             "sleepHoursWeekday": sleepHoursWeekday,
             "sleepHoursWeekend": sleepHoursWeekend,
-            "workoutMinutesPerDay": workoutMinutesPerDay,
-            "workoutDaysPerWeek": workoutDaysPerWeek,
-            "workoutDays": Array(workoutDays),
-            "screenLimitMinutes": screenLimitMinutes,
+            "workoutHoursPerDay": workoutHoursPerDay,
+            "screenLimitHours": screenLimitHours,
             "weightLbs": weightLbs,
             "waterOunces": waterOunces,
-            "takeColdShowers": takeColdShowers,
-            "coldShowersPerWeek": coldShowersPerWeek,
-            "selectedActivities": selectedActivities,
-            "addictionSeverity": addictionSeverity,
-            "finalNote": finalNote
-        ], merge: true) { _ in
-            isSaving = false
-            withAnimation { savedSuccessfully = true }
+            "coldShowerDays": Array(coldShowerDays)
+        ]
+
+        docRef.setData(otherFields, merge: true) { err in
+            if let err = err {
+                print("Error saving: \(err.localizedDescription)")
+                isSaving = false
+                return
+            }
+
+            let normalizedActivities = Dictionary(uniqueKeysWithValues:
+                selectedActivities.map { key, value in (key.lowercased(), value) }
+            )
+            docRef.updateData(["selectedActivities": normalizedActivities]) { updateErr in
+                DispatchQueue.main.async {
+                    isSaving = false
+                    withAnimation { savedSuccessfully = (updateErr == nil) }
+                }
+            }
         }
     }
 }
