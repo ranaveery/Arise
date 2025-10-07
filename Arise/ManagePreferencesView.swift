@@ -539,7 +539,7 @@ struct ManagePreferencesView: View {
                 saveButton
             }
             .padding(.horizontal)
-            .padding(.bottom, 60) // prevents tab bar overlap
+            .padding(.bottom, 60)
         }
         .background(Color.black.ignoresSafeArea())
         .onAppear(perform: loadPreferences)
