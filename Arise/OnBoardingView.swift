@@ -1332,6 +1332,7 @@ struct OnboardingView: View {
         let defaults: [String: Any] = [
             "rank": "Seeker",
             "xp": 0,
+            "streak": 0,
             "animationsEnabled": true,
             "skills": [
                 "Resilience": ["level": 1, "xp": 0],
