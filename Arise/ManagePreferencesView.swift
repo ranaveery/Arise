@@ -541,6 +541,7 @@ struct ManagePreferencesView: View {
             .padding(.horizontal)
             .padding(.bottom, 60)
         }
+        .scrollIndicators(.hidden)
         .background(Color.black.ignoresSafeArea())
         .onAppear(perform: loadPreferences)
     }
