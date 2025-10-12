@@ -11,7 +11,8 @@ struct TaskItem: Identifiable, Equatable {
     let description: String
     let xp: Int
     let expiresInHours: Int
-    let internalType: String // "Daily" or "Set Day"
+    let internalType: String
+    let skillTargets: [String]?
     
     // equality based on id
     static func == (lhs: TaskItem, rhs: TaskItem) -> Bool {
@@ -104,7 +105,8 @@ struct LoggingView: View {
                                                 accentGradient: accentGradient,
                                                 onTap: { toggleExpand(task) },
                                                 onComplete: { markComplete(task) },
-                                                onPartial: { markPartial(task) }
+                                                onPartial: { markPartial(task) },
+                                                timeRemaining: timeRemainingString()
                                             )
                                         }
                                     }
@@ -121,7 +123,8 @@ struct LoggingView: View {
                                                 accentGradient: accentGradient,
                                                 onTap: nil,
                                                 onComplete: nil,
-                                                onPartial: nil
+                                                onPartial: nil,
+                                                timeRemaining: timeRemainingString()
                                             )
                                         }
                                     }
@@ -303,12 +306,28 @@ extension LoggingView {
                 let wakeName = "Wake Up"
                 let wakeDesc = "Wake up at \(wakeReadable)"
                 let wakeID = idForTask(name: wakeName, description: wakeDesc, day: todayStr)
-                newTasks.append(TaskItem(id: wakeID, name: wakeName, description: wakeDesc, xp: 25, expiresInHours: 6, internalType: "Daily"))
+                newTasks.append(TaskItem(
+                    id: wakeID,
+                    name: wakeName,
+                    description: wakeDesc,
+                    xp: 25,
+                    expiresInHours: 6,
+                    internalType: "Daily",
+                    skillTargets: ["Discipline", "Resilience"] // 🧠 self-control
+                ))
                 
                 let sleepName = "Sleep"
                 let sleepDesc = "Sleep by \(bedtime)"
                 let sleepID = idForTask(name: sleepName, description: sleepDesc, day: todayStr)
-                newTasks.append(TaskItem(id: sleepID, name: sleepName, description: sleepDesc, xp: 25, expiresInHours: 12, internalType: "Daily"))
+                newTasks.append(TaskItem(
+                    id: sleepID,
+                    name: sleepName,
+                    description: sleepDesc,
+                    xp: 25,
+                    expiresInHours: 12,
+                    internalType: "Daily",
+                    skillTargets: ["Fuel", "Wisdom"] // 🧠 r
+                ))
             }
         }
         
@@ -317,14 +336,30 @@ extension LoggingView {
             let name = "Drink Water"
             let desc = "Drink \(water) oz of water today"
             let id = idForTask(name: name, description: desc, day: todayStr)
-            newTasks.append(TaskItem(id: id, name: name, description: desc, xp: 20, expiresInHours: 10, internalType: "Daily"))
+            newTasks.append(TaskItem(
+                id: id,
+                name: name,
+                description: desc,
+                xp: 20,
+                expiresInHours: 10,
+                internalType: "Daily",
+                skillTargets: ["Fuel", "Fitness"] // 🧠 physical upkeep
+            ))
         }
         
         if let screenLimit = data["screenLimitHours"] as? Int {
             let name = "Screen Time Limit"
             let desc = "Stay under \(screenLimit) hours of screen time"
             let id = idForTask(name: name, description: desc, day: todayStr)
-            newTasks.append(TaskItem(id: id, name: name, description: desc, xp: 20, expiresInHours: 10, internalType: "Daily"))
+            newTasks.append(TaskItem(
+                id: id,
+                name: name,
+                description: desc,
+                xp: 20,
+                expiresInHours: 10,
+                internalType: "Daily",
+                skillTargets: ["Discipline", "Wisdom"] // 🧠 impulse control & focus
+            ))
         }
         
         // --- Set-day: workouts ---
@@ -342,7 +377,15 @@ extension LoggingView {
                 let name = "Workout"
                 let desc = "Workout for \(minutes) minutes"
                 let id = idForTask(name: name, description: desc, day: todayStr)
-                newTasks.append(TaskItem(id: id, name: name, description: desc, xp: 50, expiresInHours: 12, internalType: "Set Day"))
+                newTasks.append(TaskItem(
+                    id: id,
+                    name: name,
+                    description: desc,
+                    xp: 50,
+                    expiresInHours: 12,
+                    internalType: "Set Day",
+                    skillTargets: ["Fitness", "Resilience"] // 🧠 physical + mental endurance
+                ))
             }
         }
 
@@ -358,23 +401,91 @@ extension LoggingView {
                 description: desc,
                 xp: 35,
                 expiresInHours: 12,
-                internalType: "Set Day"
+                internalType: "Set Day",
+                skillTargets: ["Resilience", "Discipline"] // 🧠 discomfort tolerance
             ))
         }
-        
+                
         // --- Set-day: custom selectedActivities (map name -> [Int]) ---
         if let selectedActivities = data["selectedActivities"] as? [String: [Int]] {
+            let activitySkillMap: [String: [String]] = [
+                "meditation": ["Wisdom"],
+                "reading": ["Wisdom"],
+                "pray": ["Wisdom"],
+                "study": ["Wisdom"],
+                "walk": ["Fitness", "Fuel"],
+                "run": ["Fitness"]
+            ]
+            
+            let activityDescriptions: [String: String] = [
+                "meditation": "Spend time meditating to center your mind",
+                "reading": "Read to expand your knowledge or relax your mind",
+                "pray": "Pray and reflect spiritually",
+                "study": "Study to sharpen your understanding and skills",
+                "walk": "Go for a walk to refresh your body and mind",
+                "run": "Go for a run to build endurance and strength"
+            ]
+            
             for (activity, days) in selectedActivities {
                 if days.contains(todayIndex) {
                     let name = activity.capitalized
-                    let desc = "Complete your \(activity.lowercased()) activity"
+                    let desc = activityDescriptions[activity.lowercased()] ?? "Complete your \(activity.lowercased()) activity"
                     let id = idForTask(name: name, description: desc, day: todayStr)
-                    newTasks.append(TaskItem(id: id, name: name, description: desc, xp: 30, expiresInHours: 12, internalType: "Set Day"))
+                    
+                    // Use mapped skills if available, else default to Discipline
+                    let skills = activitySkillMap[activity.lowercased()] ?? ["Discipline"]
+                    
+                    newTasks.append(TaskItem(
+                        id: id,
+                        name: name,
+                        description: desc,
+                        xp: 30,
+                        expiresInHours: 12,
+                        internalType: "Set Day",
+                        skillTargets: skills
+                    ))
                 }
             }
         }
         
-        // Assign tasks sorted (optional: by type then name for consistency)
+        // --- Social tasks ---
+        let today = Date()
+        let weekday = Calendar.current.component(.weekday, from: today)
+
+        // Daily social task
+        do {
+            let name = "Social Interaction"
+            let desc = "Have a meaningful conversation today"
+            let id = idForTask(name: name, description: desc, day: todayStr)
+            newTasks.append(TaskItem(
+                id: id,
+                name: name,
+                description: desc,
+                xp: 25,
+                expiresInHours: hoursUntilMidnight(),
+                internalType: "Daily",
+                skillTargets: ["Network"] // 🧠 social skill
+            ))
+        }
+
+        // Weekly (Saturday only)
+        if weekday == 7 {
+            let name = "Meet Someone New"
+            let desc = "Talk to or meet someone new today"
+            let id = idForTask(name: name, description: desc, day: todayStr)
+            newTasks.append(TaskItem(
+                id: id,
+                name: name,
+                description: desc,
+                xp: 80,
+                expiresInHours: hoursUntilMidnight(),
+                internalType: "Set Day",
+                skillTargets: ["Network"] // 🧠 social boldness
+            ))
+        }
+
+        
+        // Sort for consistency
         self.assignedTasks = newTasks.sorted { $0.name < $1.name }
     }
     
@@ -466,13 +577,14 @@ extension LoggingView {
             }
             
             var skillsMap = (data["skills"] as? [String: Any]) ?? [:]
-            // order to distribute remainders consistently
-            let skillKeys = ["Resilience", "Fuel", "Fitness", "Wisdom", "Discipline", "Network"]
+            let allSkillKeys = ["Resilience", "Fuel", "Fitness", "Wisdom", "Discipline", "Network"]
+            
+            // use targeted skills if available, otherwise fall back to all
+            let targetSkills = task.skillTargets?.isEmpty == false ? task.skillTargets! : allSkillKeys
             
             let totalXP = task.xp
             let effectiveTotal: Int
             if partial {
-                // half, round down to nearest 5
                 let half = Double(totalXP) / 2.0
                 let halfRoundedDownTo5 = Int(floor(half / 5.0)) * 5
                 effectiveTotal = max(0, halfRoundedDownTo5)
@@ -480,11 +592,11 @@ extension LoggingView {
                 effectiveTotal = totalXP
             }
             
-            // distribute
-            let basePerSkill = effectiveTotal / skillKeys.count
-            var remainder = effectiveTotal % skillKeys.count
+            // divide among only target skills
+            let basePerSkill = effectiveTotal / targetSkills.count
+            var remainder = effectiveTotal % targetSkills.count
             
-            for key in skillKeys {
+            for key in targetSkills {
                 var entry = (skillsMap[key] as? [String: Any]) ?? [:]
                 let existingXP = (entry["xp"] as? Int) ?? 0
                 
@@ -494,7 +606,6 @@ extension LoggingView {
                     remainder -= 1
                 }
                 entry["xp"] = existingXP + add
-                // preserve level if exists
                 skillsMap[key] = entry
             }
             
@@ -503,9 +614,8 @@ extension LoggingView {
                     print("Error updating skills:", updateErr.localizedDescription)
                     completion(false)
                     return
-                } else {
-                    completion(true)
                 }
+                completion(true)
             }
         }
     }
@@ -604,6 +714,22 @@ extension LoggingView {
         return fmt.string(from: date)
     }
     
+    func timeRemainingString() -> String {
+        let now = Date()
+        let midnight = Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 1, to: now)!)
+        let diff = Int(midnight.timeIntervalSince(now))
+        let hours = diff / 3600
+        let minutes = (diff % 3600) / 60
+        return hours >= 1 ? "\(hours)h" : "\(minutes)m"
+    }
+
+    func hoursUntilMidnight() -> Int {
+        let now = Date()
+        let midnight = Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 1, to: now)!)
+        let diff = Int(midnight.timeIntervalSince(now))
+        return diff / 3600
+    }
+    
     // date used inside IDs - same format
     private func dateStringForIDs(from date: Date) -> String {
         return isoDateString(from: date)
@@ -654,6 +780,7 @@ struct TaskCard: View {
     let onTap: (() -> Void)?
     let onComplete: (() -> Void)?
     let onPartial: (() -> Void)?
+    let timeRemaining: String
     
     var body: some View {
         VStack(spacing: 12) {
@@ -700,7 +827,8 @@ struct TaskCard: View {
                         Image(systemName: "clock.fill")
                             .font(.caption2)
                             .foregroundColor(.white.opacity(0.7))
-                        Text("\(task.expiresInHours)h")
+                        Text(timeRemaining)
+                            .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in }
                             .font(.caption2)
                             .foregroundColor(.white.opacity(0.7))
                     }
@@ -745,7 +873,7 @@ struct TaskCard: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.02))
+                .fill(Color.white.opacity(0.05))
                 .background(
                     RoundedRectangle(cornerRadius: 16)
                         .stroke(Color.white.opacity(0.04), lineWidth: 1)
