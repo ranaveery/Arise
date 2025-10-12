@@ -1,8 +1,18 @@
 import SwiftUI
+import Firebase
+import FirebaseAuth
+import FirebaseFirestore
 
+//Ring works, three cards work, tasks completed today and radar chart don't work
 struct TrendsView: View {
     
     @AppStorage("animationsEnabled") private var animationsEnabled = true
+    @State private var currentXP: Double = 0
+    @State private var streak: Int = 0
+    @State private var bestSkill: String = ""
+    @State private var attentionSkill: String = ""
+    @State private var tasksCompletedToday: Int = 0
+    @State private var totalTasksToday: Int = 0
 
     struct SkillTrend: Identifiable {
         let id = UUID()
@@ -11,6 +21,7 @@ struct TrendsView: View {
         let recentData: [Double]
     }
 
+    // Dummy radar data (still shown)
     let skillTrends = [
         SkillTrend(name: "Resilience", trendPercent: 6.2, recentData: [1, 2, 3, 2, 4, 5, 6]),
         SkillTrend(name: "Fuel", trendPercent: 3.8, recentData: [5, 4, 4, 3, 3, 2, 1]),
@@ -19,14 +30,11 @@ struct TrendsView: View {
         SkillTrend(name: "Discipline", trendPercent: 8.3, recentData: [3, 3, 4, 5, 5, 6, 7]),
         SkillTrend(name: "Network", trendPercent: 8.2, recentData: [4, 4, 3, 3, 3, 2, 2])
     ]
-
-    var averageGrowth: [Double] {
-        let count = skillTrends.first?.recentData.count ?? 0
-        guard count > 0 else { return [] }
-        return (0..<count).map { i in
-            let total = skillTrends.map { $0.recentData[i] }.reduce(0, +)
-            return total / Double(skillTrends.count)
-        }
+    
+    private let xpGoal: Double = 20100.0
+    
+    var journeyProgress: Double {
+        return min(currentXP / xpGoal, 1.0)
     }
 
     var body: some View {
@@ -34,17 +42,23 @@ struct TrendsView: View {
             VStack(spacing: 24) {
                 Header()
 
-                AverageGrowthCard(data: averageGrowth, animationsEnabled: animationsEnabled)
+                // Journey Progress Ring replaces AverageGrowthCard
+                JourneyProgressRing(progress: journeyProgress, currentXP: currentXP, xpGoal: xpGoal)
+                    .padding(.horizontal)
 
+                // --- Streak, Best Skill, Attention ---
                 HStack(spacing: 10) {
-                    summaryCard(title: "Overall", value: "+3.1%", icon: "chart.line.uptrend.xyaxis", color: .green)
-                    summaryCard(title: "Best Skill", value: "Fitness", icon: "flame.fill", color: .orange)
-                    summaryCard(title: "Attention", value: "Fuel", icon: "exclamationmark.triangle.fill", color: .red)
+                    summaryCard(title: "Streak", value: "\(streak)", icon: "flame.fill", color: .orange)
+                    summaryCard(title: "Best Skill", value: bestSkill, icon: "medal.fill", color: .green)
+                    summaryCard(title: "Attention", value: attentionSkill, icon: "exclamationmark.triangle.fill", color: .red)
                 }
                 .padding(.horizontal)
 
-                SkillTrendList(skillTrends: skillTrends, animationsEnabled: animationsEnabled)
+                // --- Replace Skill Trend List with Task Progress Today ---
+                TaskProgressCard(completed: tasksCompletedToday, total: totalTasksToday)
+                    .padding(.horizontal)
 
+                // --- Keep Skill Growth Radar ---
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Skill Growth Radar")
                         .font(.headline)
@@ -65,17 +79,75 @@ struct TrendsView: View {
 
                 Spacer(minLength: 40)
             }
+            .onAppear {
+                fetchUserData()
+                fetchTaskData()
+            }
         }
         .background(Color.black.ignoresSafeArea())
     }
 
+    // --- Firestore Fetch ---
+    private func fetchUserData() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+
+        db.collection("users").document(uid).addSnapshotListener { snapshot, error in
+            guard let data = snapshot?.data(), error == nil else { return }
+            
+            self.currentXP = data["xp"] as? Double ?? 0
+            self.streak = data["streak"] as? Int ?? 0
+
+            // Extract skills
+            if let skillsData = data["skills"] as? [String: [String: Int]] {
+                // Sort by XP descending
+                let sorted = skillsData.sorted {
+                    ($0.value["xp"] ?? 0) > ($1.value["xp"] ?? 0)
+                }
+
+                if let best = sorted.first?.key {
+                    self.bestSkill = best
+                }
+
+                if let lowest = sorted.last?.key {
+                    self.attentionSkill = lowest
+                }
+            } else {
+                self.bestSkill = "—"
+                self.attentionSkill = "—"
+            }
+        }
+    }
+
+
+    private func fetchTaskData() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        let today = Calendar.current.startOfDay(for: Date())
+
+        db.collection("users").document(uid).collection("tasks")
+            .whereField("date", isGreaterThanOrEqualTo: Timestamp(date: today))
+            .getDocuments { snapshot, error in
+                guard let docs = snapshot?.documents, error == nil else { return }
+                let total = docs.count
+                let completed = docs.filter { $0.data()["completed"] as? Bool == true }.count
+                self.tasksCompletedToday = completed
+                self.totalTasksToday = total
+            }
+    }
+
+    // --- Summary Card ---
     func summaryCard(title: String, value: String, icon: String, color: Color) -> some View {
         VStack(spacing: 8) {
             HStack {
                 Image(systemName: icon).foregroundColor(color)
-                Text(title).foregroundColor(.white.opacity(0.7)).font(.caption)
+                Text(title)
+                    .foregroundColor(.white.opacity(0.7))
+                    .font(.caption)
             }
-            Text(value).font(.title3.bold()).foregroundColor(.white)
+            Text(value.isEmpty ? "—" : value)
+                .font(.title3.bold())
+                .foregroundColor(.white)
         }
         .padding()
         .frame(maxWidth: .infinity)
@@ -84,6 +156,7 @@ struct TrendsView: View {
     }
 }
 
+// MARK: - Header
 private struct Header: View {
     var body: some View {
         VStack(spacing: 4) {
@@ -98,103 +171,108 @@ private struct Header: View {
     }
 }
 
-private struct AverageGrowthCard: View {
-    let data: [Double]
-    let animationsEnabled: Bool
+// MARK: - Journey Progress Ring
+private struct JourneyProgressRing: View {
+    let progress: Double
+    let currentXP: Double
+    let xpGoal: Double
+    @State private var animateProgress = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Average Skill Growth")
+            Text("Journey Progress")
                 .font(.headline)
                 .foregroundColor(.white.opacity(0.8))
-                .padding(.horizontal)
+                .padding(.horizontal, 4)
+
             ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.1), lineWidth: 18)
+                    .frame(height: 180)
+
+                Circle()
+                    .trim(from: 0, to: animateProgress ? progress : 0)
+                    .stroke(
+                        AngularGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 84/255, green: 0/255, blue: 232/255),
+                                Color(red: 236/255, green: 71/255, blue: 1/255)
+                            ]),
+                            center: .center
+                        ),
+                        style: StrokeStyle(lineWidth: 18, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .frame(height: 180)
+                    .animation(.easeOut(duration: 0.8), value: animateProgress)
+
+                VStack {
+                    Text("\(Int(progress * 100))%")
+                        .font(.largeTitle.bold())
+                        .foregroundColor(.white)
+                    Text("\(Int(currentXP)) / \(Int(xpGoal)) XP")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.7))
+                }
+            }
+            .padding(.vertical, 12)
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    animateProgress = true
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Task Progress Card
+private struct TaskProgressCard: View {
+    let completed: Int
+    let total: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Tasks Completed Today")
+                .font(.headline)
+                .foregroundColor(.white.opacity(0.8))
+                .padding(.horizontal, 4)
+
+            ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 20)
                     .fill(Color.white.opacity(0.05))
-                    .frame(height: 180)
-                    .padding(.horizontal)
-                MiniSparkline(data: data, animationsEnabled: animationsEnabled)
-                    .frame(height: 150)
-                    .padding(.horizontal)
-            }
-        }
-    }
-}
+                    .frame(height: 100)
 
-private struct SkillTrendList: View {
-    let skillTrends: [TrendsView.SkillTrend]
-    let animationsEnabled: Bool
-
-    var body: some View {
-        VStack(spacing: 20) {
-            ForEach(skillTrends) { skill in
                 HStack {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(skill.name).font(.headline).foregroundColor(.white)
-                        MiniSparkline(data: skill.recentData, animationsEnabled: animationsEnabled)
-                            .frame(height: 30)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("\(completed) / \(total)")
+                            .font(.title.bold())
+                            .foregroundColor(.white)
+                        Text("completed")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
                     }
                     Spacer()
-                    let isUp: Bool = skill.trendPercent >= 0
-                    HStack(spacing: 4) {
-                        Image(systemName: isUp ? "arrow.up" : "arrow.down")
-                            .foregroundColor(isUp ? .green : .red)
-                        Text(String(format: "%.1f%%", skill.trendPercent))
-                            .foregroundColor(isUp ? .green : .red)
-                    }.font(.headline)
-                }
-                .padding(.horizontal)
-            }
-        }
-        .padding(.vertical)
-    }
-}
-
-// MARK: - Mini Sparkline
-
-struct MiniSparkline: View {
-    let data: [Double]
-    let animationsEnabled: Bool
-    @State private var animationProgress: CGFloat = 0.0
-
-    var body: some View {
-        GeometryReader { geo in
-            let width = geo.size.width
-            let height = geo.size.height
-            let maxVal = (data.max() ?? 1)
-            let minVal = (data.min() ?? 0)
-            let range = (maxVal - minVal == 0) ? 1 : (maxVal - minVal)
-
-            Path { path in
-                for index in data.indices {
-                    let progress = CGFloat(index) / CGFloat(max(data.count - 1, 1))
-                    let x = width * progress
-                    let normalized = (data[index] - minVal) / range
-                    let y = height * (1 - CGFloat(normalized))
-                    if index == 0 { path.move(to: CGPoint(x: x, y: y)) }
-                    else { path.addLine(to: CGPoint(x: x, y: y)) }
-                }
-            }
-            .trim(from: 0, to: animationProgress)
-            .stroke(
-                LinearGradient(
-                    colors: [
-                        Color(red: 84/255, green: 0/255, blue: 232/255),
-                        Color(red: 236/255, green: 71/255, blue: 1/255)
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                ),
-                lineWidth: 2
-            )
-            .onAppear {
-                if animationsEnabled {
-                    withAnimation(.easeOut(duration: 0.45)) {
-                        animationProgress = 1.0
+                    if total > 0 {
+                        let ratio = Double(completed) / Double(total)
+                        Circle()
+                            .trim(from: 0, to: ratio)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 84/255, green: 0/255, blue: 232/255),
+                                        Color(red: 236/255, green: 71/255, blue: 1/255)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                            .frame(width: 70, height: 70)
+                            .padding(.trailing, 24)
                     }
-                } else {
-                    animationProgress = 1.0
                 }
+                .padding(.horizontal, 24)
             }
         }
     }
