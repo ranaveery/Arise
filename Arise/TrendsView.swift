@@ -87,10 +87,10 @@ struct TrendsView: View {
 private struct Header: View {
     var body: some View {
         VStack(spacing: 4) {
-            Text("Skill Trends")
+            Text("Your Insights")
                 .font(.largeTitle.bold())
                 .foregroundColor(.white)
-            Text("Track your growth over time")
+            Text("A glance at your balance and progress")
                 .font(.subheadline)
                 .foregroundColor(.white.opacity(0.7))
         }

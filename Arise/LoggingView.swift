@@ -159,67 +159,96 @@ struct LoggingView: View {
     
     // MARK: - Header
     private var headerView: some View {
-        HStack(alignment: .top) {
+        HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Hi, \(userName)")
-                    .foregroundColor(.white)
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.white, .white.opacity(0.7)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
                 
-                Text("Here’s your day — I believe in you.")
-                    .foregroundColor(.white.opacity(0.75))
-                    .font(.subheadline)
+                Text("Here’s your day — make it count.")
+                    .foregroundColor(.white.opacity(0.6))
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
             }
             Spacer()
-            VStack(spacing: 2) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.white.opacity(0.04))
-                        .frame(width: 70, height: 44)
+            
+            // Streak card
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(LinearGradient(
+                        colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+                    .frame(width: 80, height: 50)
+                    .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 4)
+                
+                HStack(spacing: 6) {
+                    Image(systemName: "flame.fill")
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.orange, .orange.opacity(0.8))
+                        .font(.system(size: 20))
                     
-                    HStack(spacing: 8) {
-                        Image(systemName: "flame.fill")
-                            .foregroundStyle(accentGradient)
-                        Text("\(streak)")
-                            .foregroundColor(.white)
-                            .font(.system(size: 16, weight: .semibold))
-                    }
+                    Text("\(streak)")
+                        .foregroundColor(.white)
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
                 }
             }
         }
         .padding(.horizontal)
+        .padding(.top, 8)
     }
     
     // MARK: - Tabs
     private var tabsView: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             ForEach(TabOption.allCases, id: \.self) { tab in
-                Button(action: {
+                Button {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         selectedTab = tab
                         expandedTaskID = nil
                     }
-                }) {
+                } label: {
                     Text(tab.rawValue)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(selectedTab == tab ? .black : .white)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(
-                            Group {
+                            ZStack {
                                 if selectedTab == tab {
                                     RoundedRectangle(cornerRadius: 12)
-                                        .fill(LinearGradient(colors: [Color.white, Color.white.opacity(0.85)],
-                                                             startPoint: .top,
-                                                             endPoint: .bottom))
-                                        .shadow(color: Color.black.opacity(0.35), radius: 6, x: 0, y: 4)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [Color.white, Color.white.opacity(0.85)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                        .shadow(color: Color.white.opacity(0.25), radius: 8, x: 0, y: 3)
                                         .matchedGeometryEffect(id: "tabBackground", in: tabAnimation)
                                 } else {
                                     RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                                        .fill(Color.white.opacity(0.04))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                                        )
                                 }
                             }
                         )
+                        .foregroundColor(selectedTab == tab ? .black : .white.opacity(0.9))
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal)

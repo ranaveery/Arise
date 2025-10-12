@@ -34,7 +34,7 @@ struct SettingsView: View {
     @State private var navigateToChangePassword = false
     
 //    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.9.3.0" // APPSTAGE.MAJOR.MINOR.PATCH
+    let versionInfo = "0.9.3.5" // APPSTAGE.MAJOR.MINOR.PATCH
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
             Color(red: 84/255, green: 0/255, blue: 232/255),
