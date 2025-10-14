@@ -35,7 +35,7 @@ struct SettingsView: View {
     @State private var navigateToChangePassword = false
     
 //    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.9.6.0" // APPSTAGE.MAJOR.MINOR.PATCH
+    let versionInfo = "0.9.6.1" // APPSTAGE.MAJOR.MINOR.PATCH
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
             Color(red: 84/255, green: 0/255, blue: 232/255),
@@ -552,8 +552,8 @@ struct SettingsView: View {
         if expiringTasks {
             // schedule at 18:00
             scheduleDailyNotification(id: NotificationIDs.expiringTasks,
-                                      title: "Tasks expiring soon",
-                                      body: "You still have incomplete tasks — make sure to get them done.",
+                                      title: "Expiring Tasks",
+                                      body: "Reminder to get all your tasks done.",
                                       hour: 18,
                                       minute: 0)
         } else {
