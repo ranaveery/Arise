@@ -189,6 +189,66 @@ private func calculateSkillLevel(from xp: Int) -> Int {
 }
 
 
+//private struct JourneyProgressRing: View {
+//    let progress: Double
+//    let currentXP: Double
+//    let xpGoal: Double
+//    let animationsEnabled: Bool
+//    @State private var animateProgress = false
+//
+//    var body: some View {
+//        VStack(alignment: .center, spacing: 8) {
+//            Text("Journey Progress")
+//                .font(.headline)
+//                .foregroundColor(.white.opacity(0.8))
+//                .padding(.horizontal, 4)
+//
+//            ZStack {
+//                Circle()
+//                    .stroke(Color.white.opacity(0.1), lineWidth: 18)
+//                    .frame(height: 180)
+//
+//                Circle()
+//                    .trim(from: 0, to: animateProgress ? progress : 0)
+//                    .stroke(
+//                        AngularGradient(
+//                            gradient: Gradient(colors: [
+//                                Color(red: 84/255, green: 0/255, blue: 232/255),
+//                                Color(red: 236/255, green: 71/255, blue: 1/255)
+//                            ]),
+//                            center: .center
+//                        ),
+//                        style: StrokeStyle(lineWidth: 18, lineCap: .round)
+//                    )
+//                    .rotationEffect(.degrees(-90))
+//                    .frame(height: 180)
+//                    .animation(
+//                        animationsEnabled ? .easeOut(duration: 0.8) : nil,
+//                        value: animateProgress
+//                    )
+//
+//                VStack {
+//                    Text("\(Int(progress * 100))%")
+//                        .font(.largeTitle.bold())
+//                        .foregroundColor(.white)
+//                    Text("\(Int(currentXP)) / \(Int(xpGoal)) XP")
+//                        .font(.caption)
+//                        .foregroundColor(.white.opacity(0.7))
+//                }
+//            }
+//            .padding(.vertical, 12)
+//            .onAppear {
+//                if animationsEnabled {
+//                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+//                        animateProgress = true
+//                    }
+//                } else {
+//                    animateProgress = true // instantly show full progress
+//                }
+//            }
+//        }
+//    }
+//}
 private struct JourneyProgressRing: View {
     let progress: Double
     let currentXP: Double
@@ -204,29 +264,34 @@ private struct JourneyProgressRing: View {
                 .padding(.horizontal, 4)
 
             ZStack {
+                // Background glow
+                Circle()
+                    .stroke(Color(red: 84/255, green: 0/255, blue: 232/255).opacity(0.3), lineWidth: 22)
+                    .frame(height: 180)
+                    .blur(radius: 10)
+
+                // Background ring
                 Circle()
                     .stroke(Color.white.opacity(0.1), lineWidth: 18)
                     .frame(height: 180)
 
+                // Progress ring (solid purple)
                 Circle()
                     .trim(from: 0, to: animateProgress ? progress : 0)
                     .stroke(
-                        AngularGradient(
-                            gradient: Gradient(colors: [
-                                Color(red: 84/255, green: 0/255, blue: 232/255),
-                                Color(red: 236/255, green: 71/255, blue: 1/255)
-                            ]),
-                            center: .center
-                        ),
+                        Color(.purple),
                         style: StrokeStyle(lineWidth: 18, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
                     .frame(height: 180)
+                    .shadow(color: Color(red: 84/255, green: 0/255, blue: 232/255).opacity(0.4),
+                            radius: 8, x: 0, y: 0)
                     .animation(
                         animationsEnabled ? .easeOut(duration: 0.8) : nil,
                         value: animateProgress
                     )
 
+                // Center text
                 VStack {
                     Text("\(Int(progress * 100))%")
                         .font(.largeTitle.bold())
@@ -243,12 +308,13 @@ private struct JourneyProgressRing: View {
                         animateProgress = true
                     }
                 } else {
-                    animateProgress = true // instantly show full progress
+                    animateProgress = true
                 }
             }
         }
     }
 }
+
 
 
 // MARK: - Spider (Radar) Chart
