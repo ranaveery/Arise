@@ -1345,7 +1345,7 @@ struct OnboardingView: View {
             "notifications": [
                 "expiringTasks": true,
                 "newTasks": true,
-                "weeklyProgress": true
+                "sleepTime": true
             ]
         ]
 
