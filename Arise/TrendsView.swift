@@ -13,24 +13,10 @@ struct TrendsView: View {
     @State private var attentionSkill: String = ""
     @State private var tasksCompletedToday: Int = 0
     @State private var totalTasksToday: Int = 0
+    @State private var skillProgress: [String: Double] = [:]
+    @State private var skillLabels: [String] = []
+    @State private var skillValues: [Double] = []
 
-    struct SkillTrend: Identifiable {
-        let id = UUID()
-        let name: String
-        let trendPercent: Double
-        let recentData: [Double]
-    }
-
-    // Dummy radar data (still shown)
-    let skillTrends = [
-        SkillTrend(name: "Resilience", trendPercent: 6.2, recentData: [1, 2, 3, 2, 4, 5, 6]),
-        SkillTrend(name: "Fuel", trendPercent: 3.8, recentData: [5, 4, 4, 3, 3, 2, 1]),
-        SkillTrend(name: "Fitness", trendPercent: 7.5, recentData: [2, 3, 5, 6, 7, 8, 10]),
-        SkillTrend(name: "Wisdom", trendPercent: 5.5, recentData: [1, 1, 2, 2, 3, 3, 4]),
-        SkillTrend(name: "Discipline", trendPercent: 8.3, recentData: [3, 3, 4, 5, 5, 6, 7]),
-        SkillTrend(name: "Network", trendPercent: 8.2, recentData: [4, 4, 3, 3, 3, 2, 2])
-    ]
-    
     private let xpGoal: Double = 20100.0
     
     var journeyProgress: Double {
@@ -43,31 +29,32 @@ struct TrendsView: View {
                 Header()
 
                 // Journey Progress Ring replaces AverageGrowthCard
-                JourneyProgressRing(progress: journeyProgress, currentXP: currentXP, xpGoal: xpGoal)
-                    .padding(.horizontal)
+                JourneyProgressRing(
+                    progress: journeyProgress,
+                    currentXP: currentXP,
+                    xpGoal: xpGoal,
+                    animationsEnabled: animationsEnabled
+                )
+                .padding(.horizontal)
+
 
                 // --- Streak, Best Skill, Attention ---
                 HStack(spacing: 10) {
                     summaryCard(title: "Streak", value: "\(streak)", icon: "flame.fill", color: .orange)
-                    summaryCard(title: "Best Skill", value: bestSkill, icon: "medal.fill", color: .green)
+                    summaryCard(title: "Best", value: bestSkill, icon: "crown.fill", color: .green)
                     summaryCard(title: "Attention", value: attentionSkill, icon: "exclamationmark.triangle.fill", color: .red)
                 }
                 .padding(.horizontal)
 
-                // --- Replace Skill Trend List with Task Progress Today ---
-                TaskProgressCard(completed: tasksCompletedToday, total: totalTasksToday)
-                    .padding(.horizontal)
-
-                // --- Keep Skill Growth Radar ---
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Skill Growth Radar")
+                VStack(alignment: .center, spacing: 8) {
+                    Text("Skill Contributions")
                         .font(.headline)
                         .foregroundColor(.white.opacity(0.8))
                         .padding(.horizontal)
 
                     SpiderChart(
-                        values: skillTrends.map { max(0, $0.trendPercent) },
-                        labels: skillTrends.map { $0.name },
+                        values: skillValues,
+                        labels: skillLabels,
                         steps: 4,
                         fillColor: Color.purple.opacity(0.28),
                         strokeColor: .purple,
@@ -81,60 +68,67 @@ struct TrendsView: View {
             }
             .onAppear {
                 fetchUserData()
-                fetchTaskData()
             }
         }
         .background(Color.black.ignoresSafeArea())
     }
 
-    // --- Firestore Fetch ---
     private func fetchUserData() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
 
         db.collection("users").document(uid).addSnapshotListener { snapshot, error in
             guard let data = snapshot?.data(), error == nil else { return }
-            
+
             self.currentXP = data["xp"] as? Double ?? 0
             self.streak = data["streak"] as? Int ?? 0
 
             // Extract skills
             if let skillsData = data["skills"] as? [String: [String: Int]] {
-                // Sort by XP descending
+                // Best & lowest skill by raw xp
                 let sorted = skillsData.sorted {
                     ($0.value["xp"] ?? 0) > ($1.value["xp"] ?? 0)
                 }
+                if let best = sorted.first?.key { self.bestSkill = best }
+                if let lowest = sorted.last?.key { self.attentionSkill = lowest }
 
-                if let best = sorted.first?.key {
-                    self.bestSkill = best
+                // Build a map of progress (xp / 3350) clamped 0..1
+                var progressDict: [String: Double] = [:]
+                for (skill, info) in skillsData {
+                    let xp = Double(info["xp"] ?? 0)
+                    progressDict[skill] = min(max(xp / 3350.0, 0.0), 1.0)
+                }
+                self.skillProgress = progressDict // optional: keep for other uses
+
+                // --- Build ordered arrays (guaranteed order) ---
+                let orderedKeys = ["Discipline", "Fitness", "Fuel", "Network", "Resilience", "Wisdom"]
+                var labels: [String] = []
+                var values: [Double] = []
+                for key in orderedKeys {
+                    labels.append(key)
+                    values.append(progressDict[key] ?? 0.0) // default 0 if missing
                 }
 
-                if let lowest = sorted.last?.key {
-                    self.attentionSkill = lowest
+                // Update state (atomic-ish)
+                DispatchQueue.main.async {
+                    self.skillLabels = labels
+                    self.skillValues = values
                 }
             } else {
-                self.bestSkill = "—"
-                self.attentionSkill = "—"
+                DispatchQueue.main.async {
+                    self.bestSkill = "—"
+                    self.attentionSkill = "—"
+                    self.skillProgress = [:]
+                    self.skillLabels = []
+                    self.skillValues = []
+                }
             }
         }
     }
 
 
-    private func fetchTaskData() {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        let db = Firestore.firestore()
-        let today = Calendar.current.startOfDay(for: Date())
 
-        db.collection("users").document(uid).collection("tasks")
-            .whereField("date", isGreaterThanOrEqualTo: Timestamp(date: today))
-            .getDocuments { snapshot, error in
-                guard let docs = snapshot?.documents, error == nil else { return }
-                let total = docs.count
-                let completed = docs.filter { $0.data()["completed"] as? Bool == true }.count
-                self.tasksCompletedToday = completed
-                self.totalTasksToday = total
-            }
-    }
+
 
     // --- Summary Card ---
     func summaryCard(title: String, value: String, icon: String, color: Color) -> some View {
@@ -146,7 +140,7 @@ struct TrendsView: View {
                     .font(.caption)
             }
             Text(value.isEmpty ? "—" : value)
-                .font(.title3.bold())
+                .font(.headline.bold())
                 .foregroundColor(.white)
         }
         .padding()
@@ -171,15 +165,39 @@ private struct Header: View {
     }
 }
 
-// MARK: - Journey Progress Ring
+private func skillProgress(for xp: Int) -> Double {
+    let level = calculateSkillLevel(from: xp)
+    let currentThreshold = skillLevelThresholds[level - 1]
+    let nextThreshold = level < skillLevelThresholds.count
+        ? skillLevelThresholds[level]
+        : skillLevelThresholds.last!
+
+    let range = nextThreshold - currentThreshold
+    guard range > 0 else { return 1 }
+
+    let progress = Double(xp - currentThreshold) / Double(range)
+    return min(max(progress, 0), 1.0)
+}
+
+private func calculateSkillLevel(from xp: Int) -> Int {
+    for (index, threshold) in skillLevelThresholds.enumerated().reversed() {
+        if xp >= threshold {
+            return index + 1
+        }
+    }
+    return 1
+}
+
+
 private struct JourneyProgressRing: View {
     let progress: Double
     let currentXP: Double
     let xpGoal: Double
+    let animationsEnabled: Bool
     @State private var animateProgress = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .center, spacing: 8) {
             Text("Journey Progress")
                 .font(.headline)
                 .foregroundColor(.white.opacity(0.8))
@@ -204,7 +222,10 @@ private struct JourneyProgressRing: View {
                     )
                     .rotationEffect(.degrees(-90))
                     .frame(height: 180)
-                    .animation(.easeOut(duration: 0.8), value: animateProgress)
+                    .animation(
+                        animationsEnabled ? .easeOut(duration: 0.8) : nil,
+                        value: animateProgress
+                    )
 
                 VStack {
                     Text("\(Int(progress * 100))%")
@@ -217,66 +238,18 @@ private struct JourneyProgressRing: View {
             }
             .padding(.vertical, 12)
             .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    animateProgress = true
+                if animationsEnabled {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        animateProgress = true
+                    }
+                } else {
+                    animateProgress = true // instantly show full progress
                 }
             }
         }
     }
 }
 
-// MARK: - Task Progress Card
-private struct TaskProgressCard: View {
-    let completed: Int
-    let total: Int
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Tasks Completed Today")
-                .font(.headline)
-                .foregroundColor(.white.opacity(0.8))
-                .padding(.horizontal, 4)
-
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color.white.opacity(0.05))
-                    .frame(height: 100)
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("\(completed) / \(total)")
-                            .font(.title.bold())
-                            .foregroundColor(.white)
-                        Text("completed")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                    Spacer()
-                    if total > 0 {
-                        let ratio = Double(completed) / Double(total)
-                        Circle()
-                            .trim(from: 0, to: ratio)
-                            .stroke(
-                                LinearGradient(
-                                    colors: [
-                                        Color(red: 84/255, green: 0/255, blue: 232/255),
-                                        Color(red: 236/255, green: 71/255, blue: 1/255)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                style: StrokeStyle(lineWidth: 8, lineCap: .round)
-                            )
-                            .rotationEffect(.degrees(-90))
-                            .frame(width: 70, height: 70)
-                            .padding(.trailing, 24)
-                    }
-                }
-                .padding(.horizontal, 24)
-            }
-        }
-    }
-}
 
 // MARK: - Spider (Radar) Chart
 
@@ -290,8 +263,7 @@ struct SpiderChart: View {
     @State private var animProgress: CGFloat = 0.0
 
     private var normalizedValues: [CGFloat] {
-        let maxVal = max(values.max() ?? 1.0, 0.000001)
-        return values.map { v in CGFloat(max(0.0, v) / maxVal) }
+        return values.map { CGFloat(min(max($0, 0.0), 1.0)) }
     }
 
     var body: some View {

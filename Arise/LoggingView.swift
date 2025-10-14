@@ -342,7 +342,7 @@ extension LoggingView {
                     xp: 25,
                     expiresInHours: 6,
                     internalType: "Daily",
-                    skillTargets: ["Discipline", "Resilience"] // 🧠 self-control
+                    skillTargets: ["Discipline", "Resilience"] // self-control
                 ))
                 
                 let sleepName = "Sleep"
@@ -355,7 +355,7 @@ extension LoggingView {
                     xp: 25,
                     expiresInHours: 12,
                     internalType: "Daily",
-                    skillTargets: ["Fuel", "Wisdom"] // 🧠 r
+                    skillTargets: ["Fuel", "Wisdom"]
                 ))
             }
         }
@@ -372,7 +372,7 @@ extension LoggingView {
                 xp: 20,
                 expiresInHours: 10,
                 internalType: "Daily",
-                skillTargets: ["Fuel", "Fitness"] // 🧠 physical upkeep
+                skillTargets: ["Fuel", "Fitness"] // physical upkeep
             ))
         }
         
@@ -387,7 +387,7 @@ extension LoggingView {
                 xp: 20,
                 expiresInHours: 10,
                 internalType: "Daily",
-                skillTargets: ["Discipline", "Wisdom"] // 🧠 impulse control & focus
+                skillTargets: ["Discipline", "Wisdom"] // impulse control & focus
             ))
         }
         
@@ -413,7 +413,7 @@ extension LoggingView {
                     xp: 50,
                     expiresInHours: 12,
                     internalType: "Set Day",
-                    skillTargets: ["Fitness", "Resilience"] // 🧠 physical + mental endurance
+                    skillTargets: ["Fitness", "Resilience"] // physical + mental endurance
                 ))
             }
         }
@@ -431,7 +431,7 @@ extension LoggingView {
                 xp: 35,
                 expiresInHours: 12,
                 internalType: "Set Day",
-                skillTargets: ["Resilience", "Discipline"] // 🧠 discomfort tolerance
+                skillTargets: ["Resilience", "Discipline"] // discomfort tolerance
             ))
         }
                 
@@ -493,7 +493,7 @@ extension LoggingView {
                 xp: 25,
                 expiresInHours: hoursUntilMidnight(),
                 internalType: "Daily",
-                skillTargets: ["Network"] // 🧠 social skill
+                skillTargets: ["Network"] // social skill
             ))
         }
 
@@ -509,7 +509,7 @@ extension LoggingView {
                 xp: 80,
                 expiresInHours: hoursUntilMidnight(),
                 internalType: "Set Day",
-                skillTargets: ["Network"] // 🧠 social boldness
+                skillTargets: ["Network"] // social boldness
             ))
         }
 
