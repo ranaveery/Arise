@@ -513,6 +513,57 @@ extension LoggingView {
             ))
         }
 
+        // --- Addiction-based Task ---
+        if let addiction = data["majorFocus"] as? String,
+           !addiction.isEmpty,
+           let severity = data["addictionDaysPerWeek"] as? Int {
+
+            // Cap between 1–7
+            let cappedSeverity = max(1, min(severity, 7))
+            
+            // Weekdays: 1 = Monday ... 7 = Sunday
+            let todayIndex = Calendar.current.component(.weekday, from: Date())
+            let normalizedDay = (todayIndex == 1) ? 7 : (todayIndex - 1)
+            
+            // Choose which days get the addiction task based on severity
+            var selectedDays: [Int] = []
+            switch cappedSeverity {
+            case 7:
+                selectedDays = [1, 2, 3, 4, 5, 6, 7] // Every day
+            case 6:
+                selectedDays = [1, 2, 3, 4, 5, 6] // Skip Sunday
+            case 5:
+                selectedDays = [1, 2, 3, 4, 5] // Weekdays only
+            case 4:
+                selectedDays = [1, 2, 3, 4] // Mon–Thu
+            case 3:
+                selectedDays = [1, 3, 5] // Mon, Wed, Fri
+            case 2:
+                selectedDays = [2, 5] // Tue, Fri
+            case 1:
+                selectedDays = [3] // Wednesday
+            default:
+                selectedDays = []
+            }
+            
+            if selectedDays.contains(normalizedDay) {
+                let name = "Overcome \(addiction.capitalized)"
+                let desc = "Take a step today to reduce your \(addiction.lowercased()) habit."
+                let id = idForTask(name: name, description: desc, day: dateStringForIDs(from: Date()))
+                
+                newTasks.append(TaskItem(
+                    id: id,
+                    name: name,
+                    description: desc,
+                    xp: 60,
+                    expiresInHours: 12,
+                    internalType: "Addiction",
+                    skillTargets: ["Resilience", "Fuel", "Fitness", "Wisdom", "Discipline", "Network"]
+                ))
+            }
+        }
+
+
         
         // Sort for consistency
         self.assignedTasks = newTasks.sorted { $0.name < $1.name }

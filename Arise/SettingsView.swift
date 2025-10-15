@@ -35,7 +35,7 @@ struct SettingsView: View {
     @State private var navigateToChangePassword = false
     
 //    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.9.8.0"
+    let versionInfo = "0.9.9.0"
 //    0.9.9.0 should implemenmt the main focus task
 //    0.9.9.1 should fix SF symbols for loggingview
 //    0.9.9.2 should make the task type tabs get a gradient highlight instead of white
