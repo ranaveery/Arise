@@ -64,6 +64,9 @@ struct TabButton: View {
         let displayedIcon = isSelected ? icon + ".fill" : icon
 
         Button(action: {
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+
             if animationsEnabled {
                 isAnimating = true
                 selectedTab = tab
@@ -85,9 +88,11 @@ struct TabButton: View {
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 24, height: 24)
                         .foregroundColor(.white)
-                        .scaleEffect(isAnimating ? 1.3 : 1.0) // same as your original
-                        .animation(animationsEnabled ? .easeOut(duration: 0.2) : nil,
-                                   value: isAnimating) // conditional animation
+                        .scaleEffect(isAnimating ? 1.3 : 1.0)
+                        .animation(
+                            animationsEnabled ? .easeOut(duration: 0.2) : nil,
+                            value: isAnimating
+                        )
                 }
 
                 Text(label)
@@ -99,45 +104,3 @@ struct TabButton: View {
         }
     }
 }
-
-
-//import SwiftUI
-//
-//struct MainTabView: View {
-//    @Binding var isUserLoggedIn: Bool
-//    @AppStorage("animationsEnabled") private var animationsEnabled = true
-//    @State private var selectedTab: Tab = .home
-//
-//    enum Tab: Hashable {
-//        case home, logging, trends, settings
-//    }
-//
-//    var body: some View {
-//        TabView(selection: $selectedTab) {
-//            HomeView()
-//                .tag(Tab.home)
-//                .tabItem { Label("Home", systemImage: "house") }
-//
-//            LoggingView()
-//                .tag(Tab.logging)
-//                .tabItem { Label("Tasks", systemImage: "list.bullet.clipboard") }
-//
-//            TrendsView()
-//                .tag(Tab.trends)
-//                .tabItem { Label("Trend", systemImage: "chart.bar") }
-//
-//            SettingsView(isUserLoggedIn: $isUserLoggedIn)
-//                .tag(Tab.settings)
-//                .tabItem { Label("Settings", systemImage: "gearshape") }
-//        }
-//        // Use the new built-in tab bar style (Liquid Glass) by default
-//        .glassEffect()  // apply the glass effect to the entire TabView bar
-//        //.glassEffect(in: .whatever) if you want a variant
-//        // Optionally, you can add bottom accessory control
-//        .tabViewBottomAccessory {
-//            // e.g. a floating button or whatever you need
-//            // Button(action: ...) { ... }
-//        }
-//        .tabBarMinimizeBehavior(.onScrollDown)  // shrink behavior
-//    }
-//}

@@ -35,9 +35,7 @@ struct SettingsView: View {
     @State private var navigateToChangePassword = false
     
 //    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.9.9.2"
-//    0.9.9.2 should make the task type tabs get a gradient highlight instead of white
-//    0.9.9.3 should add animations to homepage
+    let versionInfo = "0.9.9.3"
     
 //    Release 1.0
     

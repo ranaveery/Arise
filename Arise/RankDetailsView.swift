@@ -543,6 +543,9 @@ struct AchievementsView: View {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 16) {
                 ForEach(achievements) { achievement in
                     Button {
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.impactOccurred()
+
                         selectedAchievement = achievement
                     } label: {
                         AchievementCard(achievement: achievement)
