@@ -35,7 +35,7 @@ struct SettingsView: View {
     @State private var navigateToChangePassword = false
     
 //    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.9.7.0"
+    let versionInfo = "0.9.7.5"
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
             Color(red: 84/255, green: 0/255, blue: 232/255),
@@ -588,7 +588,7 @@ struct SettingsView: View {
                 if let notifyDate = Calendar.current.date(byAdding: .minute, value: -30, to: bedtimeDate) {
                     let comps = Calendar.current.dateComponents([.hour, .minute], from: notifyDate)
                     scheduleDailyNotification(id: NotificationIDs.bedTime,
-                                              title: "Bedtime reminder",
+                                              title: "Bedtime Reminder",
                                               body: "It's almost bedtime — wind down for rest.",
                                               hour: comps.hour ?? 0,
                                               minute: comps.minute ?? 0)
@@ -625,7 +625,7 @@ struct SettingsView: View {
                let notifyDate = Calendar.current.date(byAdding: .minute, value: 30, to: wakeDate) {
                 let final = Calendar.current.dateComponents([.hour, .minute], from: notifyDate)
                 scheduleDailyNotification(id: NotificationIDs.newTasks,
-                                          title: "New tasks assigned",
+                                          title: "New Tasks Assigned",
                                           body: "Your daily tasks are here — check your list and get started!",
                                           hour: final.hour ?? 0,
                                           minute: final.minute ?? 0)
