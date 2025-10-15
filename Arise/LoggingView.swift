@@ -967,14 +967,47 @@ struct TaskCard: View {
     }
     
     private func iconForName(_ name: String) -> String {
-        switch name {
-        case "Wake Up": return "sunrise.fill"
-        case "Sleep": return "bed.double.fill"
-        case "Drink Water": return "drop.fill"
-        case "Screen Time Limit": return "sparkles"
-        case "Workout": return "figure.strengthtraining.traditional"
-        case "Cold Shower": return "thermometer.snowflake"
-        default: return "sparkles"
+        let lower = name.lowercased()
+
+        switch lower {
+        case "arise and shine": return "sunrise.fill"
+        case "bedtime": return "moon.zzz.fill"
+        case "water intake": return "drop.fill"
+        case "screen time limit": return "iphone"
+        case "workout": return "figure.strengthtraining.traditional"
+        case "cold shower": return "snowflake"
+        case "meditation": return "brain.head.profile"
+        case "reading": return "book.fill"
+        case "pray": return "hands.sparkles.fill"
+        case "study": return "graduationcap.fill"
+        case "walk": return "figure.walk"
+        case "run": return "figure.run"
+        case "social interaction": return "bubble.left.and.bubble.right.fill"
+        case "meet someone new": return "person.2.fill"
+
+        // Addictions (custom icons)
+        case let str where str.contains("porn"):
+            return "eye.slash.fill" // symbolic of visual restraint
+
+        case let str where str.contains("screentime") || str.contains("screen time"):
+            return "iphone" // represents phone/device overuse
+
+        case let str where str.contains("vaping") || str.contains("smoking"):
+            return "smoke.fill" // visual cue for nicotine/smoke
+
+        case let str where str.contains("alcohol"):
+            return "wineglass.fill" // clean and recognizable
+
+        case let str where str.contains("gaming"):
+            return "gamecontroller.fill" // ideal for gaming addiction
+
+        default:
+            if lower.contains("overcome") {
+                return "bolt.heart.fill"
+            } else {
+                return "star.circle.fill"
+            }
         }
     }
+
 }
