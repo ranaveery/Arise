@@ -34,10 +34,11 @@ struct SettingsView: View {
     @State private var showGoogleSignInAlert = false
     @State private var navigateToChangePassword = false
     
-//    let versionInfo = "1.0.0" // MAJOR.MINOR.PATCH
-    let versionInfo = "0.9.9.3"
-    
-//    Release 1.0
+    private var versionInfo: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+        return "v\(version) (\(build))"
+    }
     
     let gradient = LinearGradient(
         gradient: Gradient(colors: [
