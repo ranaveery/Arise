@@ -101,10 +101,13 @@ struct HomeView: View {
         return min(max(progress, 0), 1)
     }
     private var xpDisplay: String {
+        let formattedTotal = totalXP.formatted(.number.grouping(.automatic))
         if currentRank.id == ranks.last?.id {
-            return "\(totalXP) / \(Int(currentRank.requiredXP)) XP"
+            let formattedRequired = Int(currentRank.requiredXP).formatted(.number.grouping(.automatic))
+            return "\(formattedTotal) / \(formattedRequired) XP"
         } else {
-            return "\(totalXP) / \(Int(nextRank.requiredXP)) XP"
+            let formattedNext = Int(nextRank.requiredXP).formatted(.number.grouping(.automatic))
+            return "\(formattedTotal) / \(formattedNext) XP"
         }
     }
     

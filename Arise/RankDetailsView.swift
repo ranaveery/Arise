@@ -227,7 +227,9 @@ struct RankDetailsView: View {
     private var currentXPProgress: Double {
         let prevXP = currentRank.requiredXP
         let nextXP = nextRank.requiredXP
-        return min(max((currentXP - prevXP) / (nextXP - prevXP), 0), 1)
+        guard nextXP > prevXP else { return 1 } // max rank
+        let progress = (currentXP - prevXP) / (nextXP - prevXP)
+        return min(max(progress, 0), 1)
     }
     
     // MARK: - Data Loading
@@ -403,28 +405,23 @@ struct ProgressBar: View {
                     .font(.caption2)
                     .foregroundColor(.white.opacity(0.6))
             }
-
-            ZStack(alignment: .leading) {
-                // Background track
-                Capsule()
-                    .fill(Color.white.opacity(0.1))
-                    .frame(height: 10)
-
-                // Fill using the available width from GeometryReader
-                GeometryReader { geo in
+            
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(gradient)
-                        .frame(
-                            width: max(0, (geo.size.width - 48) * CGFloat(progress)),
-                            height: 10
-                        )
+                        .frame(height: 8)
+                        .foregroundColor(Color.white.opacity(0.1))
+                    
+                    Capsule()
+                        .frame(width: geo.size.width * CGFloat(progress), height: 8)
+                        .foregroundStyle(gradient)
                         .animation(
                             animationsEnabled ? .easeInOut(duration: 0.5) : nil,
                             value: progress
                         )
                 }
-                .frame(height: 10) // constrain the GeometryReader
             }
+            .frame(height: 8)
         }
     }
 }

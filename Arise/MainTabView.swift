@@ -35,7 +35,7 @@ struct MainTabView: View {
                     Spacer()
                     TabButton(icon: "list.bullet.clipboard", label: "Tasks", tab: .logging, selectedTab: $selectedTab, animationsEnabled: animationsEnabled)
                     Spacer()
-                    TabButton(icon: "chart.bar", label: "Trend", tab: .trends, selectedTab: $selectedTab, animationsEnabled: animationsEnabled)
+                    TabButton(icon: "chart.bar", label: "Progress", tab: .trends, selectedTab: $selectedTab, animationsEnabled: animationsEnabled)
                     Spacer()
                     TabButton(icon: "gearshape", label: "Settings", tab: .settings, selectedTab: $selectedTab, animationsEnabled: animationsEnabled)
                 }
