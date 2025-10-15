@@ -332,27 +332,27 @@ extension LoggingView {
             if let wakeDate = timeFromMilitaryInt(wakeInt),
                let bedtime = calculateBedtime(wakeTime: wakeDate, sleepHours: sleepHours) {
                 let wakeReadable = formattedTime(from: wakeDate)
-                let wakeName = "Wake Up"
+                let wakeName = "Arise and Shine"
                 let wakeDesc = "Wake up at \(wakeReadable)"
                 let wakeID = idForTask(name: wakeName, description: wakeDesc, day: todayStr)
                 newTasks.append(TaskItem(
                     id: wakeID,
                     name: wakeName,
                     description: wakeDesc,
-                    xp: 25,
+                    xp: 40,
                     expiresInHours: 6,
                     internalType: "Daily",
                     skillTargets: ["Discipline", "Resilience"] // self-control
                 ))
                 
-                let sleepName = "Sleep"
-                let sleepDesc = "Sleep by \(bedtime)"
+                let sleepName = "Bedtime"
+                let sleepDesc = "Sleep by \(bedtime) to hit your sleep goal"
                 let sleepID = idForTask(name: sleepName, description: sleepDesc, day: todayStr)
                 newTasks.append(TaskItem(
                     id: sleepID,
                     name: sleepName,
                     description: sleepDesc,
-                    xp: 25,
+                    xp: 40,
                     expiresInHours: 12,
                     internalType: "Daily",
                     skillTargets: ["Fuel", "Wisdom"]
@@ -362,14 +362,14 @@ extension LoggingView {
         
         // --- Daily: water & screen ---
         if let water = data["waterOunces"] as? Int {
-            let name = "Drink Water"
-            let desc = "Drink \(water) oz of water today"
+            let name = "Water Intake"
+            let desc = "Drink \(water) oz of water"
             let id = idForTask(name: name, description: desc, day: todayStr)
             newTasks.append(TaskItem(
                 id: id,
                 name: name,
                 description: desc,
-                xp: 20,
+                xp: 40,
                 expiresInHours: 10,
                 internalType: "Daily",
                 skillTargets: ["Fuel", "Fitness"] // physical upkeep
@@ -384,7 +384,7 @@ extension LoggingView {
                 id: id,
                 name: name,
                 description: desc,
-                xp: 20,
+                xp: 40,
                 expiresInHours: 10,
                 internalType: "Daily",
                 skillTargets: ["Discipline", "Wisdom"] // impulse control & focus
@@ -410,7 +410,7 @@ extension LoggingView {
                     id: id,
                     name: name,
                     description: desc,
-                    xp: 50,
+                    xp: 40,
                     expiresInHours: 12,
                     internalType: "Set Day",
                     skillTargets: ["Fitness", "Resilience"] // physical + mental endurance
@@ -428,7 +428,7 @@ extension LoggingView {
                 id: id,
                 name: name,
                 description: desc,
-                xp: 35,
+                xp: 40,
                 expiresInHours: 12,
                 internalType: "Set Day",
                 skillTargets: ["Resilience", "Discipline"] // discomfort tolerance
@@ -468,7 +468,7 @@ extension LoggingView {
                         id: id,
                         name: name,
                         description: desc,
-                        xp: 30,
+                        xp: 40,
                         expiresInHours: 12,
                         internalType: "Set Day",
                         skillTargets: skills
@@ -490,7 +490,7 @@ extension LoggingView {
                 id: id,
                 name: name,
                 description: desc,
-                xp: 25,
+                xp: 40,
                 expiresInHours: hoursUntilMidnight(),
                 internalType: "Daily",
                 skillTargets: ["Network"] // social skill
@@ -506,7 +506,7 @@ extension LoggingView {
                 id: id,
                 name: name,
                 description: desc,
-                xp: 80,
+                xp: 60,
                 expiresInHours: hoursUntilMidnight(),
                 internalType: "Set Day",
                 skillTargets: ["Network"] // social boldness

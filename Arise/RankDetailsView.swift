@@ -235,7 +235,7 @@ struct RankDetailsView: View {
     // MARK: - Data Loading
     private func loadUserData() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
-        Firestore.firestore().collection("users").document(uid).getDocument { snapshot, error in
+        Firestore.firestore().collection("users").document(uid).addSnapshotListener { snapshot, error in
             guard let data = snapshot?.data(), error == nil else { return }
             
             currentXP = Double(data["xp"] as? Int ?? 0)
