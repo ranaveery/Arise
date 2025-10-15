@@ -223,29 +223,25 @@ struct LoggingView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(
-                            ZStack {
-                                if selectedTab == tab {
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [Color.white, Color.white.opacity(0.85)],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
-                                        .shadow(color: Color.white.opacity(0.25), radius: 8, x: 0, y: 3)
-                                        .matchedGeometryEffect(id: "tabBackground", in: tabAnimation)
-                                } else {
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.white.opacity(0.04))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                                        )
-                                }
-                            }
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.white.opacity(0.04))
                         )
-                        .foregroundColor(selectedTab == tab ? .black : .white.opacity(0.9))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(
+                                    selectedTab == tab
+                                    ? AnyShapeStyle(accentGradient)
+                                    : AnyShapeStyle(Color.white.opacity(0.08)),
+                                    lineWidth: selectedTab == tab ? 2 : 1
+                                )
+                                .shadow(
+                                    color: selectedTab == tab
+                                        ? Color.purple.opacity(0.3)
+                                        : .clear,
+                                    radius: selectedTab == tab ? 6 : 0
+                                )
+                        )
+                        .foregroundColor(.white.opacity(0.9))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -914,14 +910,12 @@ struct TaskCard: View {
                     }
                 }
                 Spacer()
-                // chevron for expand if not completed
                 if !isCompleted {
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .foregroundColor(.white.opacity(0.7))
                 }
             }
             
-            // expanded action buttons
             if isExpanded && !isCompleted {
                 HStack(spacing: 12) {
                     Button(action: { onComplete?() }) {
@@ -932,9 +926,19 @@ struct TaskCard: View {
                         .font(.subheadline.bold())
                         .padding(.vertical, 10)
                         .frame(maxWidth: .infinity)
-                        .background(accentGradient)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.white.opacity(0.03))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(
+                                    AnyShapeStyle(accentGradient),
+                                    lineWidth: 2
+                                )
+                                .shadow(color: Color.purple.opacity(0.3), radius: 6)
+                        )
                         .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                     
                     Button(action: { onPartial?() }) {
@@ -985,21 +989,20 @@ struct TaskCard: View {
         case "social interaction": return "bubble.left.and.bubble.right.fill"
         case "meet someone new": return "person.2.fill"
 
-        // Addictions (custom icons)
         case let str where str.contains("porn"):
-            return "eye.slash.fill" // symbolic of visual restraint
+            return "eye.slash.fill"
 
         case let str where str.contains("screentime") || str.contains("screen time"):
-            return "iphone" // represents phone/device overuse
+            return "iphone"
 
         case let str where str.contains("vaping") || str.contains("smoking"):
-            return "smoke.fill" // visual cue for nicotine/smoke
+            return "smoke.fill"
 
         case let str where str.contains("alcohol"):
-            return "wineglass.fill" // clean and recognizable
+            return "wineglass.fill"
 
         case let str where str.contains("gaming"):
-            return "gamecontroller.fill" // ideal for gaming addiction
+            return "gamecontroller.fill"
 
         default:
             if lower.contains("overcome") {
