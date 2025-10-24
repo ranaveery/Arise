@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Arise App Support</title>
+  <title>Arise App Support & Privacy Policy</title>
   <style>
     body {
       background-color: #000;
@@ -12,23 +12,29 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      height: 100vh;
+      justify-content: flex-start;
+      min-height: 100vh;
       text-align: center;
-      padding: 20px;
+      padding: 40px 20px;
     }
-    h1 {
-      font-size: 1.8rem;
-      margin-bottom: 16px;
+    h1, h2 {
       background: linear-gradient(90deg, rgb(84,0,232), rgb(236,71,1));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 1.8rem;
+    }
+    h2 {
+      font-size: 1.4rem;
+      margin-top: 40px;
     }
     p {
       font-size: 1rem;
       line-height: 1.6;
-      max-width: 600px;
-      margin: 0 auto 8px;
+      max-width: 700px;
+      margin: 0 auto 12px;
     }
     a {
       color: rgb(236,71,1);
@@ -38,6 +44,26 @@
     a:hover {
       text-decoration: underline;
     }
+    .section {
+      text-align: left;
+      max-width: 700px;
+      margin-top: 20px;
+    }
+    .section h3 {
+      color: #fff;
+      font-size: 1.1rem;
+      margin-bottom: 6px;
+    }
+    .section p {
+      color: #ddd;
+      font-size: 0.95rem;
+      margin-bottom: 12px;
+    }
+    footer {
+      margin-top: 60px;
+      font-size: 0.85rem;
+      color: #aaa;
+    }
   </style>
 </head>
 <body>
@@ -45,5 +71,31 @@
   <p>If you need assistance, please send an email to <a href="mailto:contact.arise.app@gmail.com">contact.arise.app@gmail.com</a>.</p>
   <p>You can expect a response within 1–2 business days.</p>
   <p>Please include your User ID when contacting us via email.</p>
+
+  <h2>Privacy Policy</h2>
+  <div class="section">
+    <h3>Data Collection</h3>
+    <p>We only collect essential data needed to improve your experience and to make the app work for you.</p>
+
+    <h3>Storage</h3>
+    <p>All user data is stored securely using Firebase services. We follow recommended security practices to protect your information.</p>
+
+    <h3>No Data Selling</h3>
+    <p>We never sell your personal data to third-party advertisers or brokers.</p>
+
+    <h3>Data Deletion</h3>
+    <p>You may request deletion of your account and personal data at any time by contacting support. We will process deletion requests in accordance with applicable law.</p>
+
+    <h3>Updates</h3>
+    <p>We may revise this policy occasionally. Significant changes will be communicated to you via the app.</p>
+
+    <p style="text-align:center; color:#888; margin-top:20px;">
+      By continuing to use this app, you agree to this privacy policy.
+    </p>
+  </div>
+
+  <footer>
+    &copy; 2025 Arise. All rights reserved.
+  </footer>
 </body>
 </html>
