@@ -199,6 +199,7 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center)
                 .foregroundColor(.white)
                 .padding(.top, 8)
+                .fixedSize(horizontal: false, vertical: true)
 
             // Content grid
             LazyVGrid(
@@ -235,7 +236,6 @@ struct OnboardingView: View {
         .background(Color.black.ignoresSafeArea())
     }
 
-
     // --- 2: Wake times
     private var wakeTimeStep: some View {
         VStack(spacing: 24) {
@@ -271,6 +271,7 @@ struct OnboardingView: View {
                     ), displayedComponents: .hourAndMinute)
                     .labelsHidden()
                     .datePickerStyle(.compact)
+                    .accentColor(.gray)
                 }
                 .frame(width: 150)
                 .padding(.vertical, 16)
@@ -295,6 +296,7 @@ struct OnboardingView: View {
                     ), displayedComponents: .hourAndMinute)
                     .labelsHidden()
                     .datePickerStyle(.compact)
+                    .accentColor(.gray)
                 }
                 .frame(width: 150)
                 .padding(.vertical, 16)
@@ -335,7 +337,6 @@ struct OnboardingView: View {
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Spacer()
 
             VStack(spacing: 24) {
                 // --- Weekdays Card
@@ -346,7 +347,6 @@ struct OnboardingView: View {
                         Text("Weekdays")
                             .font(.headline)
                             .foregroundColor(.white)
-                        Spacer()
 
                         let hours = Int(sleepHoursWeekday)
                         let minutes = Int((sleepHoursWeekday - Double(hours)) * 60)
@@ -392,7 +392,6 @@ struct OnboardingView: View {
                         Text("Weekends")
                             .font(.headline)
                             .foregroundColor(.white)
-                        Spacer()
 
                         let hours = Int(sleepHoursWeekend)
                         let minutes = Int((sleepHoursWeekend - Double(hours)) * 60)
@@ -432,14 +431,6 @@ struct OnboardingView: View {
             }
             .padding(.horizontal)
 
-            Spacer()
-
-            // Tip
-            Text("Good sleep improves focus, recovery, and energy — aim for consistency.")
-                .font(.footnote)
-                .foregroundColor(.white.opacity(0.75))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black.ignoresSafeArea())
@@ -498,7 +489,6 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
                 
-                Spacer()
                 
                 VStack(spacing: 24) {
                     // --- Hours per day card
@@ -509,7 +499,6 @@ struct OnboardingView: View {
                             Text("Duration per day")
                                 .font(.headline)
                                 .foregroundColor(.white)
-                            Spacer()
                             
                             let hours = Int(workoutHoursPerDay)
                             let minutes = Int((workoutHoursPerDay - Double(hours)) * 60)
@@ -553,7 +542,6 @@ struct OnboardingView: View {
                             Text("Preferred Days")
                                 .font(.headline)
                                 .foregroundColor(.white)
-                            Spacer()
                         }
                         
                         DaysOfWeekPicker(selection: $workoutDays)
@@ -573,13 +561,6 @@ struct OnboardingView: View {
                 }
                 .padding(.horizontal)
                 
-                Spacer()
-                
-                Text("Consistency matters more than intensity — choose what you can stick to.")
-                    .font(.footnote)
-                    .foregroundColor(.white.opacity(0.75))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
             }
         }
     }
@@ -675,6 +656,7 @@ struct OnboardingView: View {
                     .foregroundColor(.gray)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding()
             .background(Color.white.opacity(0.05))
@@ -722,11 +704,12 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.center)
                     .foregroundColor(.white)
                 
-                Text("Your recommended intake is based on your body weight.")
+                Text("Your ideal water intake is based on your body weight.")
                     .font(.subheadline)
                     .foregroundColor(.gray)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, 16)
             
@@ -793,7 +776,7 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.center)
                     .foregroundColor(.white)
                 
-                Text("We really recommend cold showers — they can boost mood, recovery, and discipline. But don’t worry if you can’t — just tap Continue to skip.")
+                Text("We really recommend cold showers — they can boost mood, recovery, and discipline.")
                     .font(.subheadline)
                     .foregroundColor(.gray)
                     .multilineTextAlignment(.center)
@@ -815,6 +798,7 @@ struct OnboardingView: View {
                         .foregroundColor(.gray.opacity(0.7))
                         .multilineTextAlignment(.center)
                         .padding(.top, 4)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding()
@@ -835,56 +819,67 @@ struct OnboardingView: View {
     
     // --- 8: Extra activities
     private var activitiesStep: some View {
-        VStack(spacing: 16) {
-            Text("Add other activities")
-                .font(.title2).bold().foregroundColor(.white)
-            
-            Text("Pick up to 2 activities, then choose which days.")
-                .foregroundColor(.gray).font(.footnote)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-            
-            VStack(spacing: 10) {
-                ForEach(activityOptions, id: \.self) { activity in
-                    VStack(alignment: .leading, spacing: 12) {
-                        // --- Select / Deselect activity
-                        Button(action: {
-                            if selectedActivities[activity] != nil {
-                                selectedActivities.removeValue(forKey: activity)
-                            } else if selectedActivities.count < 2 {
-                                selectedActivities[activity] = ActivityConfig(frequency: 1, days: [])
-                            }
-                        }) {
-                            HStack(spacing: 12) {
-                                Image(systemName: activityIcon(for: activity))
-                                    .frame(width: 22)
-                                Text(activity).foregroundColor(.white)
-                                Spacer()
-                                Image(systemName: selectedActivities[activity] != nil ? "checkmark.circle.fill" : "plus.circle")
-                                    .foregroundColor(selectedActivities[activity] != nil ? .green : .gray)
-                            }
-                            .padding(10)
-                            .background(Color.white.opacity(0.02))
-                            .cornerRadius(10)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        // --- Days picker if selected
-                        if let config = selectedActivities[activity] {
-                            DaysOfWeekPicker(selection: Binding(
-                                get: { config.days },
-                                set: { newValue in
-                                    selectedActivities[activity]?.days = newValue
+        ScrollView {
+            VStack(spacing: 16) {
+                Spacer(minLength: 0) // pushes content toward center vertically
+                
+                Text("Add other activities")
+                    .font(.title2).bold()
+                    .foregroundColor(.white)
+                
+                Text("Pick up to 2 activities, then choose which days.")
+                    .foregroundColor(.gray)
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                
+                VStack(spacing: 10) {
+                    ForEach(activityOptions, id: \.self) { activity in
+                        VStack(alignment: .leading, spacing: 12) {
+                            // --- Select / Deselect activity
+                            Button(action: {
+                                if selectedActivities[activity] != nil {
+                                    selectedActivities.removeValue(forKey: activity)
+                                } else if selectedActivities.count < 2 {
+                                    selectedActivities[activity] = ActivityConfig(frequency: 1, days: [])
                                 }
-                            ))
-                            .padding(.leading, 34)
+                            }) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: activityIcon(for: activity))
+                                        .frame(width: 22)
+                                    Text(activity)
+                                        .foregroundColor(.white)
+                                    Spacer()
+                                    Image(systemName: selectedActivities[activity] != nil ? "checkmark.circle.fill" : "plus.circle")
+                                        .foregroundColor(selectedActivities[activity] != nil ? .green : .gray)
+                                }
+                                .padding(10)
+                                .background(Color.white.opacity(0.02))
+                                .cornerRadius(10)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
+                            // --- Days picker if selected
+                            if let config = selectedActivities[activity] {
+                                DaysOfWeekPicker(selection: Binding(
+                                    get: { config.days },
+                                    set: { newValue in
+                                        selectedActivities[activity]?.days = newValue
+                                    }
+                                ))
+                                .padding(.leading, 34)
+                            }
                         }
-
+                        .padding(.vertical, 6)
                     }
-                    .padding(.vertical, 6)
                 }
+                
+                Spacer(minLength: 0) // pushes content toward center vertically
             }
+            .frame(maxWidth: .infinity) // keep full width
+            .padding(.vertical, 12)
         }
+        .background(Color.black.ignoresSafeArea())
     }
     
     // --- 9: Revisit addiction frequency
@@ -897,6 +892,7 @@ struct OnboardingView: View {
                         .font(.title.bold())
                         .multilineTextAlignment(.center)
                         .foregroundColor(.white)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text("Let’s revisit your main focus")
                         .font(.title.bold())
@@ -919,10 +915,29 @@ struct OnboardingView: View {
                              .fixedSize(horizontal: false, vertical: true)
                              .padding(.horizontal)
                     
-                    Stepper(value: $addictionDaysPerWeek, in: 0...7) {
+                    HStack(spacing: 24) {
+                        // Minus button
+                        Button(action: {
+                            if addictionDaysPerWeek > 0 { addictionDaysPerWeek -= 1 }
+                        }) {
+                            Image(systemName: "minus.circle.fill")
+                                .font(.title)
+                                .foregroundColor(.gray)
+                        }
+
+                        // Text showing current value
                         Text("\(addictionDaysPerWeek) \(addictionDaysPerWeek == 1 ? "day" : "days") per week")
                             .font(.title3.bold())
                             .foregroundColor(.white)
+
+                        // Plus button
+                        Button(action: {
+                            if addictionDaysPerWeek < 7 { addictionDaysPerWeek += 1 }
+                        }) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title)
+                                .foregroundColor(.gray)
+                        }
                     }
                     .padding()
                     .background(Color.white.opacity(0.05))
@@ -943,6 +958,7 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
                     .padding(.top, 8)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             
             Spacer()
@@ -1079,7 +1095,7 @@ struct OnboardingView: View {
     
     // --- 10: Overview & final note
     private var overviewStep: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(spacing: 24) {
                 Text("Your Plan Overview")
                     .font(.title)
@@ -1176,12 +1192,15 @@ struct OnboardingView: View {
                         .font(.headline)
                         .foregroundColor(.white)
                     
-                    TextEditor(text: $finalNote)
+                    DismissingTextEditor(text: $finalNote)
                         .frame(height: 140)
                         .padding(10)
                         .background(Color.white.opacity(0.05))
                         .cornerRadius(16)
-                        .foregroundColor(.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(appGradient, lineWidth: 2)
+                        )
                 }
             }
             .padding(.horizontal)
@@ -1219,6 +1238,47 @@ struct OnboardingView: View {
         .padding(.vertical, 4)
     }
 
+    struct DismissingTextEditor: UIViewRepresentable {
+        @Binding var text: String
+
+        func makeUIView(context: Context) -> UITextView {
+            let textView = UITextView()
+            textView.delegate = context.coordinator
+            textView.backgroundColor = UIColor.clear
+            textView.textColor = UIColor.white
+            textView.font = UIFont.systemFont(ofSize: 16, weight: .regular)
+            textView.returnKeyType = .done
+            textView.isScrollEnabled = true
+            return textView
+        }
+
+        func updateUIView(_ uiView: UITextView, context: Context) {
+            if uiView.text != text { uiView.text = text }
+        }
+
+        func makeCoordinator() -> Coordinator {
+            Coordinator(self)
+        }
+
+        class Coordinator: NSObject, UITextViewDelegate {
+            var parent: DismissingTextEditor
+            init(_ parent: DismissingTextEditor) { self.parent = parent }
+
+            func textViewDidChange(_ textView: UITextView) {
+                parent.text = textView.text
+            }
+
+            func textView(_ textView: UITextView,
+                          shouldChangeTextIn range: NSRange,
+                          replacementText text: String) -> Bool {
+                if text == "\n" {
+                    textView.resignFirstResponder() // dismiss keyboard on Return
+                    return false
+                }
+                return true
+            }
+        }
+    }
     
     // --- Completion view
     private var completionView: some View {
@@ -1278,6 +1338,8 @@ struct OnboardingView: View {
             return selectedActivities.contains { _, config in
                 config.days.isEmpty
             }
+        case 10:
+            return finalNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         default:
             return false
         }
@@ -1383,7 +1445,7 @@ struct OnboardingView: View {
     private func prettyDays(_ days: Set<Int>) -> String {
         guard !days.isEmpty else { return "None" }
         // Keep mapping consistent with user's 1..7 (Mon..Sun)
-        let map = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+        let map = ["M","T","W","T","F","S","S"]
         let names = days.sorted().map { idx -> String in
             let i = max(1, min(7, idx)) - 1
             return map[i]
@@ -1419,7 +1481,7 @@ struct OnboardingView: View {
 // MARK: - DaysOfWeekPicker
 struct DaysOfWeekPicker: View {
     @Binding var selection: Set<Int>
-    private let days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+    private let days = ["M","T","W","T","F","S","S"]
     
     var body: some View {
         GeometryReader { geo in

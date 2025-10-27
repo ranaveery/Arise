@@ -406,109 +406,105 @@ struct SkillDetailPopup: View {
     
     var body: some View {
         ZStack {
-            // Background blur + gradient glow
             LinearGradient(colors: [.black, .black.opacity(0.95)], startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
-            
-            VStack(spacing: 22) {
-                Spacer().frame(height: 30)
-                
-                // --- Title with SF Symbol ---
-                HStack(spacing: 10) {
-                    Image(systemName: symbolName)
-                        .font(.system(size: 26, weight: .semibold))
-                        .foregroundStyle(
-                            LinearGradient(colors: themeColors, startPoint: .leading, endPoint: .trailing)
-                        )
-                    Text(skillName)
-                        .font(.title.bold())
-                        .foregroundStyle(
-                            LinearGradient(colors: themeColors, startPoint: .leading, endPoint: .trailing)
-                        )
-                }
-                .padding(.top, 8)
-                
-                Text("Level \(skillLevel)")
-                    .font(.headline)
-                    .foregroundColor(.white.opacity(0.8))
-                
-                // --- XP Progress ---
-                VStack(spacing: 10) {
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.1))
-                            .frame(height: 10)
-                        
-                        GeometryReader { geo in
-                            Capsule()
-                                .fill(LinearGradient(colors: themeColors, startPoint: .leading, endPoint: .trailing))
-                                .frame(width: geo.size.width * animatedProgress, height: 10)
-                                .shadow(color: themeColors.first?.opacity(0.6) ?? .purple.opacity(0.6), radius: 8, y: 2)
-                                .animation(animationsEnabled ? .easeOut(duration: 1.2) : nil, value: animatedProgress)
-                        }
-                        .frame(height: 10)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 22) {
+                    Spacer().frame(height: 30)
+
+                    HStack(spacing: 10) {
+                        Image(systemName: symbolName)
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundStyle(
+                                LinearGradient(colors: themeColors, startPoint: .leading, endPoint: .trailing)
+                            )
+                        Text(skillName)
+                            .font(.title.bold())
+                            .foregroundStyle(
+                                LinearGradient(colors: themeColors, startPoint: .leading, endPoint: .trailing)
+                            )
                     }
-                    .padding(.horizontal, 40)
-                    
-                    if skillLevel < skillLevelThresholds.count {
-                        Text("\(skillXP - currentThreshold) / \(nextThreshold - currentThreshold) XP")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.65))
-                    } else {
-                        Text("Max Level Reached")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.7))
+                    .padding(.top, 8)
+
+                    Text("Level \(skillLevel)")
+                        .font(.headline)
+                        .foregroundColor(.white.opacity(0.8))
+
+                    // --- XP Progress ---
+                    VStack(spacing: 10) {
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.white.opacity(0.1))
+                                .frame(height: 10)
+                            GeometryReader { geo in
+                                Capsule()
+                                    .fill(LinearGradient(colors: themeColors, startPoint: .leading, endPoint: .trailing))
+                                    .frame(width: geo.size.width * animatedProgress, height: 10)
+                                    .shadow(color: themeColors.first?.opacity(0.6) ?? .purple.opacity(0.6), radius: 8, y: 2)
+                                    .animation(animationsEnabled ? .easeOut(duration: 1.2) : nil, value: animatedProgress)
+                            }
+                            .frame(height: 10)
+                        }
+                        .padding(.horizontal, 40)
+
+                        if skillLevel < skillLevelThresholds.count {
+                            Text("\(skillXP - currentThreshold) / \(nextThreshold - currentThreshold) XP")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.65))
+                        } else {
+                            Text("Max Level Reached")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.7))
+                        }
                     }
 
-                }
-                
-                Divider()
-                    .background(Color.white.opacity(0.1))
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                
-                VStack(spacing: 12) {
-                    ForEach(1...skillLevelThresholds.count, id: \.self) { level in
-                        let lower = skillLevelThresholds[level - 1]
-                        let upper = level < skillLevelThresholds.count
-                            ? skillLevelThresholds[level] - 1 // fix overlap
-                            : skillLevelThresholds.last ?? lower
-                        let isCurrent = level == skillLevel
-                        
-                        HStack {
-                            Text("Level \(level)")
-                                .fontWeight(isCurrent ? .bold : .regular)
-                                .foregroundColor(isCurrent ? (themeColors.first ?? .white) : .white.opacity(0.7))
-                            
-                            Spacer()
-                            
-                            Text("\(lower) – \(upper) XP")
-                                .font(.caption)
-                                .foregroundColor(.white.opacity(isCurrent ? 0.9 : 0.5))
-                        }
+                    Divider()
+                        .background(Color.white.opacity(0.1))
                         .padding(.horizontal)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(isCurrent ? Color.white.opacity(0.05) : Color.clear)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .stroke(
-                                            isCurrent
-                                                ? LinearGradient(colors: themeColors, startPoint: .leading, endPoint: .trailing)
-                                                : LinearGradient(colors: [.clear], startPoint: .leading, endPoint: .trailing),
-                                            lineWidth: 0.8
-                                        )
-                                )
-                        )
-                        .shadow(color: isCurrent ? (themeColors.first?.opacity(0.3) ?? .purple.opacity(0.3)) : .clear, radius: 6, y: 2)
+                        .padding(.top, 8)
+
+                    VStack(spacing: 12) {
+                        ForEach(1...skillLevelThresholds.count, id: \.self) { level in
+                            let lower = skillLevelThresholds[level - 1]
+                            let upper = level < skillLevelThresholds.count
+                                ? skillLevelThresholds[level] - 1
+                                : skillLevelThresholds.last ?? lower
+                            let isCurrent = level == skillLevel
+
+                            HStack {
+                                Text("Level \(level)")
+                                    .fontWeight(isCurrent ? .bold : .regular)
+                                    .foregroundColor(isCurrent ? (themeColors.first ?? .white) : .white.opacity(0.7))
+                                Spacer()
+                                Text("\(lower) – \(upper) XP")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(isCurrent ? 0.9 : 0.5))
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(isCurrent ? Color.white.opacity(0.05) : Color.clear)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 14)
+                                            .stroke(
+                                                isCurrent
+                                                    ? LinearGradient(colors: themeColors, startPoint: .leading, endPoint: .trailing)
+                                                    : LinearGradient(colors: [.clear], startPoint: .leading, endPoint: .trailing),
+                                                lineWidth: 0.8
+                                            )
+                                    )
+                            )
+                            .shadow(color: isCurrent ? (themeColors.first?.opacity(0.3) ?? .purple.opacity(0.3)) : .clear, radius: 6, y: 2)
+                        }
                     }
+                    .padding(.bottom, 40)
                 }
-                .padding(.bottom, 16)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 24)
-            .padding(.bottom, 20)
         }
         .presentationCornerRadius(30)
         .onAppear {

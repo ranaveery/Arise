@@ -1,12 +1,49 @@
 import SwiftUI
+import AuthenticationServices
 import FirebaseAuth
 import GoogleSignIn
 import Firebase
+import CryptoKit
+
+// MARK: - Nonce Helper for Apple Sign-In
+private func randomNonceString(length: Int = 32) -> String {
+    precondition(length > 0)
+    let charset: [Character] =
+        Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+    var result = ""
+    var remainingLength = length
+
+    while remainingLength > 0 {
+        let randoms: [UInt8] = (0 ..< 16).map { _ in
+            var random: UInt8 = 0
+            let errorCode = SecRandomCopyBytes(kSecRandomDefault, 1, &random)
+            if errorCode != errSecSuccess {
+                fatalError("Unable to generate nonce. SecRandomCopyBytes failed with code \(errorCode)")
+            }
+            return random
+        }
+
+        randoms.forEach { random in
+            if remainingLength == 0 { return }
+            if random < charset.count {
+                result.append(charset[Int(random)])
+                remainingLength -= 1
+            }
+        }
+    }
+    return result
+}
+
+private func sha256(_ input: String) -> String {
+    let inputData = Data(input.utf8)
+    let hashedData = SHA256.hash(data: inputData)
+    return hashedData.map { String(format: "%02x", $0) }.joined()
+}
 
 struct LandingView: View {
     @Binding var isUserLoggedIn: Bool
     @Binding var showLogin: Bool
-    
+    @State private var currentNonce: String?
     @State private var currentPhraseIndex = 0
     @State private var displayedText = ""
     @State private var isActive = true       // track if LandingView is visible
@@ -28,9 +65,6 @@ struct LandingView: View {
         "Arise. Improve. Become."
     ]
 
-
-
-    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -85,6 +119,27 @@ struct LandingView: View {
                             .foregroundColor(.white)
                         }
                         
+                        SignInWithAppleButton(.signIn, onRequest: { request in
+                            let nonce = randomNonceString()
+                            currentNonce = nonce
+                            request.requestedScopes = [.fullName, .email]
+                            request.nonce = sha256(nonce)
+                        }, onCompletion: { result in
+                            switch result {
+                            case .success(let authResults):
+                                if let appleIDCredential = authResults.credential as? ASAuthorizationAppleIDCredential {
+                                    handleAppleSignIn(credential: appleIDCredential)
+                                }
+                            case .failure(let error):
+                                print("Apple Sign-In failed: \(error.localizedDescription)")
+                            }
+                        })
+                        .signInWithAppleButtonStyle(.whiteOutline)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .cornerRadius(12)
+                        .padding(.horizontal, 1)
+                        
                         NavigationLink(destination: SignUpView(isUserLoggedIn: $isUserLoggedIn, showLogin: $showLogin)) {
                             Text("Sign up")
                                 .font(.system(size: 18, weight: .semibold, design: .rounded)) // nicer rounded font
@@ -129,6 +184,59 @@ struct LandingView: View {
                     typingTimer?.invalidate()
                     typingTimer = nil
                 }
+            }
+        }
+    }
+    
+    private func handleAppleSignIn(credential: ASAuthorizationAppleIDCredential) {
+        guard let nonce = currentNonce else {
+            print("Missing nonce")
+            return
+        }
+        
+        guard let appleIDToken = credential.identityToken,
+              let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
+            print("Unable to fetch identity token")
+            return
+        }
+        
+        // Correct new API for FirebaseAuth 11+
+        let firebaseCredential = OAuthProvider.appleCredential(
+            withIDToken: idTokenString,
+            rawNonce: nonce,
+            fullName: credential.fullName
+        )
+        
+        Auth.auth().signIn(with: firebaseCredential) { result, error in
+            if let error = error {
+                print("Firebase Sign in with Apple error: \(error.localizedDescription)")
+                return
+            }
+            
+            guard let firebaseUser = result?.user else { return }
+            let uid = firebaseUser.uid
+            let fullName = credential.fullName?.givenName ?? "User"
+            let email = credential.email ?? firebaseUser.email ?? "No Email"
+            
+            let db = Firestore.firestore()
+            let userRef = db.collection("users").document(uid)
+            userRef.setData([
+                "name": fullName,
+                "email": email,
+                "uid": uid
+            ], merge: true) { err in
+                if let err = err {
+                    print("Error saving Apple user to Firestore: \(err.localizedDescription)")
+                } else {
+                    print("Apple user saved to Firestore")
+                }
+            }
+            
+            UserDefaults.standard.set(fullName, forKey: "userName")
+            UserDefaults.standard.set(email, forKey: "userEmail")
+            
+            DispatchQueue.main.async {
+                isUserLoggedIn = true
             }
         }
     }

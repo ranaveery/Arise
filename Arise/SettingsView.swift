@@ -88,7 +88,7 @@ struct SettingsView: View {
                         .alert(isPresented: $showGoogleSignInAlert) {
                             Alert(
                                 title: Text("Cannot Change Password"),
-                                message: Text("This account was created with Google Sign-In, so no password is stored. To update your password, please use your Google Account settings."),
+                                message: Text("This account uses Apple or Google sign-in. To change your password, update it from your Apple ID or Google Account settings."),
                                 dismissButton: .default(Text("OK"))
                             )
                         }
@@ -372,6 +372,7 @@ struct SettingsView: View {
             } else {
                 Text(binding.wrappedValue)
                     .foregroundColor(.gray)
+                    .font(.footnote)
                     .multilineTextAlignment(.trailing)
             }
         }
