@@ -677,7 +677,7 @@ struct ManagePreferencesView: View {
                                 Spacer()
                                 Image(systemName: selectedActivities.keys.contains(option)
                                       ? "checkmark.circle.fill"
-                                      : "plus.circle")
+                                      : "chevron.down")
                                 .foregroundColor(selectedActivities.keys.contains(option) ? .green : .gray)
                             }
                             .padding()

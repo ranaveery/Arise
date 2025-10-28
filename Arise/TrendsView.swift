@@ -42,7 +42,7 @@ struct TrendsView: View {
                 HStack(spacing: 10) {
                     summaryCard(title: "Streak", value: "\(streak)", icon: "flame.fill", color: .orange)
                     summaryCard(title: "Best", value: bestSkill, icon: "crown.fill", color: .green)
-                    summaryCard(title: "Attention", value: attentionSkill, icon: "exclamationmark.triangle.fill", color: .red)
+                    summaryCard(title: "Weak", value: attentionSkill, icon: "exclamationmark.triangle.fill", color: .red)
                 }
                 .padding(.horizontal)
 
@@ -142,6 +142,9 @@ struct TrendsView: View {
             Text(value.isEmpty ? "—" : value)
                 .font(.headline.bold())
                 .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .padding()
         .frame(maxWidth: .infinity)

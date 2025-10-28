@@ -621,14 +621,40 @@ extension LoggingView {
         }
     }
     
-    // Check if all assigned tasks are completed; if so, increment streak and set lastStreakDate
     private func checkAndIncrementStreakIfAllDone(uid: String) {
-        // all assigned tasks' ids should be subset of completedTaskIDs
         let assignedIDs = Set(assignedTasks.map { $0.id })
         let completedSet = Set(completedTaskIDs)
-        if assignedIDs.isSubset(of: completedSet) && !assignedIDs.isEmpty {
-            // increment streak once
-            incrementStreak(uid: uid)
+
+        guard !assignedIDs.isEmpty, assignedIDs.isSubset(of: completedSet) else { return }
+
+        let userRef = Firestore.firestore().collection("users").document(uid)
+        userRef.getDocument { snapshot, error in
+            if let error = error {
+                print("Error fetching lastStreakDate:", error.localizedDescription)
+                return
+            }
+
+            guard let data = snapshot?.data() else { return }
+            let calendar = Calendar.current
+            let today = Date()
+            let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+
+            let todayStr = isoDateString(from: today)
+            let yesterdayStr = isoDateString(from: yesterday)
+            let lastStreakDateStr = data["lastStreakDate"] as? String ?? ""
+
+            // Only increment if last streak was yesterday — not today, not older
+            if lastStreakDateStr == yesterdayStr {
+                incrementStreak(uid: uid)
+            }
+            // Or if the user has never started a streak (first day)
+            else if lastStreakDateStr.isEmpty {
+                incrementStreak(uid: uid)
+            }
+            // Otherwise, do nothing (either already incremented today or streak was broken)
+            else {
+                print("No streak increment — last streak date = \(lastStreakDateStr)")
+            }
         }
     }
     

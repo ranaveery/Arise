@@ -231,6 +231,7 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
                 .padding(.bottom, 16)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black.ignoresSafeArea())
@@ -786,7 +787,7 @@ struct OnboardingView: View {
             
             // Cold shower days card
             VStack(spacing: 16) {
-                Text("Which days will you take cold showers?")
+                Text("Choose the days you will stick to.")
                     .font(.subheadline)
                     .foregroundColor(.gray)
                 
@@ -820,10 +821,9 @@ struct OnboardingView: View {
     // --- 8: Extra activities
     private var activitiesStep: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                Spacer(minLength: 0) // pushes content toward center vertically
+            VStack(spacing: 10) {
                 
-                Text("Add other activities")
+                Text("Special activities")
                     .font(.title2).bold()
                     .foregroundColor(.white)
                 
@@ -833,9 +833,9 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
                 
-                VStack(spacing: 10) {
+                VStack(spacing: 8) {
                     ForEach(activityOptions, id: \.self) { activity in
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 10) {
                             // --- Select / Deselect activity
                             Button(action: {
                                 if selectedActivities[activity] != nil {
@@ -850,10 +850,10 @@ struct OnboardingView: View {
                                     Text(activity)
                                         .foregroundColor(.white)
                                     Spacer()
-                                    Image(systemName: selectedActivities[activity] != nil ? "checkmark.circle.fill" : "plus.circle")
+                                    Image(systemName: selectedActivities[activity] != nil ? "checkmark.circle.fill" : "chevron.down")
                                         .foregroundColor(selectedActivities[activity] != nil ? .green : .gray)
                                 }
-                                .padding(10)
+                                .padding(8)
                                 .background(Color.white.opacity(0.02))
                                 .cornerRadius(10)
                             }
@@ -867,16 +867,15 @@ struct OnboardingView: View {
                                         selectedActivities[activity]?.days = newValue
                                     }
                                 ))
-                                .padding(.leading, 34)
+                                .padding(8)
                             }
                         }
                         .padding(.vertical, 6)
                     }
                 }
                 
-                Spacer(minLength: 0) // pushes content toward center vertically
             }
-            .frame(maxWidth: .infinity) // keep full width
+            .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
         }
         .background(Color.black.ignoresSafeArea())
@@ -887,18 +886,11 @@ struct OnboardingView: View {
         VStack(spacing: 28) {
             // Title
             VStack(spacing: 6) {
-                if selectedAddictionNonEmpty {
-                    Text("Let’s learn some more about your focus: \(selectedAddiction)")
-                        .font(.title.bold())
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(.white)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text("Let’s revisit your main focus")
-                        .font(.title.bold())
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(.white)
-                }
+                Text("Revisiting your addiction choice:")
+                    .font(.title2.bold())
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.white)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, 16)
             
@@ -927,7 +919,7 @@ struct OnboardingView: View {
 
                         // Text showing current value
                         Text("\(addictionDaysPerWeek) \(addictionDaysPerWeek == 1 ? "day" : "days") per week")
-                            .font(.title3.bold())
+                            .font(.headline.bold())
                             .foregroundColor(.white)
 
                         // Plus button
@@ -961,7 +953,6 @@ struct OnboardingView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             
-            Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black.ignoresSafeArea())
@@ -1095,7 +1086,7 @@ struct OnboardingView: View {
     
     // --- 10: Overview & final note
     private var overviewStep: some View {
-        ScrollView(showsIndicators: false) {
+        ScrollView {
             VStack(spacing: 24) {
                 Text("Your Plan Overview")
                     .font(.title)
@@ -1558,13 +1549,6 @@ struct OptionButton: View {
                     .truncationMode(.tail)
                     .layoutPriority(1)
                 
-                Spacer()
-                
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                }
             }
             .font(.subheadline.weight(.medium))
             .padding(.vertical, 14)
@@ -1574,7 +1558,7 @@ struct OptionButton: View {
             .foregroundColor(isSelected ? .white : .gray)
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke(appGradient, lineWidth: isSelected ? 2 : 1)
+                    .stroke(appGradient, lineWidth: isSelected ? 3.5 : 1)
                     .opacity(isSelected ? 1 : 0.35)
             )
             .cornerRadius(14)

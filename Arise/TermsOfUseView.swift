@@ -30,19 +30,13 @@ struct TermsOfUseView: View {
                     termsSection(
                         icon: "person.crop.circle",
                         title: "Eligibility",
-                        description: "You must be at least 13 years old to use the app. Parental consent is required for users under 18."
+                        description: "You must be at least 9 years old to use the app."
                     )
                     
                     termsSection(
                         icon: "iphone.homebutton",
                         title: "App Usage",
                         description: "Use the app responsibly. No harassment, abuse, or disruption of features is tolerated."
-                    )
-                    
-                    termsSection(
-                        icon: "doc.text",
-                        title: "License",
-                        description: "You are granted a non-transferable license to use the app for personal, non-commercial use only."
                     )
                     
                     termsSection(
