@@ -21,11 +21,11 @@ struct LoginView: View {
             Image("logo_arise")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 130, height: 130)
+                .frame(width: 100, height: 100)
                 .padding(.top, 10)
 
             Text("Time to Arise")
-                .font(.largeTitle.bold())
+                .font(.title.bold())
                 .foregroundColor(.white)
 
             VStack(spacing: 16) {
@@ -85,7 +85,7 @@ struct LoginView: View {
                     .foregroundColor(.white)
                 Button(action: {
                     withAnimation {
-                        dismiss()  // Takes user back to LandingView
+                        dismiss()
                     }
                 }) {
                     Text("Sign up")
@@ -102,14 +102,18 @@ struct LoginView: View {
             }
             .padding(.vertical, 10)
 
-            Button(action: signInWithGoogle) {
+            Button(action: {
+                withAnimation {
+                    dismiss()
+                }
+            }) {
                 HStack {
-                    Image("google_logo")
+                    Image(systemName: "person.circle")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 20, height: 20)
 
-                    Text("Continue with Google")
+                    Text("Sign in with a provider")
                         .fontWeight(.medium)
                 }
                 .frame(maxWidth: .infinity)
@@ -118,7 +122,6 @@ struct LoginView: View {
                 .foregroundColor(.white)
                 .cornerRadius(30)
             }
-
 
             Spacer()
         }

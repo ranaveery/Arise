@@ -16,16 +16,15 @@ struct SignUpView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            Spacer(minLength: 20)
 
             Image("logo_arise")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 130, height: 130)
+                .frame(width: 100, height: 100)
                 .padding(.top, 10)
 
             Text("Get Started")
-                .font(.largeTitle.bold())
+                .font(.title.bold())
                 .foregroundColor(.white)
 
             VStack(spacing: 16) {
@@ -111,14 +110,18 @@ struct SignUpView: View {
             }
             .padding(.vertical, 10)
 
-            Button(action: signInWithGoogle) {
+            Button(action: {
+                withAnimation {
+                    dismiss()
+                }
+            }) {
                 HStack {
-                    Image("google_logo")
+                    Image(systemName: "person.circle")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 20, height: 20)
 
-                    Text("Continue with Google")
+                    Text("Sign in with a provider")
                         .fontWeight(.medium)
                 }
                 .frame(maxWidth: .infinity)

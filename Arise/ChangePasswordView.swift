@@ -52,6 +52,14 @@ struct ChangePasswordView: View {
                                     .cornerRadius(12)
                             }
                         }
+                        
+                        // --- RESET PASSWORD OPTION ---
+                        Button(action: sendResetPassword) {
+                            Text("Forgot Password? Reset via Email")
+                                .foregroundColor(.blue)
+                                .font(.footnote)
+                        }
+                        .padding(.top, 10)
                     } else if step == 2 {
                         SecureField("New Password", text: $newPassword)
                             .padding()
@@ -147,6 +155,23 @@ struct ChangePasswordView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                     dismiss()
                 }
+            }
+        }
+    }
+    
+    private func sendResetPassword() {
+        guard let email = Auth.auth().currentUser?.email else {
+            errorMessage = "No email associated with this account."
+            return
+        }
+        
+        isLoading = true
+        Auth.auth().sendPasswordReset(withEmail: email) { error in
+            isLoading = false
+            if let error = error {
+                errorMessage = "Failed to send reset email: \(error.localizedDescription)"
+            } else {
+                successMessage = "Password reset email sent! Check your inbox."
             }
         }
     }

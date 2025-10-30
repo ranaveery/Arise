@@ -129,7 +129,11 @@ struct SettingsView: View {
                         dividerLine()
                         appRow(systemImage: "doc.text", label: "Terms of Use") { TermsOfUseView() }
                         dividerLine()
-                        appRow(systemImage: "lock.shield", label: "Privacy Policy") { PrivacyPolicyView() }
+                        buttonRow(systemImage: "lock.shield", label: "Privacy Policy") {
+                            if let url = URL(string: "https://ranaveery.github.io/Arise/") {
+                                UIApplication.shared.open(url)
+                            }
+                        }
                         dividerLine()
                         userIDRow()
                         dividerLine()
