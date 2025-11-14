@@ -95,7 +95,7 @@ struct LoggingView: View {
                             VStack(spacing: 14) {
                                 if selectedTab == .assigned {
                                     if visibleAssignedTasks.isEmpty {
-                                        emptyStateView(title: "All assigned tasks have been completed.", subtitle: "Great work! — you have nothing let on the list!")
+                                        emptyStateView(title: "All assigned tasks have been completed.", subtitle: "Great work! — you have nothing left on the list!")
                                     } else {
                                         ForEach(visibleAssignedTasks) { task in
                                             TaskCard(
@@ -639,7 +639,7 @@ extension LoggingView {
             let today = Date()
             let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
 
-            let todayStr = isoDateString(from: today)
+            let _ = isoDateString(from: today)
             let yesterdayStr = isoDateString(from: yesterday)
             let lastStreakDateStr = data["lastStreakDate"] as? String ?? ""
 
