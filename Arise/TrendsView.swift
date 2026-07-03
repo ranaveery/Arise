@@ -3,7 +3,6 @@ import Firebase
 import FirebaseAuth
 import FirebaseFirestore
 
-//Ring works, three cards work, tasks completed today and radar chart don't work
 struct TrendsView: View {
     
     @AppStorage("animationsEnabled") private var animationsEnabled = true
@@ -28,7 +27,6 @@ struct TrendsView: View {
             VStack(spacing: 24) {
                 Header()
 
-                // Journey Progress Ring replaces AverageGrowthCard
                 JourneyProgressRing(
                     progress: journeyProgress,
                     currentXP: currentXP,
