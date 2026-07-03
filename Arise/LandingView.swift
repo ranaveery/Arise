@@ -46,12 +46,12 @@ struct LandingView: View {
     @State private var currentNonce: String?
     @State private var currentPhraseIndex = 0
     @State private var displayedText = ""
-    @State private var isActive = true       // track if LandingView is visible
+    @State private var isActive = true
     @State private var isDeleting = false
     @State private var typingTimer: Timer?
     @State private var charIndex = 0
     
-    @State private var animateLogo = false   // NEW: for tap animation
+    @State private var animateLogo = false
     
     private let phrases = [
         "A new you begins here",
@@ -62,7 +62,7 @@ struct LandingView: View {
         "Build your best self",
         "Every step takes you higher",
         "Discipline creates freedom",
-        "Arise. Improve. Become."
+        "The only way to win is to fight."
     ]
 
     var body: some View {
@@ -74,14 +74,13 @@ struct LandingView: View {
                     Spacer()
                     
                     VStack(spacing: 12) {
-                        // App Logo
                         Image("logo_arise")
                             .resizable()
                             .scaledToFit()
                             .frame(width: 150, height: 150)
                             .padding(.bottom, 20)
-                            .scaleEffect(animateLogo ? 1.1 : 1.0)          // animate size
-                            .rotationEffect(.degrees(animateLogo ? 6 : 0)) // animate tilt
+                            .scaleEffect(animateLogo ? 1.1 : 1.0)
+                            .rotationEffect(.degrees(animateLogo ? 6 : 0))
                             .animation(.spring(response: 0.4, dampingFraction: 0.5), value: animateLogo)
                             .onTapGesture {
                                 animateLogo = true
@@ -91,7 +90,6 @@ struct LandingView: View {
                             }
                             .padding(20)
                         
-                        // Typing effect text
                         Text(displayedText)
                             .font(.title.bold())
                             .foregroundColor(.white)
@@ -101,7 +99,6 @@ struct LandingView: View {
                     
                     Spacer()
                     
-                    // Bottom sheet style box
                     VStack(spacing: 12) {
                         Button(action: signInWithGoogle) {
                             HStack {
@@ -142,7 +139,7 @@ struct LandingView: View {
                         
                         NavigationLink(destination: SignUpView(isUserLoggedIn: $isUserLoggedIn, showLogin: $showLogin)) {
                             Text("Sign up")
-                                .font(.system(size: 18, weight: .semibold, design: .rounded)) // nicer rounded font
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(Color.white.opacity(0.05))
@@ -170,7 +167,7 @@ struct LandingView: View {
                     .background(
                         Color(red: 30/255, green: 30/255, blue: 30/255)
                             .clipShape(TopRoundedRectangle(radius: 25))
-                            .ignoresSafeArea(edges: .bottom) // << move here
+                            .ignoresSafeArea(edges: .bottom)
                     )
                 }
                 .onAppear {
@@ -200,7 +197,6 @@ struct LandingView: View {
             return
         }
         
-        // Correct new API for FirebaseAuth 11+
         let firebaseCredential = OAuthProvider.appleCredential(
             withIDToken: idTokenString,
             rawNonce: nonce,
@@ -244,11 +240,10 @@ struct LandingView: View {
     // MARK: - Typing + Deleting effect with haptic feedback
     private func startTypingEffect() {
         typingTimer?.invalidate()
-        guard isActive else { return }   // don’t start if LandingView is not active
+        guard isActive else { return }
 
         let phrase = phrases[currentPhraseIndex]
         
-        // Separate generators for typing vs deleting
         let typingImpact = UIImpactFeedbackGenerator(style: .soft)
         let deletingImpact = UISelectionFeedbackGenerator()
         
@@ -256,19 +251,18 @@ struct LandingView: View {
         deletingImpact.prepare()
 
         typingTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { timer in
-            guard isActive else {   // stop immediately if user left
+            guard isActive else {
                 timer.invalidate()
                 typingTimer = nil
                 return
             }
 
             if !isDeleting {
-                // Typing characters
                 if charIndex < phrase.count {
                     let i = phrase.index(phrase.startIndex, offsetBy: charIndex)
                     displayedText.append(phrase[i])
                     charIndex += 1
-                    typingImpact.impactOccurred()  // soft tap
+                    typingImpact.impactOccurred()
                 } else {
                     timer.invalidate()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
@@ -279,11 +273,10 @@ struct LandingView: View {
                     }
                 }
             } else {
-                // Deleting characters
                 if !displayedText.isEmpty {
                     displayedText.removeLast()
                     charIndex -= 1
-                    deletingImpact.selectionChanged() // swoosh-like feedback
+                    deletingImpact.selectionChanged()
                 } else {
                     timer.invalidate()
                     isDeleting = false
