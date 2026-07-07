@@ -2,15 +2,7 @@ import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
 
-// MARK: - App Gradient (single source of truth)
-private let appGradient = LinearGradient(
-    gradient: Gradient(colors: [
-        Color(red: 84/255, green: 0/255, blue: 232/255),
-        Color(red: 236/255, green: 71/255, blue: 1/255)
-    ]),
-    startPoint: .leading,
-    endPoint: .trailing
-)
+private let appGradient: LinearGradient = .brand
 
 private struct NavHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
@@ -272,7 +264,7 @@ struct OnboardingView: View {
                     ), displayedComponents: .hourAndMinute)
                     .labelsHidden()
                     .datePickerStyle(.compact)
-                    .accentColor(.gray)
+                    .tint(.gray)
                 }
                 .frame(width: 150)
                 .padding(.vertical, 16)
@@ -297,7 +289,7 @@ struct OnboardingView: View {
                     ), displayedComponents: .hourAndMinute)
                     .labelsHidden()
                     .datePickerStyle(.compact)
-                    .accentColor(.gray)
+                    .tint(.gray)
                 }
                 .frame(width: 150)
                 .padding(.vertical, 16)
@@ -450,28 +442,6 @@ struct OnboardingView: View {
         return calendar.date(bySettingHour: hour + extraHour, minute: roundedMinute, second: 0, of: date) ?? date
     }
     
-    // MARK: - Helper
-    private func calculateBedtime(wakeTime: Date, sleepHours: Double) -> String? {
-        let calendar = Calendar.current
-        // Subtract full hours + minutes
-        guard let bedtime = calendar.date(byAdding: .minute,
-                                          value: Int(-sleepHours * 60),
-                                          to: wakeTime) else { return nil }
-
-        // Round to nearest 15 minutes
-        let minutes = calendar.component(.minute, from: bedtime)
-        let remainder = minutes % 15
-        let adjustment = remainder < 8 ? -remainder : (15 - remainder)
-        guard let roundedBedtime = calendar.date(byAdding: .minute,
-                                                 value: adjustment,
-                                                 to: bedtime) else { return nil }
-
-        // Format result
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: roundedBedtime)
-    }
-
     // --- 4: Workout preferences
     private var workoutStep: some View {
         ZStack {
@@ -1351,7 +1321,6 @@ struct OnboardingView: View {
 
     private func saveFinalPlan() {
         guard let uid = Auth.auth().currentUser?.uid else {
-            print("No user logged in")
             return
         }
 
@@ -1374,11 +1343,9 @@ struct OnboardingView: View {
             "screenLimitHours": screenLimitHours,
             "weightLbs": weightLbs,
             "waterOunces": waterOunces,
-            "takeColdShowers": takeColdShowers,
             "coldShowerDays": Array(coldShowerDays),
             "selectedActivities": activitiesPayload,
             "addictionDaysPerWeek": addictionDaysPerWeek,
-            "finalNote": finalNote,
             "isOnboarded": true
         ]
 
@@ -1407,10 +1374,8 @@ struct OnboardingView: View {
         isSaving = true
         docRef.setData(payload, merge: true) { error in
             isSaving = false
-            if let error = error {
-                print("Failed to save plan: \(error.localizedDescription)")
+            if error != nil {
             } else {
-                print("Plan + defaults saved, onboarding marked complete")
                 onFinish()
             }
         }
@@ -1424,13 +1389,6 @@ struct OnboardingView: View {
         let fmt = DateFormatter()
         fmt.dateFormat = "HH:mm"
         return fmt.string(from: date)
-    }
-    
-    private func militaryTimeInt(from date: Date) -> Int {
-        let calendar = Calendar.current
-        let hour = calendar.component(.hour, from: date)
-        let minute = calendar.component(.minute, from: date)
-        return hour * 100 + minute
     }
     
     private func prettyDays(_ days: Set<Int>) -> String {
@@ -1615,4 +1573,3 @@ struct SquareActionButton: View {
         .disabled(disabled || loading)
     }
 }
-

@@ -1,7 +1,7 @@
 import SwiftUI
 import FirebaseAuth
-import Firebase
-import GoogleSignIn
+import FirebaseFirestore
+
 
 struct SignUpView: View {
     @Binding var isUserLoggedIn: Bool
@@ -36,7 +36,7 @@ struct SignUpView: View {
                     .foregroundColor(.white)
                     .autocapitalization(.none)
                     .onChange(of: name) { oldValue, newValue in
-                        name = Self.sanitizeName(newValue)
+                        name = sanitizeName(newValue)
                     }
 
                 TextField("Email", text: $email)
@@ -77,14 +77,7 @@ struct SignUpView: View {
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color(red: 84/255, green: 0/255, blue: 232/255),
-                                Color(red: 236/255, green: 71/255, blue: 1/255)
-                            ]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ))
+                        .background(LinearGradient.brand)
                         .foregroundColor(.white)
                         .cornerRadius(25)
                 }
@@ -136,31 +129,6 @@ struct SignUpView: View {
         .background(Color.black.ignoresSafeArea())
     }
     
-    private static func sanitizeName(_ input: String) -> String {
-        let allowed = CharacterSet.letters.union(CharacterSet(charactersIn: "-"))
-        let filtered = input.unicodeScalars
-            .filter { allowed.contains($0) }
-            .map { String($0) }
-            .joined()
-
-        var result = ""
-        var capitalizeNext = true
-        for char in filtered {
-            if char == "-" {
-                result.append(char)
-                capitalizeNext = true
-            } else {
-                if capitalizeNext {
-                    result.append(char.uppercased())
-                    capitalizeNext = false
-                } else {
-                    result.append(char.lowercased())
-                }
-            }
-        }
-        return result
-    }
-
     private func registerUser() {
         isLoading = true
         errorMessage = ""
@@ -191,14 +159,11 @@ struct SignUpView: View {
 
                 let basicData: [String: Any] = [
                     "uid": user.uid,
-                    "name": Self.sanitizeName(name),
+                    "name": sanitizeName(name),
                     "email": email
                 ]
 
-                userRef.setData(basicData, merge: true) { error in
-                    if let error = error {
-                        print("Error saving user basic data:", error.localizedDescription)
-                    }
+                userRef.setData(basicData, merge: true) { _ in
                     DispatchQueue.main.async {
                         isUserLoggedIn = true
                     }
@@ -207,69 +172,4 @@ struct SignUpView: View {
         }
     }
 
-    private func signInWithGoogle() {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootViewController = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
-            print("No rootViewController found")
-            return
-        }
-
-        GIDSignIn.sharedInstance.signIn(
-            withPresenting: rootViewController,
-            hint: nil,
-            additionalScopes: nil,
-            nonce: nil
-        ) { signInResult, error in
-            if let error = error {
-                print("Google Sign-In failed:", error.localizedDescription)
-                return
-            }
-
-            guard let user = signInResult?.user,
-                  let idToken = user.idToken else {
-                print("Missing user or ID token")
-                return
-            }
-
-            let credential = GoogleAuthProvider.credential(
-                withIDToken: idToken.tokenString,
-                accessToken: user.accessToken.tokenString
-            )
-
-            Auth.auth().signIn(with: credential) { result, error in
-                if let error = error {
-                    print("Firebase login failed:", error.localizedDescription)
-                    return
-                }
-
-                guard let firebaseUser = result?.user else { return }
-                let db = Firestore.firestore()
-                let userRef = db.collection("users").document(firebaseUser.uid)
-
-                userRef.getDocument { document, error in
-                    if let document = document, document.exists {
-                        print("User already exists in Firestore, skipping init")
-                        DispatchQueue.main.async {
-                            isUserLoggedIn = true
-                        }
-                    } else {
-                        let name = user.profile?.name ?? "Unnamed"
-                        let email = user.profile?.email ?? firebaseUser.email ?? ""
-                        let basicData: [String: Any] = [
-                            "name": name,
-                            "email": email
-                        ]
-                        userRef.setData(basicData, merge: true) { error in
-                            if let error = error {
-                                print("Error saving Google user basic data:", error.localizedDescription)
-                            }
-                            DispatchQueue.main.async {
-                                isUserLoggedIn = true
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 }

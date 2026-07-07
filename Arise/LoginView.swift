@@ -1,7 +1,6 @@
 import SwiftUI
 import FirebaseAuth
-import GoogleSignIn
-import Firebase
+
 
 struct LoginView: View {
     @Binding var isUserLoggedIn: Bool
@@ -67,14 +66,7 @@ struct LoginView: View {
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color(red: 84/255, green: 0/255, blue: 232/255),
-                                Color(red: 236/255, green: 71/255, blue: 1/255)
-                            ]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ))
+                        .background(LinearGradient.brand)
                         .foregroundColor(.white)
                         .cornerRadius(25)
                 }
@@ -135,8 +127,15 @@ struct LoginView: View {
         Auth.auth().signIn(withEmail: email, password: password) { result, error in
             isLoading = false
             if let error = error {
-                print("Login error: \(error.localizedDescription)")
-                errorMessage = "Email or password incorrect. Try again"
+                let ns = error as NSError
+                switch AuthErrorCode(rawValue: ns.code) {
+                case .wrongPassword, .invalidEmail, .userNotFound, .invalidCredential:
+                    errorMessage = "Email or password incorrect. Try again."
+                case .networkError:
+                    errorMessage = "Network error. Check your connection and try again."
+                default:
+                    errorMessage = error.localizedDescription
+                }
             }
             else {
                 isUserLoggedIn = true
@@ -144,68 +143,4 @@ struct LoginView: View {
         }
     }
 
-    private func signInWithGoogle() {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootViewController = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
-            print("No rootViewController found")
-            return
-        }
-
-        GIDSignIn.sharedInstance.signIn(
-            withPresenting: rootViewController,
-            hint: nil,
-            additionalScopes: nil,
-            nonce: nil
-        ) { signInResult, error in
-            if let error = error {
-                print("Google Sign-In failed:", error.localizedDescription)
-                return
-            }
-
-            guard let user = signInResult?.user,
-                  let idTokenObj = user.idToken else {
-                print("Missing user or ID token")
-                return
-            }
-
-            let credential = GoogleAuthProvider.credential(
-                withIDToken: idTokenObj.tokenString,
-                accessToken: user.accessToken.tokenString
-            )
-
-            Auth.auth().signIn(with: credential) { result, error in
-                if let error = error {
-                    print("Firebase login failed:", error.localizedDescription)
-                    return
-                }
-
-                guard let firebaseUser = result?.user else { return }
-
-                let fullName = user.profile?.name ?? "No Name"
-                let email = user.profile?.email ?? "No Email"
-                let uid = firebaseUser.uid
-
-                let db = Firestore.firestore()
-                let userRef = db.collection("users").document(uid)
-                userRef.setData([
-                    "name": fullName,
-                    "email": email,
-                    "uid": uid
-                ], merge: true) { err in
-                    if let err = err {
-                        print("Error saving user to Firestore: \(err.localizedDescription)")
-                    } else {
-                        print("User saved to Firestore")
-                    }
-                }
-
-                UserDefaults.standard.set(fullName, forKey: "userName")
-                UserDefaults.standard.set(email, forKey: "userEmail")
-
-                DispatchQueue.main.async {
-                    isUserLoggedIn = true
-                }
-            }
-        }
-    }
 }

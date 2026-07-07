@@ -15,8 +15,12 @@ struct SectionCard<Content: View>: View {
             content
         }
         .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: Color.black.opacity(0.25), radius: 8, x: 0, y: 4)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 4)
     }
 }
 
@@ -33,20 +37,14 @@ struct SettingsView: View {
     @State private var preferencesLoaded = false
     @State private var showGoogleSignInAlert = false
     @State private var navigateToChangePassword = false
+    @State private var isLoading = true
     
     private var versionInfo: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
         return "v\(version)"
     }
     
-    let gradient = LinearGradient(
-        gradient: Gradient(colors: [
-            Color(red: 84/255, green: 0/255, blue: 232/255),
-            Color(red: 236/255, green: 71/255, blue: 1/255)
-        ]),
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
+    let gradient = LinearGradient.brand
 
     var body: some View {
         NavigationStack {
@@ -55,7 +53,7 @@ struct SettingsView: View {
                     // HEADER
                     VStack(spacing: 4) {
                         Text("Settings")
-                            .font(.largeTitle.bold())
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
 
                         Text("Customize your experience")
@@ -64,8 +62,13 @@ struct SettingsView: View {
                     }
                     .padding(.top, 20)
 
-                    // ACCOUNT (title + card grouped)
-                    sectionBlock("ACCOUNT") {
+                    if isLoading {
+                        ProgressView()
+                            .tint(.white)
+                            .padding(.top, 60)
+                    } else {
+                        // ACCOUNT (title + card grouped)
+                        sectionBlock("ACCOUNT") {
                         inputRow(systemImage: "person", label: "Name", binding: $name, isEditable: true) {
                             saveNameToFirestore(name)
                         }
@@ -147,8 +150,7 @@ struct SettingsView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 10)
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(20)
+                            .background(Capsule().fill(Color.white.opacity(0.1)))
                     }
                     .alert(isPresented: $showLogoutConfirmation) {
                         Alert(
@@ -158,23 +160,19 @@ struct SettingsView: View {
                                 do {
                                     try Auth.auth().signOut()
                                     isUserLoggedIn = false
-                                } catch {
-                                    print("Error signing out: \(error.localizedDescription)")
-                                }
+                                } catch { }
                             },
                             secondaryButton: .cancel()
                         )
                     }
                     .padding(.bottom, 100)
+                    }
                 }
                 .padding(.horizontal)
                 .padding(.top)
             }
             .background(Color.black.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: String.self) { value in
-                if value == "Reset Password" { ResetPasswordView() }
-            }
             .navigationDestination(isPresented: $navigateToChangePassword) {
                 ChangePasswordView()
             }
@@ -192,39 +190,15 @@ struct SettingsView: View {
         .preferredColorScheme(.dark)
     }
 
-    private static func sanitizeName(_ input: String) -> String {
-        let allowed = CharacterSet.letters.union(CharacterSet(charactersIn: "-"))
-        let filtered = input.unicodeScalars
-            .filter { allowed.contains($0) }
-            .map { String($0) }
-            .joined()
-
-        var result = ""
-        var capitalizeNext = true
-        for char in filtered {
-            if char == "-" {
-                result.append(char)
-                capitalizeNext = true
-            } else {
-                if capitalizeNext {
-                    result.append(char.uppercased())
-                    capitalizeNext = false
-                } else {
-                    result.append(char.lowercased())
-                }
-            }
-        }
-        return result
-    }
 
 
-        
+
     // MARK: - SECTION BLOCK (title + card grouped)
     private func sectionBlock<Content: View>(_ title: String,
                                              @ViewBuilder content: @escaping () -> Content) -> some View {
         VStack(spacing: 6) {
             Text(title)
-                .font(.headline).fontWeight(.semibold)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .foregroundStyle(gradient)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 0)
@@ -290,17 +264,17 @@ struct SettingsView: View {
     // MARK: - Divider between rows (no gaps)
     private func dividerLine() -> some View {
         Divider()
-            .background(Color.gray.opacity(0.01))
+            .background(Color.white.opacity(0.06))
             .padding(.leading, 45)
     }
 
     // MARK: - Reusable Rows
     private func staticRow(systemImage: String, label: String, value: String) -> some View {
         HStack {
-            Image(systemName: systemImage).foregroundColor(.gray).frame(width: 20)
+            Image(systemName: systemImage).foregroundColor(.white.opacity(0.5)).frame(width: 20)
             Text(label).foregroundColor(.white)
             Spacer()
-            Text(value).foregroundColor(.gray)
+            Text(value).foregroundColor(.white.opacity(0.5))
         }
         .padding(.horizontal)
         .padding(.vertical, 12)
@@ -309,10 +283,10 @@ struct SettingsView: View {
     private func navRow<Destination: View>(systemImage: String, label: String, destination: @escaping () -> Destination) -> some View {
         NavigationLink(destination: destination()) {
             HStack {
-                Image(systemName: systemImage).foregroundColor(.gray).frame(width: 20)
+                Image(systemName: systemImage).foregroundColor(.white.opacity(0.5)).frame(width: 20)
                 Text(label).foregroundColor(.white)
                 Spacer()
-                Image(systemName: "chevron.right").foregroundColor(.gray)
+                Image(systemName: "chevron.right").foregroundColor(.white.opacity(0.5))
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
@@ -322,10 +296,10 @@ struct SettingsView: View {
     private func buttonRow(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack {
-                Image(systemName: systemImage).foregroundColor(.gray).frame(width: 20)
+                Image(systemName: systemImage).foregroundColor(.white.opacity(0.5)).frame(width: 20)
                 Text(label).foregroundColor(.white)
                 Spacer()
-                Image(systemName: "chevron.right").foregroundColor(.gray)
+                Image(systemName: "chevron.right").foregroundColor(.white.opacity(0.5))
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
@@ -340,14 +314,14 @@ struct SettingsView: View {
     private func userIDRow() -> some View {
         HStack {
             Image(systemName: "grid.circle")
-                .foregroundColor(.gray)
+                .foregroundColor(.white.opacity(0.5))
                 .frame(width: 20)
             Text("User ID").foregroundColor(.white)
             Spacer()
             if let user = Auth.auth().currentUser {
                 Text(user.uid)
                     .font(.footnote)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.white.opacity(0.5))
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .textSelection(.enabled)
@@ -366,7 +340,7 @@ struct SettingsView: View {
     ) -> some View {
         HStack {
             Image(systemName: systemImage)
-                .foregroundColor(.gray)
+                .foregroundColor(.white.opacity(0.5))
                 .frame(width: 20)
             Text(label)
                 .foregroundColor(.white)
@@ -375,7 +349,7 @@ struct SettingsView: View {
                 EditableTextField(text: binding, onCommit: onCommit)
             } else {
                 Text(binding.wrappedValue)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.white.opacity(0.5))
                     .font(.footnote)
                     .multilineTextAlignment(.trailing)
             }
@@ -387,15 +361,13 @@ struct SettingsView: View {
 
     // MARK: - Firestore helpers
     private func saveNameToFirestore(_ newName: String) {
-        let cleanedName = Self.sanitizeName(newName)
+        let cleanedName = sanitizeName(newName)
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
         db.collection("users").document(uid).setData([
             "name": cleanedName
         ], merge: true) { error in
-            if let error = error {
-                print("Failed to update name: \(error.localizedDescription)")
-            } else {
+            if error == nil {
                 var cached = UserDefaults.standard.dictionary(forKey: "cachedUserData") ?? [:]
                 cached["name"] = cleanedName
                 UserDefaults.standard.set(cached, forKey: "cachedUserData")
@@ -419,6 +391,7 @@ struct SettingsView: View {
                 }
             }
             preferencesLoaded = true
+            DispatchQueue.main.async { self.isLoading = false }
         }
     }
 
@@ -427,13 +400,16 @@ struct SettingsView: View {
         let db = Firestore.firestore()
         db.collection("users").document(uid).getDocument { snapshot, error in
             if let data = snapshot?.data(), error == nil {
-                let fetchedName = Self.sanitizeName(data["name"] as? String ?? "")
+                let fetchedName = sanitizeName(data["name"] as? String ?? "")
                 let fetchedEmail = data["email"] as? String ?? ""
                 DispatchQueue.main.async {
                     self.name = fetchedName
                     self.userEmail = fetchedEmail
+                    self.isLoading = false
                 }
                 UserDefaults.standard.set(["name": fetchedName, "email": fetchedEmail], forKey: "cachedUserData")
+            } else {
+                DispatchQueue.main.async { self.isLoading = false }
             }
         }
     }
@@ -468,7 +444,7 @@ struct SettingsView: View {
                 .frame(minWidth: 100)
                 .focused($isFocused)
                 .onChange(of: text) { _, newValue in
-                    text = SettingsView.sanitizeName(newValue)
+                    text = sanitizeName(newValue)
                 }
                 .onSubmit {
                     onCommit?()
@@ -491,7 +467,6 @@ struct SettingsView: View {
         let db = Firestore.firestore()
         db.collection("users").document(uid).getDocument { snapshot, error in
             guard let data = snapshot?.data(), error == nil else {
-                print("Unable to read user times for notifications:", error?.localizedDescription ?? "no data")
                 return
             }
             // schedule/cancel using that single snapshot
@@ -504,13 +479,7 @@ struct SettingsView: View {
     private func requestNotificationAuthorizationIfNeeded() {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             if settings.authorizationStatus != .authorized {
-                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-                    if let error = error {
-                        print("Notification auth error:", error.localizedDescription)
-                    } else {
-                        print("Notification permission granted:", granted)
-                    }
-                }
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
             }
         }
     }
@@ -535,18 +504,11 @@ struct SettingsView: View {
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: repeats)
         let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
 
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("Failed to schedule \(id):", error.localizedDescription)
-            } else {
-                print("Scheduled notification \(id) at \(hour):\(String(format: "%02d", minute))")
-            }
-        }
+        UNUserNotificationCenter.current().add(request) { _ in }
     }
 
     private func cancelNotification(id: String) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
-        print("Cancelled notification \(id)")
     }
 
     private func timeFromMilitaryInt(_ intTime: Int) -> DateComponents {

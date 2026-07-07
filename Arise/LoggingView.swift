@@ -1,5 +1,4 @@
 import SwiftUI
-import Firebase
 import FirebaseAuth
 import FirebaseFirestore
 
@@ -58,89 +57,60 @@ struct LoggingView: View {
         case completed = "Completed"
     }
     
-    // aesthetic gradient
-    private var accentGradient: LinearGradient {
-        LinearGradient(
-            gradient: Gradient(colors: [Color(red: 84/255, green: 0/255, blue: 232/255),
-                                        Color(red: 236/255, green: 71/255, blue: 1/255)]),
-            startPoint: .leading,
-            endPoint: .trailing
-        )
+    private var accentGradient: LinearGradient { LinearGradient.brand }
+
+    private var todayXP: Int {
+        guard let xpDict = userData["todaySkillXP"] as? [String: Int] else { return 0 }
+        return xpDict.values.reduce(0, +)
     }
-    
+
+    private var completionPercentage: Double {
+        guard !assignedTasks.isEmpty else { return 0 }
+        return Double(completedTaskIDs.count) / Double(assignedTasks.count)
+    }
+
+    private var sectionedTasks: [(String, [TaskItem])] {
+        let grouped = Dictionary(grouping: visibleAssignedTasks) { $0.internalType }
+        let sectionMap: [String: String] = [
+            "Daily": "Daily Rituals",
+            "Set Day": "Set Day",
+            "Addiction": "Addiction Focus"
+        ]
+        return ["Addiction", "Daily", "Set Day"].compactMap { key in
+            guard let tasks = grouped[key], !tasks.isEmpty else { return nil }
+            return (sectionMap[key] ?? key, tasks)
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
                 Color.black.ignoresSafeArea()
-                
+
                 if isLoading {
                     ProgressView()
                         .tint(.white)
                 } else {
                     ScrollView {
-                        VStack(spacing: 18) {
-                            // --- Header (part of scroll content now) ---
+                        LazyVStack(spacing: 20) {
                             headerView
-                            
-                            // --- Tabs (scrolls with content) ---
+
                             tabsView
-                            
-                            // subtle divider
-                            Rectangle()
-                                .fill(Color.white.opacity(0.06))
-                                .frame(height: 1)
-                                .padding(.horizontal)
-                            
-                            // --- Task list ---
-                            VStack(spacing: 14) {
-                                if selectedTab == .assigned {
-                                    if visibleAssignedTasks.isEmpty {
-                                        emptyStateView(title: "All assigned tasks have been completed.", subtitle: "Great work! — you have nothing left on the list!")
-                                    } else {
-                                        ForEach(visibleAssignedTasks) { task in
-                                            TaskCard(
-                                                task: task,
-                                                isCompleted: false,
-                                                isExpanded: expandedTaskID == task.id,
-                                                accentGradient: accentGradient,
-                                                onTap: { toggleExpand(task) },
-                                                onComplete: { markComplete(task) },
-                                                onPartial: { markPartial(task) },
-                                                timeRemaining: timeRemainingString()
-                                            )
-                                        }
-                                    }
-                                } else { // completed
-                                    let completed = completedTasks
-                                    if completed.isEmpty {
-                                        emptyStateView(title: "No tasks completed", subtitle: "Finish tasks to see them here.")
-                                    } else {
-                                        ForEach(completed) { task in
-                                            TaskCard(
-                                                task: task,
-                                                isCompleted: true,
-                                                isExpanded: false,
-                                                accentGradient: accentGradient,
-                                                onTap: nil,
-                                                onComplete: nil,
-                                                onPartial: nil,
-                                                timeRemaining: timeRemainingString()
-                                            )
-                                        }
-                                    }
-                                }
+
+                            todayStatsView
+
+                            if selectedTab == .assigned {
+                                assignedTaskList
+                            } else {
+                                completedTaskList
                             }
-                            .padding(.horizontal)
-                            .padding(.bottom, 60)
                         }
-                        .padding(.top, 22)
+                        .padding(.top, 8)
                     }
                     .scrollIndicators(.hidden)
-                    // Live timer to check for midnight while app is open
                     .onReceive(midnightTimer) { _ in
                         checkForMidnightReset()
                     }
-                    // Refresh when app comes to foreground
                     .onChange(of: scenePhase) { oldPhase, newPhase in
                         if newPhase == .active {
                             checkForMidnightReset()
@@ -156,61 +126,63 @@ struct LoggingView: View {
             }
         }
     }
-    
-    // MARK: - Header
-    private var headerView: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Hi, \(userName)")
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.white, .white.opacity(0.7)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                
-                Text("Here’s your day — make it count.")
-                    .foregroundColor(.white.opacity(0.6))
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
-            }
-            Spacer()
-            
-            // Streak card
-            ZStack {
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(LinearGradient(
-                        colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                    )
-                    .frame(width: 80, height: 50)
-                    .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 4)
-                
-                HStack(spacing: 6) {
-                    Image(systemName: "flame.fill")
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(.orange, .orange.opacity(0.8))
-                        .font(.system(size: 20))
-                    
-                    Text("\(streak)")
-                        .foregroundColor(.white)
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
-                }
-            }
+
+    // MARK: - Today Stats
+    private var todayStatsView: some View {
+        HStack(spacing: 0) {
+            statItem(value: "\(completedTaskIDs.count)/\(assignedTasks.count)", label: "Done", icon: "checkmark.circle.fill", color: .green)
+            Divider().frame(height: 28).background(Color.white.opacity(0.1))
+            statItem(value: "\(todayXP)", label: "XP", icon: "bolt.fill", color: Color(red: 84/255, green: 0/255, blue: 232/255))
+            Divider().frame(height: 28).background(Color.white.opacity(0.1))
+            statItem(value: "\(streak)", label: "Streak", icon: "flame.fill", color: .orange)
         }
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal)
-        .padding(.top, 8)
     }
-    
+
+    private func statItem(value: String, label: String, icon: String, color: Color) -> some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 10))
+                    .foregroundColor(color)
+                Text(value)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+            }
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.5))
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var headerView: some View {
+        VStack(spacing: 4) {
+            Text("Tasks")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(formattedToday)
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.6))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 20)
+    }
+
+    private var formattedToday: String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "EEEE, MMM d"
+        return fmt.string(from: Date())
+    }
+
     // MARK: - Tabs
     private var tabsView: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 0) {
             ForEach(TabOption.allCases, id: \.self) { tab in
                 Button {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -219,52 +191,134 @@ struct LoggingView: View {
                     }
                 } label: {
                     Text(tab.rawValue)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(selectedTab == tab ? .white : .white.opacity(0.5))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, 8)
                         .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.white.opacity(0.04))
+                            ZStack {
+                                if selectedTab == tab {
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(accentGradient)
+                                        .matchedGeometryEffect(id: "tab", in: tabAnimation)
+                                }
+                            }
                         )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(
-                                    selectedTab == tab
-                                    ? AnyShapeStyle(accentGradient)
-                                    : AnyShapeStyle(Color.white.opacity(0.08)),
-                                    lineWidth: selectedTab == tab ? 2 : 1
-                                )
-                                .shadow(
-                                    color: selectedTab == tab
-                                        ? Color.purple.opacity(0.3)
-                                        : .clear,
-                                    radius: selectedTab == tab ? 6 : 0
-                                )
-                        )
-                        .foregroundColor(.white.opacity(0.9))
-                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
+        .padding(4)
+        .background(Color.white.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal)
     }
-    
+
+    // MARK: - Task lists
+    private var assignedTaskList: some View {
+        VStack(spacing: 14) {
+            if visibleAssignedTasks.isEmpty {
+                emptyStateView
+            } else {
+                ForEach(sectionedTasks, id: \.0) { section, tasks in
+                    sectionHeader(title: section, count: tasks.count)
+                    ForEach(tasks) { task in
+                        TaskCard(
+                            task: task,
+                            isCompleted: false,
+                            isExpanded: expandedTaskID == task.id,
+                            accentGradient: accentGradient,
+                            onTap: { toggleExpand(task) },
+                            onComplete: { markComplete(task) },
+                            onPartial: { markPartial(task) },
+                            onUndo: nil,
+                            timeRemaining: timeRemainingString()
+                        )
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    }
+                }
+            }
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 60)
+    }
+
+    private var completedTaskList: some View {
+        VStack(spacing: 14) {
+            let completed = completedTasks
+            if completed.isEmpty {
+                emptyStateView
+            } else {
+                ForEach(completed) { task in
+                    TaskCard(
+                        task: task,
+                        isCompleted: true,
+                        isExpanded: false,
+                        accentGradient: accentGradient,
+                        onTap: nil,
+                        onComplete: nil,
+                        onPartial: nil,
+                        onUndo: { undoCompleteTask(task) },
+                        timeRemaining: timeRemainingString()
+                    )
+                }
+            }
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 60)
+    }
+
     // MARK: - Empty state
-    private func emptyStateView(title: String, subtitle: String) -> some View {
-        VStack(spacing: 8) {
-            Text(title)
+    private var emptyStateView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 48))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.green, .green.opacity(0.6)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            Text(selectedTab == .assigned ? "All tasks complete!" : "No tasks completed yet")
                 .foregroundColor(.white)
-                .font(.headline)
-            Text(subtitle)
+                .font(.title3.weight(.semibold))
+            Text(selectedTab == .assigned ? "Great work today." : "Complete some tasks to see them here.")
                 .foregroundColor(.white.opacity(0.65))
                 .font(.subheadline)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        .padding(.vertical, 50)
     }
-    
-    // MARK: - Toggle Expand (fixed)
+
+    // MARK: - Section header
+    private func sectionHeader(title: String, count: Int) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: sectionIcon(for: title))
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(accentGradient)
+            Text(title)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundColor(.white.opacity(0.7))
+            Spacer()
+            Text("\(count) left")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.white.opacity(0.4))
+        }
+        .padding(.horizontal, 4)
+        .padding(.top, 6)
+    }
+
+    private func sectionIcon(for title: String) -> String {
+        switch title {
+        case "Daily Rituals": return "sun.max.fill"
+        case "Set Day": return "calendar.day.timeline.left"
+        case "Addiction Focus": return "flame.fill"
+        default: return "circle.fill"
+        }
+    }
+
+    // MARK: - Toggle Expand
     private func toggleExpand(_ task: TaskItem) {
         withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) {
             if expandedTaskID == task.id {
@@ -280,20 +334,17 @@ struct LoggingView: View {
 extension LoggingView {
     private func fetchUserData() {
         guard let uid = Auth.auth().currentUser?.uid else {
-            print("No user logged in")
             isLoading = false
             return
         }
         
         let userRef = Firestore.firestore().collection("users").document(uid)
         userRef.getDocument { snapshot, error in
-            if let error = error {
-                print("Firestore fetch error:", error.localizedDescription)
+            if error != nil {
                 DispatchQueue.main.async { isLoading = false }
                 return
             }
             guard let data = snapshot?.data() else {
-                print("No user data")
                 DispatchQueue.main.async { isLoading = false }
                 return
             }
@@ -577,179 +628,221 @@ extension LoggingView {
     
     // MARK: - Complete / Partial handling (persistence + XP)
     private func markComplete(_ task: TaskItem) {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        
-        // Apply full XP and persist completed ID
-        performXPDistribution(for: task, partial: false) { success in
-            if success {
-                persistTaskCompletion(taskID: task.id, uid: uid)
-            } else {
-                // handle error (omitted UI toast)
-            }
-        }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        completeTask(task, partial: false)
     }
     
     private func markPartial(_ task: TaskItem) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        completeTask(task, partial: true)
+    }
+
+    private func completeTask(_ task: TaskItem, partial: Bool) {
         guard let uid = Auth.auth().currentUser?.uid else { return }
-        
-        // Apply partial XP and persist completed ID
-        performXPDistribution(for: task, partial: true) { success in
-            if success {
-                persistTaskCompletion(taskID: task.id, uid: uid)
-            } else {
-                // handle error
-            }
-        }
-    }
-    
-    // Add taskID to completedTaskIDs and update Firestore
-    private func persistTaskCompletion(taskID: String, uid: String) {
-        // prevent duplicates
-        if !completedTaskIDs.contains(taskID) {
-            completedTaskIDs.append(taskID)
-        }
-        
         let userRef = Firestore.firestore().collection("users").document(uid)
-        userRef.updateData(["completedTasks": completedTaskIDs]) { err in
-            if let err = err {
-                print("Error persisting completedTasks:", err.localizedDescription)
-            } else {
-                // Move UI: no need to remove from assignedTasks since we compute visibleAssignedTasks
-                // check streak increment
-                checkAndIncrementStreakIfAllDone(uid: uid)
-            }
-        }
-    }
-    
-    private func checkAndIncrementStreakIfAllDone(uid: String) {
         let assignedIDs = Set(assignedTasks.map { $0.id })
-        let completedSet = Set(completedTaskIDs)
-
-        guard !assignedIDs.isEmpty, assignedIDs.isSubset(of: completedSet) else { return }
-
-        let userRef = Firestore.firestore().collection("users").document(uid)
-        userRef.getDocument { snapshot, error in
-            if let error = error {
-                print("Error fetching lastStreakDate:", error.localizedDescription)
-                return
-            }
-
-            guard let data = snapshot?.data() else { return }
-            let calendar = Calendar.current
-            let today = Date()
-            let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
-
-            let _ = isoDateString(from: today)
-            let yesterdayStr = isoDateString(from: yesterday)
-            let lastStreakDateStr = data["lastStreakDate"] as? String ?? ""
-
-            // Only increment if last streak was yesterday — not today, not older
-            if lastStreakDateStr == yesterdayStr {
-                incrementStreak(uid: uid)
-            }
-            // Or if the user has never started a streak (first day)
-            else if lastStreakDateStr.isEmpty {
-                incrementStreak(uid: uid)
-            }
-            // Otherwise, do nothing (either already incremented today or streak was broken)
-            else {
-                print("No streak increment — last streak date = \(lastStreakDateStr)")
-            }
-        }
-    }
-    
-    // XP distribution: modifies skills map in Firestore
-    private func performXPDistribution(for task: TaskItem, partial: Bool, completion: @escaping (Bool) -> Void) {
-        guard let uid = Auth.auth().currentUser?.uid else {
-            completion(false)
-            return
-        }
-        let userRef = Firestore.firestore().collection("users").document(uid)
-        
-        userRef.getDocument { snapshot, err in
-            if let err = err {
-                print("Error fetching user doc for XP:", err.localizedDescription)
-                completion(false)
-                return
-            }
-            guard let data = snapshot?.data() else {
-                print("No user doc")
-                completion(false)
-                return
-            }
-            
-            var skillsMap = (data["skills"] as? [String: Any]) ?? [:]
-            let allSkillKeys = ["Resilience", "Fuel", "Fitness", "Wisdom", "Discipline", "Network"]
-            
-            // use targeted skills if available, otherwise fall back to all
-            let targetSkills = task.skillTargets?.isEmpty == false ? task.skillTargets! : allSkillKeys
-            
-            let totalXP = task.xp
-            let effectiveTotal: Int
-            if partial {
-                let half = Double(totalXP) / 2.0
-                let halfRoundedDownTo5 = Int(floor(half / 5.0)) * 5
-                effectiveTotal = max(0, halfRoundedDownTo5)
-            } else {
-                effectiveTotal = totalXP
-            }
-            
-            // divide among only target skills
-            let basePerSkill = effectiveTotal / targetSkills.count
-            var remainder = effectiveTotal % targetSkills.count
-            
-            for key in targetSkills {
-                var entry = (skillsMap[key] as? [String: Any]) ?? [:]
-                let existingXP = (entry["xp"] as? Int) ?? 0
-                
-                var add = basePerSkill
-                if remainder > 0 {
-                    add += 1
-                    remainder -= 1
-                }
-                entry["xp"] = existingXP + add
-                skillsMap[key] = entry
-            }
-            
-            userRef.updateData(["skills": skillsMap]) { updateErr in
-                if let updateErr = updateErr {
-                    print("Error updating skills:", updateErr.localizedDescription)
-                    completion(false)
-                    return
-                }
-                completion(true)
-            }
-        }
-    }
-    
-    // MARK: - Streak helpers
-    private func incrementStreak(uid: String) {
-        streak += 1
         let todayStr = isoDateString(from: Date())
-        Firestore.firestore().collection("users").document(uid)
-            .updateData(["streak": streak, "lastStreakDate": todayStr]) { err in
-                if let err = err {
-                    print("Error updating streak:", err.localizedDescription)
+        guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) else { return }
+        let yesterdayStr = isoDateString(from: yesterday)
+
+        userRef.firestore.runTransaction({ transaction, errorPointer -> Any? in
+            let snapshot: DocumentSnapshot
+            do {
+                snapshot = try transaction.getDocument(userRef)
+            } catch {
+                errorPointer?.pointee = error as NSError
+                return nil
+            }
+
+            let data = snapshot.data() ?? [:]
+            var completed = data["completedTasks"] as? [String] ?? []
+            if completed.contains(task.id) {
+                return ["completed": completed, "streak": data["streak"] as? Int ?? 0]
+            }
+            completed.append(task.id)
+
+            var skills = normalizeSkillsMap(data["skills"])
+            let targets = (task.skillTargets?.isEmpty == false) ? (task.skillTargets ?? allSkillNames) : allSkillNames
+            let totalXP = partial ? max(0, Int(floor((Double(task.xp) / 2.0) / 5.0)) * 5) : task.xp
+            let basePerSkill = totalXP / max(targets.count, 1)
+            var remainder = totalXP % max(targets.count, 1)
+
+            var taskSkillXP: [String: Int] = [:]
+            for key in targets {
+                var entry = skills[key] ?? ["level": 1, "xp": 0]
+                let current = entry["xp"] ?? 0
+                let add = basePerSkill + (remainder > 0 ? 1 : 0)
+                if remainder > 0 { remainder -= 1 }
+                taskSkillXP[key] = add
+                let updatedXP = current + add
+                entry["xp"] = updatedXP
+                entry["level"] = calculateSkillLevel(from: updatedXP)
+                skills[key] = entry
+            }
+
+            let totalSkillXP = skills.values.compactMap { $0["xp"] }.reduce(0, +)
+
+            var todaySkillXP = data["todaySkillXP"] as? [String: Int] ?? [:]
+            for (key, add) in taskSkillXP {
+                todaySkillXP[key] = (todaySkillXP[key] ?? 0) + add
+            }
+            var todayTaskDetails = data["todayCompletedTaskDetails"] as? [[String: Any]] ?? []
+            todayTaskDetails.append([
+                "id": task.id,
+                "name": task.name,
+                "skillXP": taskSkillXP,
+                "partial": partial
+            ])
+
+            var updates: [String: Any] = [
+                "skills": skills,
+                "xp": totalSkillXP,
+                "completedTasks": completed,
+                "todaySkillXP": todaySkillXP,
+                "todayCompletedTaskDetails": todayTaskDetails
+            ]
+
+            let completedSet = Set(completed)
+            if !assignedIDs.isEmpty, assignedIDs.isSubset(of: completedSet) {
+                let lastStreakDate = data["lastStreakDate"] as? String ?? ""
+                var currentStreak = data["streak"] as? Int ?? 0
+                if lastStreakDate == yesterdayStr || lastStreakDate.isEmpty {
+                    currentStreak += 1
+                    updates["streak"] = currentStreak
+                    updates["lastStreakDate"] = todayStr
+                    let longest = data["longestStreak"] as? Int ?? 0
+                    if currentStreak > longest {
+                        updates["longestStreak"] = currentStreak
+                    }
                 }
             }
+
+            transaction.updateData(updates, forDocument: userRef)
+            let resultStreak = updates["streak"] as? Int ?? (data["streak"] as? Int ?? 0)
+            return ["completed": completed, "streak": resultStreak, "taskSkillXP": taskSkillXP]
+        }) { result, error in
+            guard error == nil, let payload = result as? [String: Any] else { return }
+            if let completed = payload["completed"] as? [String] {
+                DispatchQueue.main.async {
+                    completedTaskIDs = completed
+                    if let newStreak = payload["streak"] as? Int {
+                        streak = newStreak
+                    }
+                    if let skillXP = payload["taskSkillXP"] as? [String: Int] {
+                        var current = self.userData["todaySkillXP"] as? [String: Int] ?? [:]
+                        for (key, add) in skillXP {
+                            current[key] = (current[key] ?? 0) + add
+                        }
+                        self.userData["todaySkillXP"] = current
+                    }
+                }
+            }
+        }
+    }
+
+    private func undoCompleteTask(_ task: TaskItem) {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let userRef = Firestore.firestore().collection("users").document(uid)
+
+        userRef.firestore.runTransaction({ transaction, errorPointer -> Any? in
+            let snapshot: DocumentSnapshot
+            do {
+                snapshot = try transaction.getDocument(userRef)
+            } catch {
+                errorPointer?.pointee = error as NSError
+                return nil
+            }
+
+            let data = snapshot.data() ?? [:]
+            let completed = data["completedTasks"] as? [String] ?? []
+            guard completed.contains(task.id) else { return nil }
+
+            let todayTaskDetails = data["todayCompletedTaskDetails"] as? [[String: Any]] ?? []
+            guard let detailIdx = todayTaskDetails.firstIndex(where: { ($0["id"] as? String) == task.id }),
+                  let taskSkillXP = todayTaskDetails[detailIdx]["skillXP"] as? [String: Int] else {
+                return nil
+            }
+
+            var mutableCompleted = completed
+            mutableCompleted.removeAll { $0 == task.id }
+
+            var mutableDetails = todayTaskDetails
+            mutableDetails.remove(at: detailIdx)
+
+            var skills = normalizeSkillsMap(data["skills"])
+            for (key, add) in taskSkillXP {
+                guard var entry = skills[key] else { continue }
+                let current = entry["xp"] ?? 0
+                let newXP = max(0, current - add)
+                entry["xp"] = newXP
+                entry["level"] = calculateSkillLevel(from: newXP)
+                skills[key] = entry
+            }
+
+            let totalSkillXP = skills.values.compactMap { $0["xp"] }.reduce(0, +)
+
+            var todaySkillXP = data["todaySkillXP"] as? [String: Int] ?? [:]
+            for (key, add) in taskSkillXP {
+                let current = todaySkillXP[key] ?? 0
+                let newToday = max(0, current - add)
+                if newToday == 0 {
+                    todaySkillXP.removeValue(forKey: key)
+                } else {
+                    todaySkillXP[key] = newToday
+                }
+            }
+
+            transaction.updateData([
+                "skills": skills,
+                "xp": totalSkillXP,
+                "completedTasks": mutableCompleted,
+                "todaySkillXP": todaySkillXP,
+                "todayCompletedTaskDetails": mutableDetails
+            ], forDocument: userRef)
+
+            return ["completed": mutableCompleted, "taskSkillXP": taskSkillXP]
+        }) { result, error in
+            guard error == nil, let payload = result as? [String: Any] else { return }
+            if let completed = payload["completed"] as? [String] {
+                DispatchQueue.main.async {
+                    completedTaskIDs = completed
+                    if let skillXP = payload["taskSkillXP"] as? [String: Int] {
+                        var current = self.userData["todaySkillXP"] as? [String: Int] ?? [:]
+                        for (key, add) in skillXP {
+                            current[key] = max(0, (current[key] ?? 0) - add)
+                            if current[key] == 0 { current.removeValue(forKey: key) }
+                        }
+                        self.userData["todaySkillXP"] = current
+                    }
+                }
+            }
+        }
+    }
+
+    private func normalizeSkillsMap(_ any: Any?) -> [String: [String: Int]] {
+        guard let raw = any as? [String: Any] else { return [:] }
+        var result: [String: [String: Int]] = [:]
+        for (key, value) in raw {
+            guard let entry = value as? [String: Any] else { continue }
+            let xp = entry["xp"] as? Int ?? 0
+            let level = entry["level"] as? Int ?? calculateSkillLevel(from: xp)
+            result[key] = ["xp": xp, "level": level]
+        }
+        return result
     }
     
     private func resetStreakInFirestore() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         streak = 0
         Firestore.firestore().collection("users").document(uid)
-            .updateData(["streak": 0]) { err in
-                if let err = err {
-                    print("Error resetting streak:", err.localizedDescription)
-                }
-            }
+            .updateData(["streak": 0])
     }
     
     private func handleStreakContinuity(using data: [String: Any]) {
         guard let lastStreakDateStr = data["lastStreakDate"] as? String else {
             return
         }
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) else { return }
         let yesterdayStr = isoDateString(from: yesterday)
         let todayStr = isoDateString(from: Date())
         
@@ -764,21 +857,33 @@ extension LoggingView {
         let today = isoDateString(from: Date())
         if lastResetDate != today {
             lastResetDate = today
-            // clear local completed list and clear persisted completed in Firestore
             completedTaskIDs.removeAll()
-            // clear Firestore completedTasks for today (so UI resets for next day)
             if let uid = Auth.auth().currentUser?.uid {
-                Firestore.firestore().collection("users").document(uid)
-                    .updateData(["completedTasks": []]) { err in
-                        if let err = err {
-                            print("Error clearing completedTasks on midnight reset:", err.localizedDescription)
-                        } else {
-                            // Also refresh user data after clearing server-side completed tasks
-                            fetchUserData()
-                        }
+                let userRef = Firestore.firestore().collection("users").document(uid)
+                userRef.getDocument { snapshot, _ in
+                    guard let data = snapshot?.data() else {
+                        userRef.updateData(["completedTasks": [], "todaySkillXP": [:], "todayCompletedTaskDetails": []])
+                        self.fetchUserData()
+                        return
                     }
+                    let skillXP = data["todaySkillXP"] as? [String: Int] ?? [:]
+                    let logRef = userRef.collection("dailyLogs").document(today)
+                    logRef.setData([
+                        "date": today,
+                        "completedCount": (data["completedTasks"] as? [String])?.count ?? 0,
+                        "xpGained": skillXP.values.reduce(0, +),
+                        "skillXP": skillXP,
+                        "streak": data["streak"] as? Int ?? 0,
+                        "timestamp": FieldValue.serverTimestamp()
+                    ], merge: true) { _ in
+                        userRef.updateData([
+                            "completedTasks": [],
+                            "todaySkillXP": [:],
+                            "todayCompletedTaskDetails": []
+                        ]) { _ in self.fetchUserData() }
+                    }
+                }
             } else {
-                // If no uid, still regenerate tasks locally
                 fetchUserData()
             }
         }
@@ -795,16 +900,6 @@ extension LoggingView {
         }
     }
 
-    // Helper: coerce possible bool-like Firestore values to Bool
-    private func boolValue(from any: Any?) -> Bool {
-        if let b = any as? Bool { return b }
-        if let n = any as? NSNumber { return n.boolValue }
-        if let s = any as? String {
-            let lower = s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            return lower == "true" || lower == "1" || lower == "yes"
-        }
-        return false
-    }
 }
 
 // MARK: - Date & time helpers
@@ -818,7 +913,8 @@ extension LoggingView {
     
     func timeRemainingString() -> String {
         let now = Date()
-        let midnight = Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 1, to: now)!)
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) else { return "0m" }
+        let midnight = Calendar.current.startOfDay(for: tomorrow)
         let diff = Int(midnight.timeIntervalSince(now))
         let hours = diff / 3600
         let minutes = (diff % 3600) / 60
@@ -827,7 +923,8 @@ extension LoggingView {
 
     func hoursUntilMidnight() -> Int {
         let now = Date()
-        let midnight = Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 1, to: now)!)
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) else { return 0 }
+        let midnight = Calendar.current.startOfDay(for: tomorrow)
         let diff = Int(midnight.timeIntervalSince(now))
         return diff / 3600
     }
@@ -853,27 +950,28 @@ extension LoggingView {
         return fmt.string(from: date)
     }
     
-    // Bedtime calculator (exactly as you gave)
-    private func calculateBedtime(wakeTime: Date, sleepHours: Double) -> String? {
-        let calendar = Calendar.current
-        guard let bedtime = calendar.date(byAdding: .minute,
-                                          value: Int(-sleepHours * 60),
-                                          to: wakeTime) else { return nil }
+}
 
-        let minutes = calendar.component(.minute, from: bedtime)
-        let remainder = minutes % 15
-        let adjustment = remainder < 8 ? -remainder : (15 - remainder)
-        guard let roundedBedtime = calendar.date(byAdding: .minute,
-                                                 value: adjustment,
-                                                 to: bedtime) else { return nil }
+// MARK: - Progress Ring
+struct ProgressRing: View {
+    let progress: Double
+    let gradient: LinearGradient
+    let size: CGFloat
 
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: roundedBedtime)
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.1), lineWidth: 4)
+            Circle()
+                .trim(from: 0, to: min(max(progress, 0), 1))
+                .stroke(gradient, style: .init(lineWidth: 4, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: size, height: size)
     }
 }
 
-// MARK: - Task Card View (visual)
+// MARK: - Task Card View
 struct TaskCard: View {
     let task: TaskItem
     let isCompleted: Bool
@@ -882,161 +980,203 @@ struct TaskCard: View {
     let onTap: (() -> Void)?
     let onComplete: (() -> Void)?
     let onPartial: (() -> Void)?
+    let onUndo: (() -> Void)?
     let timeRemaining: String
-    
+
+    private var categoryColor: Color {
+        switch task.internalType {
+        case "Daily": return Color(red: 84/255, green: 0/255, blue: 232/255)
+        case "Set Day": return Color(red: 0/255, green: 122/255, blue: 255/255)
+        case "Addiction": return Color.orange
+        default: return .gray
+        }
+    }
+
+    private var urgencyColor: Color {
+        if timeRemaining.hasSuffix("h") {
+            let hours = Int(timeRemaining.dropLast()) ?? 0
+            if hours < 3 { return .red }
+            if hours < 6 { return .yellow }
+        }
+        return .green
+    }
+
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(alignment: .top) {
-                // icon circle
-                ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.04))
-                        .frame(width: 56, height: 56)
-                    Image(systemName: iconForName(task.name))
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(accentGradient)
-                }
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text(task.name)
-                            .foregroundColor(.white)
-                            .font(.system(size: 17, weight: .semibold))
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: iconForName(task.name))
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(accentGradient)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .center) {
+                        Text(task.internalType)
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(categoryColor)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(categoryColor.opacity(0.15))
+                            .clipShape(Capsule())
+
                         Spacer()
-                        if isCompleted {
-                            Image(systemName: "checkmark.seal.fill")
-                                .foregroundColor(.green)
-                                .font(.title3)
-                        }
+
+                        Text("+\(task.xp) XP")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(accentGradient)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(accentGradient.opacity(0.15))
+                            .clipShape(Capsule())
                     }
-                    
-                    Text(task.description)
-                        .foregroundColor(.white.opacity(0.85))
-                        .font(.subheadline)
-                        .lineLimit(2)
-                }
-            }
-            
-            HStack {
-                HStack(spacing: 8) {
-                    Text("+\(task.xp) XP")
-                        .font(.caption2).bold()
-                        .foregroundStyle(accentGradient)
-                    Capsule()
-                        .fill(Color.white.opacity(0.04))
-                        .frame(width: 2, height: 18)
-                    HStack(spacing: 6) {
-                        Image(systemName: "clock.fill")
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.7))
-                        Text(timeRemaining)
-                            .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in }
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                }
-                Spacer()
-                if !isCompleted {
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.white.opacity(0.7))
-                }
-            }
-            
-            if isExpanded && !isCompleted {
-                HStack(spacing: 12) {
-                    Button(action: { onComplete?() }) {
-                        HStack {
-                            Image(systemName: "checkmark")
-                            Text("Mark Complete")
-                        }
-                        .font(.subheadline.bold())
-                        .padding(.vertical, 10)
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.white.opacity(0.03))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(
-                                    AnyShapeStyle(accentGradient),
-                                    lineWidth: 2
-                                )
-                                .shadow(color: Color.purple.opacity(0.3), radius: 6)
-                        )
+
+                    Text(task.name)
                         .foregroundColor(.white)
+                        .font(.system(size: 15, weight: .semibold))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(task.description)
+                        .foregroundColor(.white.opacity(0.55))
+                        .font(.system(size: 12))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 10))
+                            .foregroundColor(urgencyColor)
+                        Text(timeRemaining + " left")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(urgencyColor)
+
+                        Spacer()
+
+                        if isCompleted {
+                            Button { onUndo?() } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.uturn.backward")
+                                        .font(.system(size: 9))
+                                    Text("Undo")
+                                        .font(.system(size: 10, weight: .semibold))
+                                }
+                                .foregroundColor(.white.opacity(0.6))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.white.opacity(0.07))
+                                .clipShape(Capsule())
+                            }
+                        } else {
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.5))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.white.opacity(0.07))
+                                .clipShape(Capsule())
+                        }
                     }
-                    
+                    .padding(.top, 4)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+
+            if isExpanded && !isCompleted {
+                Divider()
+                    .background(Color.white.opacity(0.06))
+                    .padding(.horizontal, 14)
+
+                HStack(spacing: 10) {
+                    Button(action: { onComplete?() }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .bold))
+                            Text("Mark Complete")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(Color.white.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                .stroke(AnyShapeStyle(accentGradient), lineWidth: 1.5)
+                        )
+                    }
+
                     Button(action: { onPartial?() }) {
                         Text("Partial")
-                            .font(.subheadline.bold())
-                            .padding(.vertical, 10)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.75))
                             .frame(maxWidth: .infinity)
-                            .background(Color.white.opacity(0.03))
-                            .foregroundColor(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .padding(.vertical, 11)
+                            .background(Color.white.opacity(0.04))
+                            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                            )
                     }
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding()
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.white.opacity(0.05))
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.04), lineWidth: 1)
-                )
         )
-        .shadow(color: Color.black.opacity(0.5), radius: 6, x: 0, y: 6)
-        .onTapGesture {
-            onTap?()
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(isCompleted ? Color.green.opacity(0.2) : Color.white.opacity(0.07), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .opacity(isCompleted ? 0.6 : 1)
+        .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 4)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            if !isCompleted {
+                Button { onComplete?() } label: {
+                    Label("Complete", systemImage: "checkmark")
+                }
+                .tint(.green)
+            }
         }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            if !isCompleted {
+                Button { onPartial?() } label: {
+                    Label("Partial", systemImage: "star.leadinghalf.filled")
+                }
+                .tint(.orange)
+            }
+        }
+        .onTapGesture { onTap?() }
         .animation(.spring(response: 0.32, dampingFraction: 0.8), value: isExpanded)
     }
-    
+
     private func iconForName(_ name: String) -> String {
         let lower = name.lowercased()
-
         switch lower {
-        case "arise and shine": return "sunrise.fill"
-        case "bedtime": return "moon.zzz.fill"
-        case "water intake": return "drop.fill"
+        case "arise and shine":   return "sunrise.fill"
+        case "bedtime":           return "moon.zzz.fill"
+        case "water intake":      return "drop.fill"
         case "screen time limit": return "iphone"
-        case "workout": return "figure.strengthtraining.traditional"
-        case "cold shower": return "snowflake"
-        case "meditation": return "brain.head.profile"
-        case "reading": return "book.fill"
-        case "pray": return "hands.sparkles.fill"
-        case "study": return "graduationcap.fill"
-        case "walk": return "figure.walk"
-        case "run": return "figure.run"
+        case "workout":           return "figure.strengthtraining.traditional"
+        case "cold shower":       return "snowflake"
+        case "meditation":        return "brain.head.profile"
+        case "reading":           return "book.fill"
+        case "pray":              return "hands.sparkles.fill"
+        case "study":             return "graduationcap.fill"
+        case "walk":              return "figure.walk"
+        case "run":               return "figure.run"
         case "social interaction": return "bubble.left.and.bubble.right.fill"
-        case "meet someone new": return "person.2.fill"
-
-        case let str where str.contains("porn"):
-            return "eye.slash.fill"
-
-        case let str where str.contains("screentime") || str.contains("screen time"):
-            return "iphone"
-
-        case let str where str.contains("vaping") || str.contains("smoking"):
-            return "smoke.fill"
-
-        case let str where str.contains("alcohol"):
-            return "wineglass.fill"
-
-        case let str where str.contains("gaming"):
-            return "gamecontroller.fill"
-
-        default:
-            if lower.contains("overcome") {
-                return "bolt.heart.fill"
-            } else {
-                return "star.circle.fill"
-            }
+        case "meet someone new":  return "person.2.fill"
+        case let str where str.contains("porn"):                                   return "eye.slash.fill"
+        case let str where str.contains("screentime") || str.contains("screen time"): return "iphone"
+        case let str where str.contains("vaping") || str.contains("smoking"):      return "smoke.fill"
+        case let str where str.contains("alcohol"):                                return "wineglass.fill"
+        case let str where str.contains("gaming"):                                 return "gamecontroller.fill"
+        default: return lower.contains("overcome") ? "bolt.heart.fill" : "star.circle.fill"
         }
     }
-
 }

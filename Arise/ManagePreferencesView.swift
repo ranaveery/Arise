@@ -11,6 +11,7 @@ extension Comparable {
 
 struct ManagePreferencesView: View {
     // MARK: - State
+    @AppStorage("animationsEnabled") private var animationsEnabled = true
     @State private var majorFocus = ""
     @State private var wakeWeekday = Date()
     @State private var wakeWeekend = Date()
@@ -22,6 +23,8 @@ struct ManagePreferencesView: View {
     @State private var waterOunces = 106
     @State private var coldShowerDays: Set<Int> = []
     @State private var selectedActivities: [String: [Int]] = [:]
+    @State private var addictionDaysPerWeek: Int = 0
+    @State private var workoutDays: Set<Int> = []
 
     @State private var expandedSection: String? = nil
     @State private var isSaving = false
@@ -32,14 +35,7 @@ struct ManagePreferencesView: View {
     private let activityOptions = ["Meditation", "Reading", "Pray", "Study", "Walk", "Run"]
     private let weekLetters = ["M", "T", "W", "T", "F", "S", "S"]
 
-    private let gradient = LinearGradient(
-        gradient: Gradient(colors: [
-            Color(red: 84/255, green: 0/255, blue: 232/255),
-            Color(red: 236/255, green: 71/255, blue: 1/255)
-        ]),
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
+    private let gradient = LinearGradient.brand
 
     // MARK: - Body
     var body: some View {
@@ -236,7 +232,7 @@ struct ManagePreferencesView: View {
                                     }
                                 }
                             }
-                            .animation(.easeInOut, value: selectedActivities)
+                            .animation(animationsEnabled ? .easeInOut : nil, value: selectedActivities)
                         }
                     }
                 }
@@ -308,7 +304,11 @@ struct ManagePreferencesView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                if animationsEnabled {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        expandedSection = (expandedSection == title ? nil : title)
+                    }
+                } else {
                     expandedSection = (expandedSection == title ? nil : title)
                 }
             } label: {
@@ -349,12 +349,6 @@ struct ManagePreferencesView: View {
         waterOunces = Int((Double(weightLbs) * 2 / 3).rounded())
     }
 
-    private func militaryTimeInt(from date: Date) -> Int {
-        let hour = Calendar.current.component(.hour, from: date)
-        let minute = Calendar.current.component(.minute, from: date)
-        return hour * 100 + minute
-    }
-
     // MARK: - Firestore
     private func loadPreferences() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
@@ -374,6 +368,12 @@ struct ManagePreferencesView: View {
 
             if let days = data["coldShowerDays"] as? [Int] {
                 coldShowerDays = Set(days)
+            }
+
+            addictionDaysPerWeek = data["addictionDaysPerWeek"] as? Int ?? 0
+
+            if let days = data["workoutDays"] as? [Int] {
+                workoutDays = Set(days)
             }
 
             if let activities = data["selectedActivities"] as? [String: Any] {
@@ -402,7 +402,11 @@ struct ManagePreferencesView: View {
         isSaving = true
 
         let docRef = Firestore.firestore().collection("users").document(uid)
-        let otherFields: [String: Any] = [
+        let normalizedActivities = Dictionary(uniqueKeysWithValues:
+            selectedActivities.map { key, value in (key.lowercased(), value) }
+        )
+
+        let payload: [String: Any] = [
             "majorFocus": majorFocus,
             "wakeWeekday": militaryTimeInt(from: wakeWeekday),
             "wakeWeekend": militaryTimeInt(from: wakeWeekend),
@@ -412,23 +416,24 @@ struct ManagePreferencesView: View {
             "screenLimitHours": screenLimitHours,
             "weightLbs": weightLbs,
             "waterOunces": waterOunces,
-            "coldShowerDays": Array(coldShowerDays)
+            "coldShowerDays": Array(coldShowerDays),
+            "addictionDaysPerWeek": addictionDaysPerWeek,
+            "workoutDays": Array(workoutDays).sorted(),
+            "selectedActivities": normalizedActivities
         ]
 
-        docRef.setData(otherFields, merge: true) { err in
-            if let err = err {
-                print("Error saving: \(err.localizedDescription)")
+        docRef.setData(payload, merge: true) { err in
+            if err != nil {
                 isSaving = false
                 return
             }
 
-            let normalizedActivities = Dictionary(uniqueKeysWithValues:
-                selectedActivities.map { key, value in (key.lowercased(), value) }
-            )
-            docRef.updateData(["selectedActivities": normalizedActivities]) { updateErr in
-                DispatchQueue.main.async {
-                    isSaving = false
-                    withAnimation { savedSuccessfully = (updateErr == nil) }
+            DispatchQueue.main.async {
+                isSaving = false
+                if animationsEnabled {
+                    withAnimation { savedSuccessfully = true }
+                } else {
+                    savedSuccessfully = true
                 }
             }
         }

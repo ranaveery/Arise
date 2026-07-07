@@ -7,6 +7,7 @@ struct AuthGateView: View {
     @State private var showLogin = true
     @State private var isOnboarded = false
     @State private var checkingOnboarding = false
+    @State private var authListener: AuthStateDidChangeListenerHandle?
 
     var body: some View {
         Group {
@@ -44,13 +45,21 @@ struct AuthGateView: View {
             }
         }
         .onAppear {
-            _ = Auth.auth().addStateDidChangeListener { _, user in
+            if let listener = authListener {
+                Auth.auth().removeStateDidChangeListener(listener)
+            }
+            authListener = Auth.auth().addStateDidChangeListener { _, user in
                 isUserLoggedIn = (user != nil)
                 if isUserLoggedIn {
                     checkIfUserIsOnboarded()
                 } else {
                     isOnboarded = false
                 }
+            }
+        }
+        .onDisappear {
+            if let listener = authListener {
+                Auth.auth().removeStateDidChangeListener(listener)
             }
         }
     }
@@ -66,7 +75,9 @@ struct AuthGateView: View {
         let db = Firestore.firestore()
         db.collection("users").document(uid).getDocument { snapshot, error in
             DispatchQueue.main.async {
-                if let data = snapshot?.data(), let onboarded = data["isOnboarded"] as? Bool {
+                if error != nil {
+                    self.isOnboarded = false
+                } else if let data = snapshot?.data(), let onboarded = data["isOnboarded"] as? Bool {
                     self.isOnboarded = onboarded
                 } else {
                     self.isOnboarded = false

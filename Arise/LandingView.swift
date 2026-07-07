@@ -3,42 +3,6 @@ import AuthenticationServices
 import FirebaseAuth
 import GoogleSignIn
 import Firebase
-import CryptoKit
-
-// MARK: - Nonce Helper for Apple Sign-In
-private func randomNonceString(length: Int = 32) -> String {
-    precondition(length > 0)
-    let charset: [Character] =
-        Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
-    var result = ""
-    var remainingLength = length
-
-    while remainingLength > 0 {
-        let randoms: [UInt8] = (0 ..< 16).map { _ in
-            var random: UInt8 = 0
-            let errorCode = SecRandomCopyBytes(kSecRandomDefault, 1, &random)
-            if errorCode != errSecSuccess {
-                fatalError("Unable to generate nonce. SecRandomCopyBytes failed with code \(errorCode)")
-            }
-            return random
-        }
-
-        randoms.forEach { random in
-            if remainingLength == 0 { return }
-            if random < charset.count {
-                result.append(charset[Int(random)])
-                remainingLength -= 1
-            }
-        }
-    }
-    return result
-}
-
-private func sha256(_ input: String) -> String {
-    let inputData = Data(input.utf8)
-    let hashedData = SHA256.hash(data: inputData)
-    return hashedData.map { String(format: "%02x", $0) }.joined()
-}
 
 struct LandingView: View {
     @Binding var isUserLoggedIn: Bool
@@ -127,8 +91,8 @@ struct LandingView: View {
                                 if let appleIDCredential = authResults.credential as? ASAuthorizationAppleIDCredential {
                                     handleAppleSignIn(credential: appleIDCredential)
                                 }
-                            case .failure(let error):
-                                print("Apple Sign-In failed: \(error.localizedDescription)")
+                            case .failure:
+                                break
                             }
                         })
                         .signInWithAppleButtonStyle(.whiteOutline)
@@ -187,13 +151,11 @@ struct LandingView: View {
     
     private func handleAppleSignIn(credential: ASAuthorizationAppleIDCredential) {
         guard let nonce = currentNonce else {
-            print("Missing nonce")
             return
         }
         
         guard let appleIDToken = credential.identityToken,
               let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
-            print("Unable to fetch identity token")
             return
         }
         
@@ -204,8 +166,7 @@ struct LandingView: View {
         )
         
         Auth.auth().signIn(with: firebaseCredential) { result, error in
-            if let error = error {
-                print("Firebase Sign in with Apple error: \(error.localizedDescription)")
+            if error != nil {
                 return
             }
             
@@ -220,12 +181,7 @@ struct LandingView: View {
                 "name": fullName,
                 "email": email,
                 "uid": uid
-            ], merge: true) { err in
-                if let err = err {
-                    print("Error saving Apple user to Firestore: \(err.localizedDescription)")
-                } else {
-                    print("Apple user saved to Firestore")
-                }
+            ], merge: true) { _ in
             }
             
             UserDefaults.standard.set(fullName, forKey: "userName")
@@ -296,7 +252,6 @@ struct LandingView: View {
     private func signInWithGoogle() {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootViewController = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
-            print("No rootViewController found")
             return
         }
         
@@ -306,14 +261,12 @@ struct LandingView: View {
             additionalScopes: nil,
             nonce: nil
         ) { signInResult, error in
-            if let error = error {
-                print("Google Sign-In failed:", error.localizedDescription)
+            if error != nil {
                 return
             }
             
             guard let user = signInResult?.user,
                   let idTokenObj = user.idToken else {
-                print("Missing user or ID token")
                 return
             }
             
@@ -323,8 +276,7 @@ struct LandingView: View {
             )
             
             Auth.auth().signIn(with: credential) { result, error in
-                if let error = error {
-                    print("Firebase login failed:", error.localizedDescription)
+                if error != nil {
                     return
                 }
                 
@@ -340,12 +292,7 @@ struct LandingView: View {
                     "name": fullName,
                     "email": email,
                     "uid": uid
-                ], merge: true) { err in
-                    if let err = err {
-                        print("Error saving user to Firestore: \(err.localizedDescription)")
-                    } else {
-                        print("User saved to Firestore")
-                    }
+                ], merge: true) { _ in
                 }
                 
                 UserDefaults.standard.set(fullName, forKey: "userName")

@@ -1,23 +1,17 @@
 import SwiftUI
 import FirebaseCore
+import FirebaseFirestore
 import GoogleSignIn
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         FirebaseApp.configure()
-        
-        // Tab bar black background fix
-        let tabBarAppearance = UITabBarAppearance()
-        tabBarAppearance.configureWithOpaqueBackground()
-        tabBarAppearance.backgroundColor = UIColor.black
-        
-        UITabBar.appearance().standardAppearance = tabBarAppearance
-        
-        if #available(iOS 15.0, *) {
-            UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
-        }
-
+        let settings = Firestore.firestore().settings
+        var cache = settings.cacheSettings
+        cache = PersistentCacheSettings()
+        settings.cacheSettings = cache
+        Firestore.firestore().settings = settings
         return true
     }
 

@@ -1,61 +1,8 @@
 import SwiftUI
 import FirebaseAuth
-import Firebase
+import FirebaseFirestore
 
 struct RankDetailsView: View {
-    let ranks = [
-        Rank(id: 1, name: "Seeker", emblemName: "seeker_emblem", requiredXP: 0,
-             subtitle: "Every journey begins with a single step.",
-             themeColors: [Color(red: 85/255, green: 64/255, blue: 44/255),
-                           Color(red: 18/255, green: 13/255, blue: 9/255)]),
-
-        Rank(id: 2, name: "Initiate", emblemName: "initiate_emblem", requiredXP: 900,
-             subtitle: "Commitment is your first victory.",
-             themeColors: [Color(red: 85/255, green: 85/255, blue: 85/255),
-                           Color(red: 169/255, green: 169/255, blue: 169/255)]),
-
-        Rank(id: 3, name: "Pioneer", emblemName: "pioneer_emblem", requiredXP: 2100,
-             subtitle: "Forge new paths, leave a mark.",
-             themeColors: [Color(red: 184/255, green: 115/255, blue: 51/255),
-                           Color(red: 93/255, green: 46/255, blue: 12/255)]),
-
-        Rank(id: 4, name: "Explorer", emblemName: "explorer_emblem", requiredXP: 3000,
-             subtitle: "Seek the unknown, learn from everything.",
-             themeColors: [Color(red: 153/255, green: 0/255, blue: 0/255),
-                           Color(red: 255/255, green: 85/255, blue: 0/255)]),
-
-        Rank(id: 5, name: "Challenger", emblemName: "challenger_emblem", requiredXP: 5100,
-             subtitle: "You only lose when you stop fighting.",
-             themeColors: [Color(red: 155/255, green: 102/255, blue: 75/255),
-                           Color(red: 33/255, green: 64/255, blue: 68/255)]),
-
-        Rank(id: 6, name: "Refiner", emblemName: "refiner_emblem", requiredXP: 6900,
-             subtitle: "Strength is forged in relentless practice.",
-             themeColors: [Color(red: 4/255, green: 99/255, blue: 7/255),
-                           Color(red: 212/255, green: 175/255, blue: 55/255)]),
-
-        Rank(id: 7, name: "Master", emblemName: "master_emblem", requiredXP: 9000,
-             subtitle: "Discipline shapes mastery.",
-             themeColors: [Color(red: 11/255, green: 29/255, blue: 58/255),
-                           Color(red: 64/255, green: 224/255, blue: 208/255)]),
-
-        Rank(id: 8, name: "Conquerer", emblemName: "conquerer_emblem", requiredXP: 12000,
-             subtitle: "Pain is the path to triumph.",
-             themeColors: [Color(red: 71/255, green: 12/255, blue: 17/255),
-                           Color(red: 86/255, green: 105/255, blue: 162/255)]),
-
-        Rank(id: 9, name: "Ascendant", emblemName: "ascendant_emblem", requiredXP: 15000,
-             subtitle: "Only by fighting do you rise.",
-             themeColors: [Color(red: 10/255, green: 55/255, blue: 126/255),
-                           Color(red: 180/255, green: 124/255, blue: 28/255)]),
-        
-
-        Rank(id: 10, name: "Transcendent", emblemName: "transcendent_emblem", requiredXP: 20100,
-             subtitle: "All limits fall before you.",
-             themeColors: [Color(red: 84/255, green: 0/255, blue: 232/255),
-                           Color(red: 236/255, green: 71/255, blue: 1/255)])
-    ]
-    
     @State private var currentXP: Double = 0
     @State private var currentRankId: Int = 1
     @State private var showRankPopup = false
@@ -67,9 +14,9 @@ struct RankDetailsView: View {
         SkillXP(name: "Resilience", level: 1, xp: 0),
         SkillXP(name: "Wisdom", level: 1, xp: 0)
     ]
-    let skillLevelThresholds: [Int] = [0, 150, 350, 500, 850, 1150, 1500, 2000, 2500, 3350]
 
     @State private var animatedSkillProgress: [String: Double] = [:]
+    @State private var listener: ListenerRegistration?
     
     @State private var achievements: [Achievement] = [
         
@@ -213,6 +160,9 @@ struct RankDetailsView: View {
             glowPulse = true
             loadUserData()
         }
+        .onDisappear {
+            listener?.remove()
+        }
     }
     
     // MARK: - Computed Properties
@@ -235,7 +185,8 @@ struct RankDetailsView: View {
     // MARK: - Data Loading
     private func loadUserData() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
-        Firestore.firestore().collection("users").document(uid).addSnapshotListener { snapshot, error in
+        listener?.remove()
+        listener = Firestore.firestore().collection("users").document(uid).addSnapshotListener { snapshot, error in
             guard let data = snapshot?.data(), error == nil else { return }
             
             currentXP = Double(data["xp"] as? Int ?? 0)
@@ -559,12 +510,6 @@ struct AchievementsView: View {
         .background(Color.white.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
-}
-
-private func formatMonthYear(_ date: Date) -> String {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "MMM yyyy"
-    return formatter.string(from: date)
 }
 
 extension View {

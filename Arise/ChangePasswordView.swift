@@ -13,14 +13,7 @@ struct ChangePasswordView: View {
     @State private var isLoading = false
     @State private var successMessage = ""
     
-    let gradient = LinearGradient(
-        gradient: Gradient(colors: [
-            Color(red: 84/255, green: 0/255, blue: 232/255),
-            Color(red: 236/255, green: 71/255, blue: 1/255)
-        ]),
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
+    let gradient = LinearGradient.brand
     
     var body: some View {
         VStack(spacing: 20) {
@@ -108,6 +101,7 @@ struct ChangePasswordView: View {
                 }
                 .padding()
             }
+            .scrollIndicators(.hidden)
         }
         .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)
@@ -124,9 +118,8 @@ struct ChangePasswordView: View {
         let credential = EmailAuthProvider.credential(withEmail: email, password: currentPassword)
         user.reauthenticate(with: credential) { result, error in
             isLoading = false
-            if let error = error {
+            if error != nil {
                 errorMessage = "Incorrect password. Try again."
-                print("Reauth error: \(error.localizedDescription)")
             } else {
                 step = 2
                 errorMessage = ""

@@ -1,45 +1,9 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
-import GoogleSignIn
 import FirebaseCore
 import AuthenticationServices
-import CryptoKit
-
-private func randomNonceString(length: Int = 32) -> String {
-    precondition(length > 0)
-    let charset: [Character] =
-        Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
-    var result = ""
-    var remainingLength = length
-
-    while remainingLength > 0 {
-        let randoms: [UInt8] = (0 ..< 16).map { _ in
-            var random: UInt8 = 0
-            let errorCode = SecRandomCopyBytes(kSecRandomDefault, 1, &random)
-            if errorCode != errSecSuccess {
-                fatalError("Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(errorCode)")
-            }
-            return random
-        }
-
-        randoms.forEach { random in
-            if remainingLength == 0 { return }
-            if random < charset.count {
-                result.append(charset[Int(random)])
-                remainingLength -= 1
-            }
-        }
-    }
-
-    return result
-}
-
-private func sha256(_ input: String) -> String {
-    let inputData = Data(input.utf8)
-    let hashedData = SHA256.hash(data: inputData)
-    return hashedData.compactMap { String(format: "%02x", $0) }.joined()
-}
+import GoogleSignIn
 
 // MARK: - Apple Reauth Coordinator
 class AppleSignInCoordinator: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
@@ -92,7 +56,6 @@ class AppleSignInCoordinator: NSObject, ASAuthorizationControllerDelegate, ASAut
             let idTokenString = String(data: idTokenData, encoding: .utf8),
             let nonce = currentNonce
         else {
-            print("AppleSignInCoordinator: missing token/nonce")
             completion?(nil)
             return
         }
@@ -109,7 +72,6 @@ class AppleSignInCoordinator: NSObject, ASAuthorizationControllerDelegate, ASAut
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
         defer { AppleSignInCoordinator.current = nil }
-        print("AppleSignInCoordinator: Sign in failed: \(error.localizedDescription)")
         completion?(nil)
     }
 }
@@ -129,15 +91,7 @@ struct DeleteOptionButton: View {
                 .cornerRadius(20)
                 .overlay(
                     RoundedRectangle(cornerRadius: 20)
-                        .stroke(LinearGradient(
-                            gradient: Gradient(colors: isSelected
-                                ? [Color(red: 84/255, green: 0/255, blue: 232/255),
-                                   Color(red: 236/255, green: 71/255, blue: 1/255)]
-                                : [.clear, .clear]
-                            ),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ), lineWidth: isSelected ? 2 : 1)
+                        .stroke(isSelected ? LinearGradient.brand : LinearGradient(colors: [.clear, .clear], startPoint: .leading, endPoint: .trailing), lineWidth: isSelected ? 2 : 1)
                 )
                 .foregroundColor(.white)
         }
@@ -145,7 +99,7 @@ struct DeleteOptionButton: View {
 }
 
 struct DeleteAccountView: View {
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
     @State private var selectedReasons: Set<String> = []
     @State private var customReason: String = ""
     @State private var showConfirmation = false
@@ -238,6 +192,7 @@ struct DeleteAccountView: View {
                 )
             }
         }
+        .scrollIndicators(.hidden)
     }
 
     private func deleteAccount() {
@@ -259,45 +214,30 @@ struct DeleteAccountView: View {
         // find a presentation window for the ASAuthorizationController
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let presentationWindow = windowScene.windows.first else {
-            print("reauthAppleAndDelete: no window Scene/window available")
             return
         }
 
         let coordinator = AppleSignInCoordinator(presentationWindow: presentationWindow)
         coordinator.completion = { credential in
             guard let credential = credential else {
-                print("reauthAppleAndDelete: credential missing")
                 return
             }
 
-            // Reauthenticate the user with the obtained credential
             user.reauthenticate(with: credential) { _, err in
-                if let err = err {
-                    print("reauthAppleAndDelete: reauthenticate error: \(err.localizedDescription) -- \(String(describing: (err as NSError?).map { $0.code }))")
+                if err != nil {
                     return
                 }
 
-                // Force refresh the ID token to ensure Firestore sees fresh credentials
-                Auth.auth().currentUser?.getIDTokenForcingRefresh(true) { token, tokenErr in
-                    if let tokenErr = tokenErr {
-                        print("reauthAppleAndDelete: getIDTokenForcingRefresh error: \(tokenErr.localizedDescription)")
+                Auth.auth().currentUser?.getIDTokenForcingRefresh(true) { _, tokenErr in
+                    if tokenErr != nil {
                         return
                     }
 
-                    // reload user to ensure local state is updated
-                    Auth.auth().currentUser?.reload(completion: { reloadErr in
-                        if let reloadErr = reloadErr {
-                            print("reauthAppleAndDelete: reload error: \(reloadErr.localizedDescription)")
-                            // continue anyway - but log it
-                        }
-
-                        // At this point we should have a fresh currentUser. Use it.
+                    Auth.auth().currentUser?.reload(completion: { _ in
                         guard let refreshedUser = Auth.auth().currentUser else {
-                            print("reauthAppleAndDelete: Auth.auth().currentUser is nil after reauth")
                             return
                         }
 
-                        // call the debug+delete helper
                         performDeleteWithChecks(uid: refreshedUser.uid, authUser: refreshedUser)
                     })
                 }
@@ -317,135 +257,88 @@ struct DeleteAccountView: View {
         let db = Firestore.firestore()
         let docRef = db.collection("users").document(uid)
 
-        print("[delete] Attempting deletion for uid: \(uid)")
-        print("[delete] Current Auth uid: \(Auth.auth().currentUser?.uid ?? "nil")")
-        print("[delete] ProviderData: \(Auth.auth().currentUser?.providerData.map { $0.providerID } ?? [])")
-
-        // Step A: check doc existence at users/{uid}
         docRef.getDocument { snapshot, getErr in
-            if let getErr = getErr {
-                print("[delete] getDocument failed: \(getErr.localizedDescription) code: \((getErr as NSError).code)")
+            if getErr != nil {
                 self.isDeleting = false
                 return
             }
 
             if let snapshot = snapshot, snapshot.exists {
-                print("[delete] Found users/\(uid) document. data: \(snapshot.data() ?? [:])")
-
-                // Try to delete doc directly
                 docRef.delete { deleteErr in
-                    if let deleteErr = deleteErr {
-                        let ns = deleteErr as NSError
-                        print("[delete] delete(doc) failed: \(deleteErr.localizedDescription) code: \(ns.code), domain: \(ns.domain)")
+                    if deleteErr != nil {
                         self.isDeleting = false
-
-                        // If permission denied, give actionable next steps
-                        if ns.code == 7 /* GRPC_PERMISSION_DENIED */ || ns.code == 403 {
-                            print("[delete] Permission denied deleting Firestore doc. Likely Firestore security rules blocking client deletes. Use server-side cleanup (cloud function) or adjust rules.")
-                        }
                         return
                     }
 
-                    print("[delete] Firestore document deleted successfully for users/\(uid). Proceeding to delete Auth user.")
-
-                    // Now delete Auth user
                     authUser.delete { authDeleteErr in
                         self.isDeleting = false
-                        if let authDeleteErr = authDeleteErr {
-                            print("[delete] authUser.delete failed: \(authDeleteErr.localizedDescription) code: \((authDeleteErr as NSError).code)")
+                        if authDeleteErr != nil {
                             return
                         }
 
-                        print("[delete] Auth user deleted successfully.")
                         do {
                             try Auth.auth().signOut()
                             isUserLoggedIn = false
-                        } catch {
-                            print("[delete] signOut error: \(error.localizedDescription)")
-                        }
+                        } catch { }
 
-                        presentationMode.wrappedValue.dismiss()
+                        dismiss()
                     }
                 }
             } else {
-                // Document not found at users/{uid}. Try searching by email
-                print("[delete] No document found at users/\(uid). Searching by email...")
-
                 if let email = authUser.email {
                     db.collection("users").whereField("email", isEqualTo: email).getDocuments { qSnap, qErr in
-                        if let qErr = qErr {
-                            print("[delete] query by email failed: \(qErr.localizedDescription) code: \((qErr as NSError).code)")
+                        if qErr != nil {
                             self.isDeleting = false
                             return
                         }
 
                         if let qSnap = qSnap, !qSnap.documents.isEmpty {
-                            print("[delete] Found \(qSnap.documents.count) document(s) matching email \(email). Will delete them all (IDs: \(qSnap.documents.map { $0.documentID }))")
-
                             let batch = db.batch()
                             qSnap.documents.forEach { batch.deleteDocument($0.reference) }
                             batch.commit { batchErr in
-                                if let batchErr = batchErr {
-                                    print("[delete] batch delete failed: \(batchErr.localizedDescription) code: \((batchErr as NSError).code)")
+                                if batchErr != nil {
                                     self.isDeleting = false
                                     return
                                 }
 
-                                print("[delete] Documents matched by email deleted. Now deleting Auth user.")
                                 authUser.delete { authDeleteErr in
                                     self.isDeleting = false
-                                    if let authDeleteErr = authDeleteErr {
-                                        print("[delete] authUser.delete failed: \(authDeleteErr.localizedDescription) code: \((authDeleteErr as NSError).code)")
+                                    if authDeleteErr != nil {
                                         return
                                     }
 
-                                    print("[delete] Auth user deleted successfully.")
                                     do {
                                         try Auth.auth().signOut()
                                         isUserLoggedIn = false
-                                    } catch {
-                                        print("[delete] signOut error: \(error.localizedDescription)")
-                                    }
-                                    presentationMode.wrappedValue.dismiss()
+                                    } catch { }
+                                    dismiss()
                                 }
                             }
                         } else {
-                            print("[delete] No matching documents by uid or email. This means the Firestore user doc likely uses a different ID or is stored elsewhere.")
-                            // Still attempt deleting the Auth user (optional)
-                            print("[delete] Proceeding to delete Auth user anyway.")
                             authUser.delete { authDeleteErr in
                                 self.isDeleting = false
-                                if let authDeleteErr = authDeleteErr {
-                                    print("[delete] authUser.delete failed: \(authDeleteErr.localizedDescription) code: \((authDeleteErr as NSError).code)")
+                                if authDeleteErr != nil {
                                     return
                                 }
-                                print("[delete] Auth user deleted successfully (no Firestore doc found).")
                                 do {
                                     try Auth.auth().signOut()
                                     isUserLoggedIn = false
-                                } catch {
-                                    print("[delete] signOut error: \(error.localizedDescription)")
-                                }
-                                presentationMode.wrappedValue.dismiss()
+                                } catch { }
+                                dismiss()
                             }
                         }
                     }
                 } else {
-                    print("[delete] No email on user to search by. Proceeding to delete Auth user (best-effort).")
                     authUser.delete { authDeleteErr in
                         self.isDeleting = false
-                        if let authDeleteErr = authDeleteErr {
-                            print("[delete] authUser.delete failed: \(authDeleteErr.localizedDescription) code: \((authDeleteErr as NSError).code)")
+                        if authDeleteErr != nil {
                             return
                         }
-                        print("[delete] Auth user deleted successfully (no Firestore doc found, no email).")
                         do {
                             try Auth.auth().signOut()
                             isUserLoggedIn = false
-                        } catch {
-                            print("[delete] signOut error: \(error.localizedDescription)")
-                        }
-                        presentationMode.wrappedValue.dismiss()
+                        } catch { }
+                        dismiss()
                     }
                 }
             }
@@ -455,19 +348,16 @@ struct DeleteAccountView: View {
     private func reauthGoogleAndDelete(user: User) {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootVC = windowScene.windows.first?.rootViewController else {
-            print("No root VC found")
             return
         }
 
         GIDSignIn.sharedInstance.signIn(withPresenting: rootVC) { signInResult, error in
-            if let error = error {
-                print("Google Sign-In failed: \(error.localizedDescription)")
+            if error != nil {
                 return
             }
 
             guard let result = signInResult,
                   let idToken = result.user.idToken?.tokenString else {
-                print("Missing idToken")
                 return
             }
 
@@ -475,8 +365,7 @@ struct DeleteAccountView: View {
             let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
 
             user.reauthenticate(with: credential) { _, error in
-                if let error = error {
-                    print("Reauthentication failed: \(error.localizedDescription)")
+                if error != nil {
                     return
                 }
 
@@ -503,14 +392,12 @@ struct DeleteAccountView: View {
         alert.addAction(UIAlertAction(title: "Confirm", style: .destructive) { _ in
             guard let password = alert.textFields?.first?.text, !password.isEmpty,
                   let email = user.email else {
-                print("Password missing")
                 return
             }
             
             let credential = EmailAuthProvider.credential(withEmail: email, password: password)
             user.reauthenticate(with: credential) { _, error in
-                if let error = error {
-                    print("Reauthentication failed: \(error.localizedDescription)")
+                if error != nil {
                     return
                 }
                 
@@ -527,37 +414,26 @@ struct DeleteAccountView: View {
     private func performDelete(user: User) {
         isDeleting = true
         let db = Firestore.firestore()
-        let uid = user.uid  // Save before deleting user
+        let uid = user.uid
 
-        // Step 1: Delete Firestore data first
         db.collection("users").document(uid).delete { error in
-            if let error = error {
+            if error != nil {
                 isDeleting = false
-                print("Error deleting Firestore data: \(error.localizedDescription)")
                 return
             }
 
-            print("Firestore document deleted successfully")
-
-            // Step 2: Now delete Firebase Auth user
             user.delete { error in
                 isDeleting = false
-                if let error = error {
-                    print("Error deleting account: \(error.localizedDescription)")
+                if error != nil {
                     return
                 }
 
-                print("Account deleted successfully")
-
-                // Step 3: Sign out and close view
                 do {
                     try Auth.auth().signOut()
                     isUserLoggedIn = false
-                } catch {
-                    print("Error signing out: \(error.localizedDescription)")
-                }
+                } catch { }
 
-                presentationMode.wrappedValue.dismiss()
+                dismiss()
             }
         }
     }
