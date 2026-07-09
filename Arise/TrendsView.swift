@@ -14,6 +14,7 @@ struct TrendsView: View {
     @State private var isLoading = true
     @State private var todayXP: Int = 0
     @State private var todayCompletedCount: Int = 0
+    @State private var todayTotalPossibleXP: Int = 0
     @State private var animateBars = false
 
     // MARK: - Derived Data
@@ -37,13 +38,54 @@ struct TrendsView: View {
         dailyLogs.filter { isInCurrentWeek($0.date) }
     }
 
-    private var displayLogs: [DailyLog] {
-        var logs = dailyLogs
-        let todayStr = isoDateString(from: Date())
-        if !logs.contains(where: { $0.date == todayStr }), todayCompletedCount > 0 || todayXP > 0 {
-            logs.append(DailyLog(date: todayStr, completedCount: todayCompletedCount, xpGained: todayXP, skillXP: [:], streak: streak))
+    private var weekDayLogs: [DailyLog] {
+        let calendar = Calendar.current
+        let today = Date()
+        let todayWeekday = calendar.component(.weekday, from: today)
+
+        let daysFromMonday: Int
+        switch todayWeekday {
+        case 1: daysFromMonday = -6
+        case 2: daysFromMonday = 0
+        case 3: daysFromMonday = -1
+        case 4: daysFromMonday = -2
+        case 5: daysFromMonday = -3
+        case 6: daysFromMonday = -4
+        case 7: daysFromMonday = -5
+        default: daysFromMonday = 0
         }
-        return logs.sorted { $0.date < $1.date }
+
+        guard let monday = calendar.date(byAdding: .day, value: daysFromMonday, to: today) else { return [] }
+        let todayStr = isoDateString(from: today)
+
+        var days: [DailyLog] = []
+        for i in 0..<7 {
+            guard let date = calendar.date(byAdding: .day, value: i, to: monday) else { continue }
+            let dateStr = isoDateString(from: date)
+
+            if dateStr == todayStr {
+                days.append(DailyLog(
+                    date: dateStr,
+                    completedCount: todayCompletedCount,
+                    xpGained: todayXP,
+                    skillXP: [:],
+                    streak: streak,
+                    totalPossibleXP: todayTotalPossibleXP
+                ))
+            } else if let existing = dailyLogs.first(where: { $0.date == dateStr }) {
+                days.append(existing)
+            } else {
+                days.append(DailyLog(
+                    date: dateStr,
+                    completedCount: 0,
+                    xpGained: 0,
+                    skillXP: [:],
+                    streak: 0,
+                    totalPossibleXP: 0
+                ))
+            }
+        }
+        return days
     }
 
     private var weeklyXP: Int {
@@ -54,11 +96,7 @@ struct TrendsView: View {
         (todayCompletedCount > 0 ? 1 : 0) + thisWeekLogs.filter { $0.completedCount > 0 }.count
     }
 
-    private var maxDailyXP: Int {
-        displayLogs.map(\.xpGained).max() ?? 1
-    }
-
-    struct SkillRow: Identifiable {
+struct SkillRow: Identifiable {
         var id: String { name }
         let name: String
         let level: Int
@@ -107,12 +145,10 @@ struct TrendsView: View {
                         .offset(y: animateBars ? 0 : 12)
                         .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.05) : nil, value: animateBars)
 
-                    if !displayLogs.isEmpty {
-                        weeklyBreakdownSection
-                            .opacity(animateBars ? 1 : 0)
-                            .offset(y: animateBars ? 0 : 12)
-                            .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.1) : nil, value: animateBars)
-                    }
+                    weeklyBreakdownSection
+                        .opacity(animateBars ? 1 : 0)
+                        .offset(y: animateBars ? 0 : 12)
+                        .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.1) : nil, value: animateBars)
 
                     skillProgressSection
                         .opacity(animateBars ? 1 : 0)
@@ -240,50 +276,8 @@ struct TrendsView: View {
                 .padding(.horizontal, 4)
 
             VStack(spacing: 0) {
-                ForEach(displayLogs, id: \.date) { log in
-                    HStack(spacing: 12) {
-                        VStack(alignment: .center, spacing: 2) {
-                            Text(dayAbbreviation(from: log.date))
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.7))
-                            Text(shortDate(from: log.date))
-                                .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.4))
-                        }
-                        .frame(width: 44)
-
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(Color.white.opacity(0.06))
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(LinearGradient.brand)
-                                    .frame(width: animateBars ? max(4, geo.size.width * CGFloat(log.xpGained) / CGFloat(maxDailyXP)) : 0)
-                            }
-                            .animation(animationsEnabled ? .spring(response: 0.5) : nil, value: animateBars)
-                        }
-                        .frame(height: 18)
-
-                        HStack(spacing: 5) {
-                            Text("\(log.xpGained)")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.white.opacity(0.6))
-                            if log.streak > 0 {
-                                Image(systemName: "flame.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.orange)
-                            }
-                        }
-                        .frame(width: 54, alignment: .trailing)
-                    }
-                    .padding(.vertical, 14)
-                    .padding(.horizontal, 16)
-
-                    if log.date != displayLogs.last?.date {
-                        Divider()
-                            .background(Color.white.opacity(0.06))
-                            .padding(.leading, 56)
-                    }
+                ForEach(weekDayLogs, id: \.date) { log in
+                    dailyBreakdownRow(log: log)
                 }
             }
             .background(Color.white.opacity(0.05))
@@ -295,6 +289,69 @@ struct TrendsView: View {
             .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 4)
         }
         .padding(.horizontal)
+    }
+
+    private func dailyBreakdownRow(log: DailyLog) -> some View {
+        let todayStr = isoDateString(from: Date())
+        let isToday = log.date == todayStr
+        let isFuture = (dateFromISO(log.date) ?? Date.distantPast) > Date()
+        let hasData = log.totalPossibleXP > 0
+
+        return VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                VStack(alignment: .center, spacing: 1) {
+                    Text(dayAbbreviation(from: log.date))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(isToday ? .white : .white.opacity(0.7))
+                    Text(shortDate(from: log.date))
+                        .font(.system(size: 10))
+                        .foregroundColor(.white.opacity(0.4))
+                }
+                .frame(width: 38)
+
+                if hasData || isToday {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(Color.white.opacity(0.06))
+                            let denom = CGFloat(max(log.totalPossibleXP, 1))
+                            let proportion = min(CGFloat(log.xpGained) / denom, 1)
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(LinearGradient.brand)
+                                .frame(width: animateBars ? max(4, geo.size.width * proportion) : 0)
+                        }
+                        .animation(animationsEnabled ? .spring(response: 0.5) : nil, value: animateBars)
+                    }
+                    .frame(height: 12)
+
+                    HStack(spacing: 4) {
+                        Text("\(log.xpGained)/\(log.totalPossibleXP)")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                            .fixedSize(horizontal: true, vertical: false)
+                        if log.streak > 0 {
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 9))
+                                .foregroundColor(.orange)
+                        }
+                    }
+                    .frame(width: 70, alignment: .trailing)
+                } else {
+                    Text(isFuture ? "Upcoming" : "No data")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.25))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+
+            if log.date != weekDayLogs.last?.date {
+                Divider()
+                    .background(Color.white.opacity(0.06))
+                    .padding(.leading, 50)
+            }
+        }
     }
 
     // MARK: - Skill Progress
@@ -469,7 +526,8 @@ struct TrendsView: View {
                         completedCount: data["completedCount"] as? Int ?? 0,
                         xpGained: data["xpGained"] as? Int ?? 0,
                         skillXP: data["skillXP"] as? [String: Int] ?? [:],
-                        streak: data["streak"] as? Int ?? 0
+                        streak: data["streak"] as? Int ?? 0,
+                        totalPossibleXP: data["totalPossibleXP"] as? Int ?? 0
                     )
                 }
                 DispatchQueue.main.async {
@@ -494,6 +552,7 @@ struct TrendsView: View {
             let skillXP = data["todaySkillXP"] as? [String: Int] ?? [:]
             self.todayXP = skillXP.values.reduce(0, +)
             self.todayCompletedCount = (data["completedTasks"] as? [String])?.count ?? 0
+            self.todayTotalPossibleXP = data["todayTotalPossibleXP"] as? Int ?? 0
 
             self.isLoading = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -559,3 +618,4 @@ private struct Header: View {
         .padding(.horizontal)
     }
 }
+

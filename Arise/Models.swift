@@ -112,6 +112,7 @@ struct DailyLog: Identifiable, Codable {
     let xpGained: Int
     let skillXP: [String: Int]
     let streak: Int
+    let totalPossibleXP: Int
 }
 
 /// Wrapper so `String` does not need a global `Identifiable` conformance.

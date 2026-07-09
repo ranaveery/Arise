@@ -48,6 +48,7 @@ struct LoggingView: View {
     @State private var userData: [String: Any] = [:]
     @State private var selectedTab: TabOption = .assigned
     @AppStorage("lastResetDate") private var lastResetDate = ""
+    @State private var todayTotalPossibleXP: Int = 0
     
     // Timer to check for midnight (fires every minute)
     private let midnightTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
@@ -360,45 +361,42 @@ extension LoggingView {
                 
                 // generate tasks for today (IDs deterministic per day)
                 self.generateTasks(from: data)
+                if self.todayTotalPossibleXP > 0 {
+                    userRef.updateData(["todayTotalPossibleXP": self.todayTotalPossibleXP])
+                }
                 self.isLoading = false
             }
         }
     }
     
-    private func generateTasks(from data: [String: Any]) {
+    private func makeTasks(from data: [String: Any], date: Date) -> [TaskItem] {
         var newTasks: [TaskItem] = []
         let calendar = Calendar.current
-        let todaySystem = calendar.component(.weekday, from: Date()) // Sunday=1 ... Saturday=7
-        let todayIndex = (todaySystem == 1) ? 7 : (todaySystem - 1) // 1=Monday ... 7=Sunday
-        let isWeekend = (todayIndex == 6 || todayIndex == 7)
-        let todayStr = dateStringForIDs(from: Date())
-        
+        let daySystem = calendar.component(.weekday, from: date)
+        let dayIndex = (daySystem == 1) ? 7 : (daySystem - 1)
+        let isWeekend = (dayIndex == 6 || dayIndex == 7)
+        let dateStr = dateStringForIDs(from: date)
+
         // --- Daily: wake / sleep ---
         if let wakeInt = data[isWeekend ? "wakeWeekend" : "wakeWeekday"] as? Int,
            let sleepHours = data[isWeekend ? "sleepHoursWeekend" : "sleepHoursWeekday"] as? Double {
             if let wakeDate = timeFromMilitaryInt(wakeInt),
                let bedtime = calculateBedtime(wakeTime: wakeDate, sleepHours: sleepHours) {
                 let wakeReadable = formattedTime(from: wakeDate)
-                let wakeName = "Arise and Shine"
-                let wakeDesc = "Wake up at \(wakeReadable)"
-                let wakeID = idForTask(name: wakeName, description: wakeDesc, day: todayStr)
                 newTasks.append(TaskItem(
-                    id: wakeID,
-                    name: wakeName,
-                    description: wakeDesc,
+                    id: idForTask(name: "Arise and Shine", description: "Wake up at \(wakeReadable)", day: dateStr),
+                    name: "Arise and Shine",
+                    description: "Wake up at \(wakeReadable)",
                     xp: 40,
                     expiresInHours: 6,
                     internalType: "Daily",
-                    skillTargets: ["Discipline", "Resilience"] // self-control
+                    skillTargets: ["Discipline", "Resilience"]
                 ))
-                
-                let sleepName = "Bedtime"
-                let sleepDesc = "Sleep by \(bedtime) to hit your sleep goal"
-                let sleepID = idForTask(name: sleepName, description: sleepDesc, day: todayStr)
+
                 newTasks.append(TaskItem(
-                    id: sleepID,
-                    name: sleepName,
-                    description: sleepDesc,
+                    id: idForTask(name: "Bedtime", description: "Sleep by \(bedtime) to hit your sleep goal", day: dateStr),
+                    name: "Bedtime",
+                    description: "Sleep by \(bedtime) to hit your sleep goal",
                     xp: 40,
                     expiresInHours: 12,
                     internalType: "Daily",
@@ -406,41 +404,35 @@ extension LoggingView {
                 ))
             }
         }
-        
+
         // --- Daily: water & screen ---
-        if let water = data["waterOunces"] as? Int {
-            let name = "Water Intake"
-            let desc = "Drink \(water) oz of water"
-            let id = idForTask(name: name, description: desc, day: todayStr)
+        if data["waterOunces"] as? Int != nil {
             newTasks.append(TaskItem(
-                id: id,
-                name: name,
-                description: desc,
+                id: idForTask(name: "Water Intake", description: "Drink \(data["waterOunces"] as? Int ?? 0) oz of water", day: dateStr),
+                name: "Water Intake",
+                description: "Drink \(data["waterOunces"] as? Int ?? 0) oz of water",
                 xp: 40,
                 expiresInHours: 10,
                 internalType: "Daily",
-                skillTargets: ["Fuel", "Fitness"] // physical upkeep
+                skillTargets: ["Fuel", "Fitness"]
             ))
         }
-        
-        if let screenLimit = data["screenLimitHours"] as? Int {
-            let name = "Screen Time Limit"
-            let desc = "Stay under \(screenLimit) hours of screen time"
-            let id = idForTask(name: name, description: desc, day: todayStr)
+
+        if data["screenLimitHours"] as? Int != nil {
             newTasks.append(TaskItem(
-                id: id,
-                name: name,
-                description: desc,
+                id: idForTask(name: "Screen Time Limit", description: "Stay under \(data["screenLimitHours"] as? Int ?? 0) hours of screen time", day: dateStr),
+                name: "Screen Time Limit",
+                description: "Stay under \(data["screenLimitHours"] as? Int ?? 0) hours of screen time",
                 xp: 40,
                 expiresInHours: 10,
                 internalType: "Daily",
-                skillTargets: ["Discipline", "Wisdom"] // impulse control & focus
+                skillTargets: ["Discipline", "Wisdom"]
             ))
         }
-        
+
         // --- Set-day: workouts ---
         let workoutDays = intArray(from: data["workoutDays"])
-        if workoutDays.contains(todayIndex),
+        if workoutDays.contains(dayIndex),
            let workoutHoursAny = data["workoutHoursPerDay"] {
             let workoutHours: Int
             if let intVal = workoutHoursAny as? Int { workoutHours = intVal }
@@ -450,39 +442,33 @@ extension LoggingView {
 
             if workoutHours > 0 {
                 let minutes = workoutHours * 60
-                let name = "Workout"
-                let desc = "Workout for \(minutes) minutes"
-                let id = idForTask(name: name, description: desc, day: todayStr)
                 newTasks.append(TaskItem(
-                    id: id,
-                    name: name,
-                    description: desc,
+                    id: idForTask(name: "Workout", description: "Workout for \(minutes) minutes", day: dateStr),
+                    name: "Workout",
+                    description: "Workout for \(minutes) minutes",
                     xp: 40,
                     expiresInHours: 12,
                     internalType: "Set Day",
-                    skillTargets: ["Fitness", "Resilience"] // physical + mental endurance
+                    skillTargets: ["Fitness", "Resilience"]
                 ))
             }
         }
 
         // --- Set-day: Cold Showers ---
         let coldDays = intArray(from: data["coldShowerDays"])
-        if coldDays.contains(todayIndex) {
-            let name = "Cold Shower"
-            let desc = "Take a cold shower"
-            let id = idForTask(name: name, description: desc, day: todayStr)
+        if coldDays.contains(dayIndex) {
             newTasks.append(TaskItem(
-                id: id,
-                name: name,
-                description: desc,
+                id: idForTask(name: "Cold Shower", description: "Take a cold shower", day: dateStr),
+                name: "Cold Shower",
+                description: "Take a cold shower",
                 xp: 40,
                 expiresInHours: 12,
                 internalType: "Set Day",
-                skillTargets: ["Resilience", "Discipline"] // discomfort tolerance
+                skillTargets: ["Resilience", "Discipline"]
             ))
         }
-                
-        // --- Set-day: custom selectedActivities (map name -> [Int]) ---
+
+        // --- Set-day: custom selectedActivities ---
         if let selectedActivities = data["selectedActivities"] as? [String: [Int]] {
             let activitySkillMap: [String: [String]] = [
                 "meditation": ["Wisdom"],
@@ -492,7 +478,7 @@ extension LoggingView {
                 "walk": ["Fitness", "Fuel"],
                 "run": ["Fitness"]
             ]
-            
+
             let activityDescriptions: [String: String] = [
                 "meditation": "Spend time meditating to center your mind",
                 "reading": "Read to expand your knowledge or relax your mind",
@@ -501,62 +487,46 @@ extension LoggingView {
                 "walk": "Go for a walk to refresh your body and mind",
                 "run": "Go for a run to build endurance and strength"
             ]
-            
+
             for (activity, days) in selectedActivities {
-                if days.contains(todayIndex) {
+                if days.contains(dayIndex) {
                     let name = activity.capitalized
                     let desc = activityDescriptions[activity.lowercased()] ?? "Complete your \(activity.lowercased()) activity"
-                    let id = idForTask(name: name, description: desc, day: todayStr)
-                    
-                    // Use mapped skills if available, else default to Discipline
-                    let skills = activitySkillMap[activity.lowercased()] ?? ["Discipline"]
-                    
                     newTasks.append(TaskItem(
-                        id: id,
+                        id: idForTask(name: name, description: desc, day: dateStr),
                         name: name,
                         description: desc,
                         xp: 40,
                         expiresInHours: 12,
                         internalType: "Set Day",
-                        skillTargets: skills
+                        skillTargets: activitySkillMap[activity.lowercased()] ?? ["Discipline"]
                     ))
                 }
             }
         }
-        
+
         // --- Social tasks ---
-        let today = Date()
-        let weekday = Calendar.current.component(.weekday, from: today)
+        let weekday = Calendar.current.component(.weekday, from: date)
 
-        // Daily social task
-        do {
-            let name = "Social Interaction"
-            let desc = "Have a meaningful conversation today"
-            let id = idForTask(name: name, description: desc, day: todayStr)
-            newTasks.append(TaskItem(
-                id: id,
-                name: name,
-                description: desc,
-                xp: 40,
-                expiresInHours: hoursUntilMidnight(),
-                internalType: "Daily",
-                skillTargets: ["Network"] // social skill
-            ))
-        }
+        newTasks.append(TaskItem(
+            id: idForTask(name: "Social Interaction", description: "Have a meaningful conversation today", day: dateStr),
+            name: "Social Interaction",
+            description: "Have a meaningful conversation today",
+            xp: 40,
+            expiresInHours: 24,
+            internalType: "Daily",
+            skillTargets: ["Network"]
+        ))
 
-        // Weekly (Saturday only)
         if weekday == 7 {
-            let name = "Meet Someone New"
-            let desc = "Talk to or meet someone new today"
-            let id = idForTask(name: name, description: desc, day: todayStr)
             newTasks.append(TaskItem(
-                id: id,
-                name: name,
-                description: desc,
+                id: idForTask(name: "Meet Someone New", description: "Talk to or meet someone new today", day: dateStr),
+                name: "Meet Someone New",
+                description: "Talk to or meet someone new today",
                 xp: 60,
-                expiresInHours: hoursUntilMidnight(),
+                expiresInHours: 24,
                 internalType: "Set Day",
-                skillTargets: ["Network"] // social boldness
+                skillTargets: ["Network"]
             ))
         }
 
@@ -564,44 +534,27 @@ extension LoggingView {
         if let addiction = data["majorFocus"] as? String,
            !addiction.isEmpty,
            let severity = data["addictionDaysPerWeek"] as? Int {
-
-            // Cap between 1–7
             let cappedSeverity = max(1, min(severity, 7))
-            
-            // Weekdays: 1 = Monday ... 7 = Sunday
-            let todayIndex = Calendar.current.component(.weekday, from: Date())
-            let normalizedDay = (todayIndex == 1) ? 7 : (todayIndex - 1)
-            
-            // Choose which days get the addiction task based on severity
+            let addTodayIndex = Calendar.current.component(.weekday, from: date)
+            let normalizedDay = (addTodayIndex == 1) ? 7 : (addTodayIndex - 1)
+
             var selectedDays: [Int] = []
             switch cappedSeverity {
-            case 7:
-                selectedDays = [1, 2, 3, 4, 5, 6, 7] // Every day
-            case 6:
-                selectedDays = [1, 2, 3, 4, 5, 6] // Skip Sunday
-            case 5:
-                selectedDays = [1, 2, 3, 4, 5] // Weekdays only
-            case 4:
-                selectedDays = [1, 2, 3, 4] // Mon–Thu
-            case 3:
-                selectedDays = [1, 3, 5] // Mon, Wed, Fri
-            case 2:
-                selectedDays = [2, 5] // Tue, Fri
-            case 1:
-                selectedDays = [3] // Wednesday
-            default:
-                selectedDays = []
+            case 7: selectedDays = [1, 2, 3, 4, 5, 6, 7]
+            case 6: selectedDays = [1, 2, 3, 4, 5, 6]
+            case 5: selectedDays = [1, 2, 3, 4, 5]
+            case 4: selectedDays = [1, 2, 3, 4]
+            case 3: selectedDays = [1, 3, 5]
+            case 2: selectedDays = [2, 5]
+            case 1: selectedDays = [3]
+            default: selectedDays = []
             }
-            
+
             if selectedDays.contains(normalizedDay) {
-                let name = "Overcome \(addiction.capitalized)"
-                let desc = "Take a step today to reduce your \(addiction.lowercased()) habit."
-                let id = idForTask(name: name, description: desc, day: dateStringForIDs(from: Date()))
-                
                 newTasks.append(TaskItem(
-                    id: id,
-                    name: name,
-                    description: desc,
+                    id: idForTask(name: "Overcome \(addiction.capitalized)", description: "Take a step today to reduce your \(addiction.lowercased()) habit.", day: dateStr),
+                    name: "Overcome \(addiction.capitalized)",
+                    description: "Take a step today to reduce your \(addiction.lowercased()) habit.",
                     xp: 60,
                     expiresInHours: 12,
                     internalType: "Addiction",
@@ -610,10 +563,13 @@ extension LoggingView {
             }
         }
 
+        return newTasks
+    }
 
-        
-        // Sort for consistency
-        self.assignedTasks = newTasks.sorted { $0.name < $1.name }
+    private func generateTasks(from data: [String: Any]) {
+        let tasks = makeTasks(from: data, date: Date())
+        self.assignedTasks = tasks.sorted { $0.name < $1.name }
+        self.todayTotalPossibleXP = tasks.reduce(0) { $0 + $1.xp }
     }
     
     // Deterministic ID generator for a task for the given day (so same id across reloads)
@@ -856,6 +812,7 @@ extension LoggingView {
     private func checkForMidnightReset() {
         let today = isoDateString(from: Date())
         if lastResetDate != today {
+            let previousDate = lastResetDate
             lastResetDate = today
             completedTaskIDs.removeAll()
             if let uid = Auth.auth().currentUser?.uid {
@@ -867,21 +824,35 @@ extension LoggingView {
                         return
                     }
                     let skillXP = data["todaySkillXP"] as? [String: Int] ?? [:]
-                    let logRef = userRef.collection("dailyLogs").document(today)
-                    logRef.setData([
-                        "date": today,
-                        "completedCount": (data["completedTasks"] as? [String])?.count ?? 0,
-                        "xpGained": skillXP.values.reduce(0, +),
-                        "skillXP": skillXP,
-                        "streak": data["streak"] as? Int ?? 0,
-                        "timestamp": FieldValue.serverTimestamp()
-                    ], merge: true) { _ in
-                        userRef.updateData([
-                            "completedTasks": [],
-                            "todaySkillXP": [:],
-                            "todayCompletedTaskDetails": []
-                        ]) { _ in self.fetchUserData() }
+                    let completedCount = (data["completedTasks"] as? [String])?.count ?? 0
+                    let xpGained = skillXP.values.reduce(0, +)
+
+                    if !previousDate.isEmpty, completedCount > 0 || xpGained > 0 {
+                        let logRef = userRef.collection("dailyLogs").document(previousDate)
+
+                        let prevTotalXP: Int = {
+                            let fmt = DateFormatter()
+                            fmt.dateFormat = "yyyy-MM-dd"
+                            guard let prevDate = fmt.date(from: previousDate) else { return 0 }
+                            return self.makeTasks(from: data, date: prevDate).reduce(0) { $0 + $1.xp }
+                        }()
+
+                        logRef.setData([
+                            "date": previousDate,
+                            "completedCount": completedCount,
+                            "xpGained": xpGained,
+                            "totalPossibleXP": prevTotalXP,
+                            "skillXP": skillXP,
+                            "streak": data["streak"] as? Int ?? 0,
+                            "timestamp": FieldValue.serverTimestamp()
+                        ], merge: true)
                     }
+
+                    userRef.updateData([
+                        "completedTasks": [],
+                        "todaySkillXP": [:],
+                        "todayCompletedTaskDetails": []
+                    ]) { _ in self.fetchUserData() }
                 }
             } else {
                 fetchUserData()
