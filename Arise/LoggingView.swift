@@ -49,6 +49,10 @@ struct LoggingView: View {
     @State private var selectedTab: TabOption = .assigned
     @AppStorage("lastResetDate") private var lastResetDate = ""
     @State private var todayTotalPossibleXP: Int = 0
+    @AppStorage("lastRankId") private var lastRankId: Int = 0
+    @Binding var showCelebration: Bool
+    @Binding var celebrationRank: Rank?
+    @Binding var celebrationPrevRank: Rank?
     
     // Timer to check for midnight (fires every minute)
     private let midnightTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
@@ -613,7 +617,8 @@ extension LoggingView {
             let data = snapshot.data() ?? [:]
             var completed = data["completedTasks"] as? [String] ?? []
             if completed.contains(task.id) {
-                return ["completed": completed, "streak": data["streak"] as? Int ?? 0]
+                let existingTotal = normalizeSkillsMap(data["skills"]).values.compactMap { $0["xp"] }.reduce(0, +)
+                return ["completed": completed, "streak": data["streak"] as? Int ?? 0, "totalSkillXP": existingTotal]
             }
             completed.append(task.id)
 
@@ -675,7 +680,7 @@ extension LoggingView {
 
             transaction.updateData(updates, forDocument: userRef)
             let resultStreak = updates["streak"] as? Int ?? (data["streak"] as? Int ?? 0)
-            return ["completed": completed, "streak": resultStreak, "taskSkillXP": taskSkillXP]
+            return ["completed": completed, "streak": resultStreak, "taskSkillXP": taskSkillXP, "totalSkillXP": totalSkillXP]
         }) { result, error in
             guard error == nil, let payload = result as? [String: Any] else { return }
             if let completed = payload["completed"] as? [String] {
@@ -691,6 +696,7 @@ extension LoggingView {
                         }
                         self.userData["todaySkillXP"] = current
                     }
+                    checkRankUp(totalSkillXP: payload["totalSkillXP"] as? Int ?? 0)
                 }
             }
         }
@@ -794,6 +800,19 @@ extension LoggingView {
             .updateData(["streak": 0])
     }
     
+    private func checkRankUp(totalSkillXP: Int) {
+        let computedRank = ranks.last(where: { Double(totalSkillXP) >= $0.requiredXP }) ?? ranks[0]
+        if computedRank.id > lastRankId {
+            if let oldRank = ranks.first(where: { $0.id == lastRankId }), lastRankId > 0 {
+                celebrationPrevRank = oldRank
+            }
+            celebrationRank = computedRank
+            showCelebration = true
+            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        }
+        lastRankId = computedRank.id
+    }
+
     private func handleStreakContinuity(using data: [String: Any]) {
         guard let lastStreakDateStr = data["lastStreakDate"] as? String else {
             return

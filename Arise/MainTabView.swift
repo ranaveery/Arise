@@ -4,6 +4,9 @@ struct MainTabView: View {
     @Binding var isUserLoggedIn: Bool
     @AppStorage("animationsEnabled") private var animationsEnabled = true
     @State private var selectedTab: Tab = .home
+    @State private var showCelebration = false
+    @State private var celebrationRank: Rank? = nil
+    @State private var celebrationPrevRank: Rank? = nil
     
     enum Tab {
         case home, logging, trends, settings
@@ -16,7 +19,7 @@ struct MainTabView: View {
                 if selectedTab == .home {
                     HomeView()
                 } else if selectedTab == .logging {
-                    LoggingView()
+                    LoggingView(showCelebration: $showCelebration, celebrationRank: $celebrationRank, celebrationPrevRank: $celebrationPrevRank)
                 } else if selectedTab == .trends {
                     TrendsView()
                 } else if selectedTab == .settings {
@@ -45,8 +48,18 @@ struct MainTabView: View {
             }
             .frame(maxWidth: .infinity)
             .ignoresSafeArea(edges: .bottom)
+
+            // Celebration overlay
+            if showCelebration, let rank = celebrationRank {
+                RankUpCelebrationView(
+                    rank: rank,
+                    previousRank: celebrationPrevRank,
+                    onDismiss: { showCelebration = false }
+                )
+            }
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        .animation(.easeOut(duration: 0.3), value: showCelebration)
     }
 }
 

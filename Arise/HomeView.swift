@@ -14,6 +14,8 @@ struct HomeView: View {
     @State private var greeting: String = ""
     @AppStorage("animationsEnabled") private var animationsEnabled = true
     @State private var listener: ListenerRegistration?
+    @AppStorage("lastRankId") private var lastRankId: Int = 0
+    @State private var isFirstSnapshot = true
 
     private let greetings = [
         "Make it count.", "You're doing great.", "One day at a time.",
@@ -285,6 +287,10 @@ struct HomeView: View {
             }
 
             let computedRankName = ranks.last(where: { Double(newTotalXP) >= $0.requiredXP })?.name ?? "Seeker"
+            let computedRank = ranks.last(where: { Double(newTotalXP) >= $0.requiredXP }) ?? ranks[0]
+
+            lastRankId = computedRank.id
+            isFirstSnapshot = false
 
             self.totalXP = newTotalXP
             self.skillData = updatedSkillData
