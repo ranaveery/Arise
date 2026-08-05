@@ -1,4 +1,6 @@
 import SwiftUI
+import FirebaseAuth
+import FirebaseFirestore
 
 struct MainTabView: View {
     @Binding var isUserLoggedIn: Bool
@@ -7,6 +9,14 @@ struct MainTabView: View {
     @State private var showCelebration = false
     @State private var celebrationRank: Rank? = nil
     @State private var celebrationPrevRank: Rank? = nil
+    @State private var showAchievementCelebration = false
+    @State private var pendingAchievement: Achievement? = nil
+    @State private var queuedAchievement: Achievement? = nil
+    @AppStorage("unlockedAchievementIndices") private var unlockedAchievementData: Data = Data()
+    private var unlockedAchievementIndices: Set<Int> {
+        get { (try? JSONDecoder().decode(Set<Int>.self, from: unlockedAchievementData)) ?? [] }
+        set { if let encoded = try? JSONEncoder().encode(newValue) { unlockedAchievementData = encoded } }
+    }
     
     enum Tab {
         case home, logging, trends, settings
@@ -19,7 +29,19 @@ struct MainTabView: View {
                 if selectedTab == .home {
                     HomeView()
                 } else if selectedTab == .logging {
-                    LoggingView(showCelebration: $showCelebration, celebrationRank: $celebrationRank, celebrationPrevRank: $celebrationPrevRank)
+                    LoggingView(onCelebrationEvent: { [self] event in
+                        switch event {
+                        case .rankUp(let rank, let prevRank):
+                            self.celebrationRank = rank
+                            self.celebrationPrevRank = prevRank
+                            self.showCelebration = true
+                        case .achievement(let achievement):
+                            self.pendingAchievement = achievement
+                            self.showAchievementCelebration = true
+                        case .queuedAchievement(let achievement):
+                            self.queuedAchievement = achievement
+                        }
+                    })
                 } else if selectedTab == .trends {
                     TrendsView()
                 } else if selectedTab == .settings {
@@ -43,23 +65,76 @@ struct MainTabView: View {
                     TabButton(icon: "gearshape", label: "Settings", tab: .settings, selectedTab: $selectedTab, animationsEnabled: animationsEnabled)
                 }
                 .padding(.horizontal, 30)
-                .frame(height: 55)
+                .frame(height: 76)
                 .background(Color.black)
             }
             .frame(maxWidth: .infinity)
             .ignoresSafeArea(edges: .bottom)
 
-            // Celebration overlay
+            // Celebration overlays
             if showCelebration, let rank = celebrationRank {
                 RankUpCelebrationView(
                     rank: rank,
                     previousRank: celebrationPrevRank,
-                    onDismiss: { showCelebration = false }
+                    onDismiss: {
+                        showCelebration = false
+                        if let queued = queuedAchievement {
+                            pendingAchievement = queued
+                            queuedAchievement = nil
+                            showAchievementCelebration = true
+                        }
+                    }
+                )
+            }
+            if showAchievementCelebration, let achievement = pendingAchievement {
+                AchievementCelebrationView(
+                    achievement: achievement,
+                    onDismiss: { showAchievementCelebration = false }
                 )
             }
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .animation(.easeOut(duration: 0.3), value: showCelebration)
+        .animation(.easeOut(duration: 0.3), value: showAchievementCelebration)
+        .onAppear {
+            checkSessionGapAchievements()
+        }
+    }
+
+    private func checkSessionGapAchievements() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let ref = Firestore.firestore().collection("users").document(uid)
+        ref.getDocument { snapshot, _ in
+            guard let data = snapshot?.data() else { return }
+            let firestoreAchievements = data["achievements"] as? [String: [String: Any]] ?? [:]
+            let existing = UserDefaults.standard.data(forKey: "unlockedAchievementIndices").flatMap({ try? JSONDecoder().decode(Set<Int>.self, from: $0) }) ?? []
+            var storedSoFar = existing
+
+            for (indexStr, achData) in firestoreAchievements {
+                guard let index = Int(indexStr),
+                      let unlocked = achData["unlocked"] as? Bool,
+                      unlocked,
+                      !existing.contains(index) else { continue }
+
+                storedSoFar.insert(index)
+            }
+
+            let newlyFound = storedSoFar.subtracting(existing)
+            if !newlyFound.isEmpty {
+                if let encoded = try? JSONEncoder().encode(storedSoFar) {
+                    UserDefaults.standard.set(encoded, forKey: "unlockedAchievementIndices")
+                }
+
+                if let firstIdx = newlyFound.sorted().first,
+                   let achievement = allAchievements.first(where: { $0.index == firstIdx }) {
+                    Task { @MainActor in
+                        self.pendingAchievement = achievement
+                        self.showAchievementCelebration = true
+                        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -82,7 +157,9 @@ struct TabButton: View {
 
             if animationsEnabled {
                 isAnimating = true
-                selectedTab = tab
+                withAnimation(.easeOut(duration: 0.2)) {
+                    selectedTab = tab
+                }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     isAnimating = false
                 }
@@ -90,17 +167,18 @@ struct TabButton: View {
                 selectedTab = tab
             }
         }) {
-            VStack(spacing: 4) {
+            VStack(spacing: 5) {
                 ZStack {
                     Circle()
                         .fill(Color.black)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 36, height: 36)
 
                     Image(systemName: displayedIcon)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 26, height: 26)
                         .foregroundColor(.white)
+                        .contentTransition(.symbolEffect(.replace))
                         .scaleEffect(isAnimating ? 1.3 : 1.0)
                         .animation(
                             animationsEnabled ? .easeOut(duration: 0.2) : nil,

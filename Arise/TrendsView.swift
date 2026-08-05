@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 import FirebaseAuth
 import FirebaseFirestore
 
@@ -11,11 +12,36 @@ struct TrendsView: View {
     @State private var longestStreak: Int = 0
     @State private var skillsData: [String: [String: Int]] = [:]
     @State private var dailyLogs: [DailyLog] = []
+    @State private var achievements: [Achievement] = []
     @State private var isLoading = true
+    @State private var animateBars = false
+    @State private var selectedRange: RangeOption = .week
     @State private var todayXP: Int = 0
     @State private var todayCompletedCount: Int = 0
     @State private var todayTotalPossibleXP: Int = 0
-    @State private var animateBars = false
+    @State private var todaySkillXPData: [String: Int] = [:]
+
+    enum RangeOption: String, CaseIterable {
+        case week = "7D"
+        case month = "30D"
+        case quarter = "90D"
+
+        var days: Int {
+            switch self {
+            case .week: return 7
+            case .month: return 30
+            case .quarter: return 90
+            }
+        }
+
+        var axisStride: Int {
+            switch self {
+            case .week: return 1
+            case .month: return 7
+            case .quarter: return 20
+            }
+        }
+    }
 
     // MARK: - Derived Data
 
@@ -34,48 +60,31 @@ struct TrendsView: View {
         return min(max((Double(currentXP) - current.requiredXP) / range, 0.0), 1.0)
     }
 
-    private var thisWeekLogs: [DailyLog] {
-        dailyLogs.filter { isInCurrentWeek($0.date) }
-    }
-
-    private var weekDayLogs: [DailyLog] {
+    private var rangeLogs: [DailyLog] {
         let calendar = Calendar.current
-        let today = Date()
-        let todayWeekday = calendar.component(.weekday, from: today)
+        let days = selectedRange.days
+        let startOfToday = calendar.startOfDay(for: Date())
+        guard let start = calendar.date(byAdding: .day, value: -(days - 1), to: startOfToday) else { return [] }
+        let todayStr = isoDateString(from: Date())
 
-        let daysFromMonday: Int
-        switch todayWeekday {
-        case 1: daysFromMonday = -6
-        case 2: daysFromMonday = 0
-        case 3: daysFromMonday = -1
-        case 4: daysFromMonday = -2
-        case 5: daysFromMonday = -3
-        case 6: daysFromMonday = -4
-        case 7: daysFromMonday = -5
-        default: daysFromMonday = 0
-        }
-
-        guard let monday = calendar.date(byAdding: .day, value: daysFromMonday, to: today) else { return [] }
-        let todayStr = isoDateString(from: today)
-
-        var days: [DailyLog] = []
-        for i in 0..<7 {
-            guard let date = calendar.date(byAdding: .day, value: i, to: monday) else { continue }
+        var result: [DailyLog] = []
+        for i in 0..<days {
+            guard let date = calendar.date(byAdding: .day, value: i, to: start) else { continue }
             let dateStr = isoDateString(from: date)
 
             if dateStr == todayStr {
-                days.append(DailyLog(
+                result.append(DailyLog(
                     date: dateStr,
                     completedCount: todayCompletedCount,
                     xpGained: todayXP,
-                    skillXP: [:],
+                    skillXP: todaySkillXPData,
                     streak: streak,
                     totalPossibleXP: todayTotalPossibleXP
                 ))
             } else if let existing = dailyLogs.first(where: { $0.date == dateStr }) {
-                days.append(existing)
+                result.append(existing)
             } else {
-                days.append(DailyLog(
+                result.append(DailyLog(
                     date: dateStr,
                     completedCount: 0,
                     xpGained: 0,
@@ -85,44 +94,77 @@ struct TrendsView: View {
                 ))
             }
         }
-        return days
+        return result
     }
 
-    private var weeklyXP: Int {
-        thisWeekLogs.reduce(0) { $0 + $1.xpGained } + todayXP
-    }
-
-    private var daysActiveThisWeek: Int {
-        (todayCompletedCount > 0 ? 1 : 0) + thisWeekLogs.filter { $0.completedCount > 0 }.count
-    }
-
-struct SkillRow: Identifiable {
-        var id: String { name }
-        let name: String
-        let level: Int
-        let xp: Int
-        let progress: Double
-        let nextThreshold: Int
-    }
-
-    private var skillRows: [SkillRow] {
-        allSkillNames.compactMap { name in
-            guard let info = skillsData[name] else {
-                return SkillRow(name: name, level: 1, xp: 0, progress: 0, nextThreshold: skillLevelThresholds[1])
-            }
-            let xp = info["xp"] ?? 0
-            let level = info["level"] ?? 1
-            let safeLevel = min(level, skillLevelThresholds.count - 1)
-            let nextThreshold = level < skillLevelThresholds.count ? skillLevelThresholds[safeLevel] : (skillLevelThresholds.last ?? 3350)
-            let currentThreshold = skillLevelThresholds[safeLevel - 1]
-            let range = nextThreshold - currentThreshold
-            let progress = range > 0 ? Double(xp - currentThreshold) / Double(range) : 1.0
-            return SkillRow(name: name, level: level, xp: xp, progress: min(max(progress, 0), 1), nextThreshold: nextThreshold)
+    private var trendPoints: [TrendPoint] {
+        rangeLogs.compactMap { log in
+            guard let date = dateFromISO(log.date) else { return nil }
+            return TrendPoint(
+                id: date,
+                date: date,
+                xpGained: log.xpGained,
+                completedCount: log.completedCount,
+                totalPossible: log.totalPossibleXP
+            )
         }
     }
 
-    private var nearestLevelUp: SkillRow? {
-        skillRows.filter { $0.level < 10 }.min(by: { $0.nextThreshold - $0.xp < $1.nextThreshold - $1.xp })
+    private var skillGains: [(skill: String, xp: Int)] {
+        var totals: [String: Int] = [:]
+        for log in rangeLogs {
+            for (key, value) in log.skillXP {
+                totals[key, default: 0] += value
+            }
+        }
+        return totals
+            .filter { $0.value > 0 }
+            .map { ($0.key, $0.value) }
+            .sorted { $0.xp > $1.xp }
+    }
+
+    private var thisWeekRate: Double { rateFor(days: 7, offset: 0) }
+    private var lastWeekRate: Double { rateFor(days: 7, offset: 7) }
+
+    private func rateFor(days: Int, offset: Int) -> Double {
+        let points = trendPoints
+        guard points.count >= offset else { return 0 }
+        let slice = points.dropFirst(max(0, points.count - offset - days)).prefix(days)
+        let done = slice.reduce(0) { $0 + $1.completedCount }
+        let total = slice.reduce(0) { $0 + $1.totalPossible }
+        return total > 0 ? Double(done) / Double(total) : 0
+    }
+
+    private var mostActiveWeekday: (String, Int)? {
+        var counts: [Int: Int] = [:]
+        for log in rangeLogs where log.completedCount > 0 {
+            if let date = dateFromISO(log.date) {
+                let weekday = Calendar.current.component(.weekday, from: date)
+                counts[weekday, default: 0] += 1
+            }
+        }
+        guard let best = counts.max(by: { $0.value < $1.value }) else { return nil }
+        return (weekdayName(best.key), best.value)
+    }
+
+    private func weekdayName(_ weekday: Int) -> String {
+        let names = ["", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        return names[safe: weekday] ?? ""
+    }
+
+    private var totalXPGained: Int {
+        trendPoints.reduce(0) { $0 + $1.xpGained }
+    }
+
+    private var averageDailyXP: Int {
+        guard !trendPoints.isEmpty else { return 0 }
+        return totalXPGained / trendPoints.count
+    }
+
+    private var periodCompletionRate: Double {
+        let done = trendPoints.reduce(0) { $0 + $1.completedCount }
+        let total = trendPoints.reduce(0) { $0 + $1.totalPossible }
+        return total > 0 ? min(Double(done) / Double(total), 1) : 0
     }
 
     var body: some View {
@@ -135,22 +177,22 @@ struct SkillRow: Identifiable {
                         .tint(.white)
                         .padding(.top, 60)
                 } else {
-                    weeklySummaryStrip
+                    rangeSelector
                         .opacity(animateBars ? 1 : 0)
                         .offset(y: animateBars ? 0 : 12)
                         .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.0) : nil, value: animateBars)
 
-                    insightCardsRow
+                    xpChartSection
                         .opacity(animateBars ? 1 : 0)
                         .offset(y: animateBars ? 0 : 12)
                         .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.05) : nil, value: animateBars)
 
-                    weeklyBreakdownSection
+                    completionChartSection
                         .opacity(animateBars ? 1 : 0)
                         .offset(y: animateBars ? 0 : 12)
                         .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.1) : nil, value: animateBars)
 
-                    skillProgressSection
+                    skillGrowthSection
                         .opacity(animateBars ? 1 : 0)
                         .offset(y: animateBars ? 0 : 12)
                         .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.15) : nil, value: animateBars)
@@ -160,12 +202,16 @@ struct SkillRow: Identifiable {
                         .offset(y: animateBars ? 0 : 12)
                         .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.2) : nil, value: animateBars)
 
+                    insightsSection
+                        .opacity(animateBars ? 1 : 0)
+                        .offset(y: animateBars ? 0 : 12)
+                        .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.25) : nil, value: animateBars)
+
                     Spacer(minLength: 40)
                 }
             }
             .onAppear {
                 fetchUserData()
-                fetchDailyLogs()
             }
             .onDisappear {
                 listener?.remove()
@@ -174,111 +220,124 @@ struct SkillRow: Identifiable {
         .background(Color.black.ignoresSafeArea())
     }
 
-    // MARK: - Weekly Summary Strip
+    // MARK: - Range Selector
 
-    private var weeklySummaryStrip: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "calendar")
-                .font(.system(size: 15))
-                .foregroundStyle(LinearGradient.brand)
-
-            Text("This Week")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundColor(.white.opacity(0.7))
-
-            Text("\(formatXP(Double(weeklyXP))) XP")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-
-            Text("·")
-                .foregroundColor(.white.opacity(0.25))
-
-            Text("\(daysActiveThisWeek)/7 days")
-                .font(.system(size: 15, weight: .medium, design: .rounded))
-                .foregroundColor(.white.opacity(0.7))
-
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.07), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 4)
-        .padding(.horizontal)
-    }
-
-    // MARK: - Insight Cards
-
-    private var insightCardsRow: some View {
-        HStack(spacing: 12) {
-            insightCard(
-                title: "Streak",
-                value: "\(streak)",
-                icon: "flame.fill",
-                color: .orange,
-                subtitle: "Best: \(longestStreak) days"
-            )
-            insightCard(
-                title: "Rank",
-                value: currentRank?.name ?? "—",
-                icon: "crown.fill",
-                color: Color(red: 84/255, green: 0/255, blue: 232/255),
-                subtitle: "\(Int(rankProgress * 100))% to \(nextRank?.name ?? "max")"
-            )
-        }
-        .padding(.horizontal)
-    }
-
-    private func insightCard(title: String, value: String, icon: String, color: Color, subtitle: String) -> some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundColor(color)
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.6))
+    private var rangeSelector: some View {
+        HStack(spacing: 0) {
+            ForEach(RangeOption.allCases, id: \.self) { option in
+                Button {
+                    selectedRange = option
+                } label: {
+                    Text(option.rawValue)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(selectedRange == option ? .white : .white.opacity(0.5))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(
+                            selectedRange == option
+                                ? Color.white.opacity(0.15)
+                                : Color.clear
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
             }
-            Text(value.isEmpty ? "—" : value)
-                .font(.system(size: 26, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-            Text(subtitle)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundColor(.white.opacity(0.4))
         }
-        .padding(.vertical, 16)
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 100)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.07), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 4)
+        .padding(4)
+        .background(Color.white.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal)
     }
 
-    // MARK: - Weekly Breakdown
+    // MARK: - XP Chart
 
-    private var weeklyBreakdownSection: some View {
-        VStack(spacing: 8) {
-            Text("Daily Breakdown")
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                .foregroundColor(.white.opacity(0.8))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 4)
+    private var xpChartSection: some View {
+        VStack(spacing: 10) {
+            sectionTitle("XP Over Time")
+
+            let avg = averageDailyXP
 
             VStack(spacing: 0) {
-                ForEach(weekDayLogs, id: \.date) { log in
-                    dailyBreakdownRow(log: log)
+                HStack(alignment: .firstTextBaseline) {
+                    Text("\(formatXP(Double(totalXPGained))) XP")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                    Spacer()
+                    Text("avg \(formatXP(Double(avg)))/day")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.4))
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 8)
+
+                Chart(trendPoints) { point in
+                    AreaMark(
+                        x: .value("Day", point.date, unit: .day),
+                        y: .value("XP", point.xpGained)
+                    )
+                    .interpolationMethod(.monotone)
+                    .foregroundStyle(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 84/255, green: 0/255, blue: 232/255).opacity(0.35),
+                                Color(red: 236/255, green: 71/255, blue: 1/255).opacity(0.0)
+                            ]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                    LineMark(
+                        x: .value("Day", point.date, unit: .day),
+                        y: .value("XP", point.xpGained)
+                    )
+                    .interpolationMethod(.monotone)
+                    .foregroundStyle(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 84/255, green: 0/255, blue: 232/255),
+                                Color(red: 236/255, green: 71/255, blue: 1/255)
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+
+                    if avg > 0 {
+                        RuleMark(y: .value("Average", avg))
+                            .foregroundStyle(Color.white.opacity(0.35))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .day, count: selectedRange.axisStride)) { value in
+                        AxisGridLine().foregroundStyle(Color.white.opacity(0.05))
+                        AxisValueLabel {
+                            if let date = value.as(Date.self) {
+                                Text(axisDayLabel(date))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.white.opacity(0.4))
+                            }
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading) { value in
+                        AxisGridLine().foregroundStyle(Color.white.opacity(0.05))
+                        AxisValueLabel {
+                            if let xp = value.as(Double.self) {
+                                Text(compactXP(xp))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.white.opacity(0.35))
+                            }
+                        }
+                    }
+                }
+                .frame(height: 170)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 10)
             }
             .background(Color.white.opacity(0.05))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -286,135 +345,196 @@ struct SkillRow: Identifiable {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(Color.white.opacity(0.07), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 4)
         }
         .padding(.horizontal)
     }
 
-    private func dailyBreakdownRow(log: DailyLog) -> some View {
-        let todayStr = isoDateString(from: Date())
-        let isToday = log.date == todayStr
-        let isFuture = (dateFromISO(log.date) ?? Date.distantPast) > Date()
-        let hasData = log.totalPossibleXP > 0
+    // MARK: - Completion Chart
 
-        return VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                VStack(alignment: .center, spacing: 1) {
-                    Text(dayAbbreviation(from: log.date))
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(isToday ? .white : .white.opacity(0.7))
-                    Text(shortDate(from: log.date))
-                        .font(.system(size: 10))
-                        .foregroundColor(.white.opacity(0.4))
-                }
-                .frame(width: 38)
-
-                if hasData || isToday {
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                .fill(Color.white.opacity(0.06))
-                            let denom = CGFloat(max(log.totalPossibleXP, 1))
-                            let proportion = min(CGFloat(log.xpGained) / denom, 1)
-                            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                .fill(LinearGradient.brand)
-                                .frame(width: animateBars ? max(4, geo.size.width * proportion) : 0)
-                        }
-                        .animation(animationsEnabled ? .spring(response: 0.5) : nil, value: animateBars)
-                    }
-                    .frame(height: 12)
-
-                    HStack(spacing: 4) {
-                        Text("\(log.xpGained)/\(log.totalPossibleXP)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.white.opacity(0.6))
-                            .fixedSize(horizontal: true, vertical: false)
-                        if log.streak > 0 {
-                            Image(systemName: "flame.fill")
-                                .font(.system(size: 9))
-                                .foregroundColor(.orange)
-                        }
-                    }
-                    .frame(width: 70, alignment: .trailing)
-                } else {
-                    Text(isFuture ? "Upcoming" : "No data")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.25))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 14)
-
-            if log.date != weekDayLogs.last?.date {
-                Divider()
-                    .background(Color.white.opacity(0.06))
-                    .padding(.leading, 50)
-            }
-        }
-    }
-
-    // MARK: - Skill Progress
-
-    private var skillProgressSection: some View {
-        VStack(spacing: 8) {
-            Text("Skills")
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                .foregroundColor(.white.opacity(0.8))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 4)
+    private var completionChartSection: some View {
+        VStack(spacing: 10) {
+            sectionTitle("Completion Rate")
 
             VStack(spacing: 0) {
-                ForEach(skillRows) { skill in
-                    VStack(spacing: 6) {
-                        HStack(spacing: 10) {
-                            Image(systemName: skillIcons[skill.name] ?? "star.fill")
-                                .font(.system(size: 18))
-                                .foregroundStyle(LinearGradient.brand)
-                                .frame(width: 26)
+                HStack(alignment: .firstTextBaseline) {
+                    Text("\(Int(periodCompletionRate * 100))%")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                    Spacer()
+                    Text("of scheduled tasks completed")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.4))
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 8)
 
-                            Text(skill.name)
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(.white)
+                Chart(trendPoints) { point in
+                    BarMark(
+                        x: .value("Day", point.date, unit: .day),
+                        y: .value("Completed", point.completionRate),
+                        width: .ratio(0.55)
+                    )
+                    .foregroundStyle(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 36/255, green: 180/255, blue: 96/255),
+                                Color(red: 46/255, green: 204/255, blue: 113/255)
+                            ]),
+                            startPoint: .bottom,
+                            endPoint: .top
+                        )
+                    )
+                    .cornerRadius(2)
 
-                            Spacer()
-
-                            Text("LVL \(skill.level)")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.white.opacity(0.5))
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .background(Capsule().fill(Color.white.opacity(0.08)))
+                    RuleMark(y: .value("Goal", 1.0))
+                        .foregroundStyle(Color.white.opacity(0.3))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                }
+                .chartYScale(domain: 0...1)
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .day, count: selectedRange.axisStride)) { value in
+                        AxisGridLine().foregroundStyle(Color.white.opacity(0.05))
+                        AxisValueLabel {
+                            if let date = value.as(Date.self) {
+                                Text(axisDayLabel(date))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.white.opacity(0.4))
+                            }
                         }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(values: [0, 0.5, 1]) { value in
+                        AxisGridLine().foregroundStyle(Color.white.opacity(0.05))
+                        AxisValueLabel {
+                            if let rate = value.as(Double.self) {
+                                Text("\(Int(rate * 100))%")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.white.opacity(0.35))
+                            }
+                        }
+                    }
+                }
+                .frame(height: 170)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 10)
+            }
+            .background(Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+            )
+        }
+        .padding(.horizontal)
+    }
 
-                        HStack(spacing: 8) {
+    // MARK: - Skill Growth
+
+    private var skillGrowthSection: some View {
+        VStack(spacing: 10) {
+            sectionTitle("Skill Growth")
+
+            if skillGains.isEmpty {
+                emptyCard(message: "No XP earned in this period yet.")
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(skillGains.enumerated()), id: \.element.skill) { _, gain in
+                        VStack(spacing: 6) {
+                            HStack(spacing: 10) {
+                                Image(systemName: skillIcons[gain.skill] ?? "star.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(LinearGradient.brand)
+                                    .frame(width: 24)
+
+                                Text(gain.skill)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.white)
+
+                                Spacer()
+
+                                Text("+\(gain.xp) XP")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
+
                             GeometryReader { geo in
                                 ZStack(alignment: .leading) {
                                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                                         .fill(Color.white.opacity(0.06))
                                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                                         .fill(LinearGradient.brand)
-                                        .frame(width: animateBars ? max(2, geo.size.width * skill.progress) : 0)
+                                        .frame(width: animateBars ? max(2, geo.size.width * gainFraction(gain.xp)) : 0)
                                 }
                                 .animation(animationsEnabled ? .spring(response: 0.6) : nil, value: animateBars)
                             }
                             .frame(height: 8)
+                        }
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 16)
 
-                            Text("\(skill.xp)/\(skill.nextThreshold)")
-                                .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.35))
-                                .fixedSize(horizontal: true, vertical: false)
+                        if gain.skill != skillGains.last?.skill {
+                            Divider()
+                                .background(Color.white.opacity(0.06))
+                                .padding(.leading, 50)
                         }
                     }
-                    .padding(.vertical, 14)
-                    .padding(.horizontal, 16)
+                }
+                .background(Color.white.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                )
+            }
+        }
+        .padding(.horizontal)
+    }
 
-                    if skill.name != skillRows.last?.name {
-                        Divider()
-                            .background(Color.white.opacity(0.06))
-                            .padding(.leading, 52)
+    private func gainFraction(_ xp: Int) -> Double {
+        let maxGain = skillGains.map { $0.xp }.max() ?? 1
+        guard maxGain > 0 else { return 0 }
+        return Double(xp) / Double(maxGain)
+    }
+
+    // MARK: - Milestones
+
+    private var milestonesSection: some View {
+        VStack(spacing: 10) {
+            sectionTitle("Milestones")
+
+            VStack(spacing: 0) {
+                if let next = nextRank, let current = currentRank {
+                    milestoneRow(
+                        icon: "arrow.up.circle.fill",
+                        iconColor: Color(red: 84/255, green: 0/255, blue: 232/255),
+                        title: "Next Rank",
+                        subtitle: "\(current.name) → \(next.name)",
+                        progress: rankProgress,
+                        detail: "\(formatXP(next.requiredXP - Double(currentXP))) XP to go"
+                    )
+                }
+
+                if achievements.isEmpty {
+                    milestoneRow(
+                        icon: "trophy.fill",
+                        iconColor: .yellow,
+                        title: "Achievements",
+                        subtitle: "No achievements yet",
+                        progress: 0,
+                        detail: "Keep going — they'll appear here."
+                    )
+                } else {
+                    ForEach(achievements) { achievement in
+                        milestoneRow(
+                            icon: "trophy.fill",
+                            iconColor: .yellow,
+                            title: achievement.title,
+                            subtitle: achievement.unlockedDate ?? "",
+                            progress: 1,
+                            detail: achievement.description
+                        )
                     }
                 }
             }
@@ -424,62 +544,35 @@ struct SkillRow: Identifiable {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(Color.white.opacity(0.07), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 4)
         }
         .padding(.horizontal)
     }
 
-    // MARK: - Milestones
-
-    private var milestonesSection: some View {
-        VStack(spacing: 8) {
-            Text("Milestones")
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                .foregroundColor(.white.opacity(0.8))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 4)
-
-            HStack(spacing: 12) {
-                if let next = nextRank, let current = currentRank {
-                    milestoneCard(
-                        title: "Next Rank",
-                        subtitle: current.name,
-                        progress: rankProgress,
-                        detail: "\(formatXP(next.requiredXP - Double(currentXP))) XP to \(next.name)",
-                        icon: "arrow.up.circle.fill",
-                        color: Color(red: 84/255, green: 0/255, blue: 232/255)
-                    )
-                }
-
-                if let nearest = nearestLevelUp, nearest.level < 10 {
-                    milestoneCard(
-                        title: "Next Skill Level",
-                        subtitle: nearest.name,
-                        progress: nearest.progress,
-                        detail: "\(nearest.nextThreshold - nearest.xp) XP to Level \(nearest.level + 1)",
-                        icon: skillIcons[nearest.name] ?? "star.fill",
-                        color: .green
-                    )
-                }
-            }
-        }
-        .padding(.horizontal)
-    }
-
-    private func milestoneCard(title: String, subtitle: String, progress: Double, detail: String, icon: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 7) {
+    @ViewBuilder
+    private func milestoneRow(icon: String, iconColor: Color, title: String, subtitle: String, progress: Double, detail: String) -> some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
                 Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundColor(color)
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.7))
-            }
+                    .font(.system(size: 16))
+                    .foregroundColor(iconColor)
+                    .frame(width: 24)
 
-            Text(subtitle)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.45))
+                }
+
+                Spacer()
+
+                Text(detail)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white.opacity(0.4))
+                    .multilineTextAlignment(.trailing)
+            }
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -491,50 +584,126 @@ struct SkillRow: Identifiable {
                 }
                 .animation(animationsEnabled ? .spring(response: 0.6) : nil, value: animateBars)
             }
-            .frame(height: 8)
+            .frame(height: 6)
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
 
-            Text(detail)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+        Divider()
+            .background(Color.white.opacity(0.06))
+            .padding(.leading, 50)
+    }
+
+    // MARK: - Insights
+
+    private var insightsSection: some View {
+        VStack(spacing: 10) {
+            sectionTitle("Insights")
+
+            VStack(spacing: 0) {
+                insightRow(
+                    icon: "checkmark.circle.fill",
+                    color: .green,
+                    title: "This week",
+                    value: "\(Int(thisWeekRate * 100))% completed",
+                    subtitle: "vs \(Int(lastWeekRate * 100))% last week"
+                )
+
+                if let active = mostActiveWeekday {
+                    insightRow(
+                        icon: "calendar",
+                        color: Color(red: 84/255, green: 0/255, blue: 232/255),
+                        title: "Most active",
+                        value: active.0,
+                        subtitle: "\(active.1) active day\(active.1 == 1 ? "" : "s") in this period"
+                    )
+                }
+
+                insightRow(
+                    icon: "flame.fill",
+                    color: .orange,
+                    title: "Longest streak",
+                    value: "\(longestStreak) days",
+                    subtitle: "Keep the chain alive."
+                )
+            }
+            .background(Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+            )
+        }
+        .padding(.horizontal)
+    }
+
+    private func insightRow(icon: String, color: Color, title: String, value: String, subtitle: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundColor(color)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.5))
+                Text(value)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.white)
+            }
+
+            Spacer()
+
+            Text(subtitle)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white.opacity(0.4))
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: - Shared UI
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 17, weight: .semibold, design: .rounded))
+            .foregroundColor(.white.opacity(0.8))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+    }
+
+    private func emptyCard(message: String) -> some View {
+        HStack {
+            Image(systemName: "chart.bar.xaxis")
+                .font(.system(size: 16))
+                .foregroundColor(.white.opacity(0.3))
+            Text(message)
+                .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.white.opacity(0.4))
         }
-        .padding(20)
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 30)
         .background(Color.white.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.07), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 4)
+    }
+
+    private func axisDayLabel(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let day = calendar.component(.day, from: date)
+        let month = calendar.component(.month, from: date)
+        let today = Calendar.current.isDateInToday(date)
+        if today { return "Today" }
+        if selectedRange == .week {
+            let fmt = DateFormatter()
+            fmt.dateFormat = "EEE"
+            return fmt.string(from: date)
+        }
+        return "\(month)/\(day)"
     }
 
     // MARK: - Data Fetching
-
-    private func fetchDailyLogs() {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        Firestore.firestore().collection("users").document(uid)
-            .collection("dailyLogs")
-            .order(by: "date", descending: true)
-            .limit(to: 7)
-            .getDocuments { snapshot, _ in
-                guard let docs = snapshot?.documents else { return }
-                let logs = docs.compactMap { doc -> DailyLog? in
-                    let data = doc.data()
-                    guard let date = data["date"] as? String else { return nil }
-                    return DailyLog(
-                        date: date,
-                        completedCount: data["completedCount"] as? Int ?? 0,
-                        xpGained: data["xpGained"] as? Int ?? 0,
-                        skillXP: data["skillXP"] as? [String: Int] ?? [:],
-                        streak: data["streak"] as? Int ?? 0,
-                        totalPossibleXP: data["totalPossibleXP"] as? Int ?? 0
-                    )
-                }
-                DispatchQueue.main.async {
-                    self.dailyLogs = logs.sorted { $0.date < $1.date }
-                }
-            }
-    }
 
     private func fetchUserData() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
@@ -547,12 +716,56 @@ struct SkillRow: Identifiable {
             self.currentXP = data["xp"] as? Int ?? 0
             self.streak = data["streak"] as? Int ?? 0
             self.longestStreak = data["longestStreak"] as? Int ?? 0
-            self.skillsData = data["skills"] as? [String: [String: Int]] ?? [:]
+            if let rawSkills = data["skills"] as? [String: [String: Int]] {
+                var recalculated: [String: [String: Int]] = [:]
+                for (skill, values) in rawSkills {
+                    let xp = values["xp"] ?? 0
+                    let level = calculateSkillLevel(from: xp)
+                    recalculated[skill] = ["xp": xp, "level": level]
+                }
+                self.skillsData = recalculated
+            } else {
+                self.skillsData = [:]
+            }
 
-            let skillXP = data["todaySkillXP"] as? [String: Int] ?? [:]
-            self.todayXP = skillXP.values.reduce(0, +)
+            self.todayXP = (data["todaySkillXP"] as? [String: Int] ?? [:]).values.reduce(0, +)
             self.todayCompletedCount = (data["completedTasks"] as? [String])?.count ?? 0
             self.todayTotalPossibleXP = data["todayTotalPossibleXP"] as? Int ?? 0
+            self.todaySkillXPData = data["todaySkillXP"] as? [String: Int] ?? [:]
+
+            if let rawAchievements = data["achievements"] as? [String: [String: Any]] {
+                var unlocked: [Achievement] = []
+                for (indexStr, info) in rawAchievements {
+                    guard let index = Int(indexStr),
+                          let isUnlocked = info["unlocked"] as? Bool,
+                          isUnlocked,
+                          let base = allAchievements.first(where: { $0.index == index }) else { continue }
+                    var achievement = base
+                    achievement.unlocked = true
+                    achievement.unlockedDate = info["unlockedDate"] as? String
+                    unlocked.append(achievement)
+                }
+                self.achievements = unlocked.sorted { $0.index < $1.index }
+            } else {
+                self.achievements = []
+            }
+
+            if let rawLogs = data["dailyLogs"] as? [String: [String: Any]] {
+                var logs: [DailyLog] = []
+                for (dateStr, entry) in rawLogs {
+                    logs.append(DailyLog(
+                        date: dateStr,
+                        completedCount: entry["completedCount"] as? Int ?? 0,
+                        xpGained: entry["xpGained"] as? Int ?? 0,
+                        skillXP: entry["skillXP"] as? [String: Int] ?? [:],
+                        streak: entry["streak"] as? Int ?? 0,
+                        totalPossibleXP: entry["totalPossibleXP"] as? Int ?? 0
+                    ))
+                }
+                self.dailyLogs = logs.sorted { $0.date < $1.date }
+            } else {
+                self.dailyLogs = []
+            }
 
             self.isLoading = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -562,26 +775,6 @@ struct SkillRow: Identifiable {
     }
 
     // MARK: - Helpers
-
-    private func isInCurrentWeek(_ dateStr: String) -> Bool {
-        guard let date = dateFromISO(dateStr) else { return false }
-        let calendar = Calendar.current
-        return calendar.component(.weekOfYear, from: date) == calendar.component(.weekOfYear, from: Date())
-            && calendar.component(.year, from: date) == calendar.component(.year, from: Date())
-    }
-
-    private func dayAbbreviation(from dateStr: String) -> String {
-        guard let date = dateFromISO(dateStr) else { return "" }
-        let fmt = DateFormatter()
-        fmt.dateFormat = "E"
-        return fmt.string(from: date)
-    }
-
-    private func shortDate(from dateStr: String) -> String {
-        guard let date = dateFromISO(dateStr) else { return "" }
-        let calendar = Calendar.current
-        return "\(calendar.component(.month, from: date))/\(calendar.component(.day, from: date))"
-    }
 
     private func dateFromISO(_ str: String) -> Date? {
         let fmt = DateFormatter()
@@ -600,6 +793,27 @@ struct SkillRow: Identifiable {
         formatter.numberStyle = .decimal
         return formatter.string(from: NSNumber(value: Int(xp))) ?? "\(Int(xp))"
     }
+
+    private func compactXP(_ xp: Double) -> String {
+        let value = Int(xp)
+        if value >= 1000 {
+            return String(format: "%.0fK", Double(value) / 1000.0)
+        }
+        return "\(value)"
+    }
+}
+
+struct TrendPoint: Identifiable {
+    let id: Date
+    let date: Date
+    let xpGained: Int
+    let completedCount: Int
+    let totalPossible: Int
+
+    var completionRate: Double {
+        guard totalPossible > 0 else { return 0 }
+        return min(Double(completedCount) / Double(totalPossible), 1)
+    }
 }
 
 // MARK: - Header
@@ -610,7 +824,7 @@ private struct Header: View {
             Text("Your Insights")
                 .font(.system(size: 28, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
-            Text("A glance at your balance and progress")
+            Text("Trends in your effort over time")
                 .font(.subheadline)
                 .foregroundColor(.white.opacity(0.7))
         }
@@ -618,4 +832,3 @@ private struct Header: View {
         .padding(.horizontal)
     }
 }
-

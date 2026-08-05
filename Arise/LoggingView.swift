@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import FirebaseAuth
 import FirebaseFirestore
 
@@ -50,9 +51,12 @@ struct LoggingView: View {
     @AppStorage("lastResetDate") private var lastResetDate = ""
     @State private var todayTotalPossibleXP: Int = 0
     @AppStorage("lastRankId") private var lastRankId: Int = 0
-    @Binding var showCelebration: Bool
-    @Binding var celebrationRank: Rank?
-    @Binding var celebrationPrevRank: Rank?
+    var onCelebrationEvent: ((CelebrationEvent) -> Void)?
+    @AppStorage("unlockedAchievementIndices") private var unlockedAchievementData: Data = Data()
+    private var unlockedAchievementIndices: Set<Int> {
+        get { (try? JSONDecoder().decode(Set<Int>.self, from: unlockedAchievementData)) ?? [] }
+        set { if let encoded = try? JSONEncoder().encode(newValue) { unlockedAchievementData = encoded } }
+    }
     
     // Timer to check for midnight (fires every minute)
     private let midnightTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
@@ -617,8 +621,9 @@ extension LoggingView {
             let data = snapshot.data() ?? [:]
             var completed = data["completedTasks"] as? [String] ?? []
             if completed.contains(task.id) {
-                let existingTotal = normalizeSkillsMap(data["skills"]).values.compactMap { $0["xp"] }.reduce(0, +)
-                return ["completed": completed, "streak": data["streak"] as? Int ?? 0, "totalSkillXP": existingTotal]
+                let existingSkills = normalizeSkillsMap(data["skills"])
+                let existingTotal = existingSkills.values.compactMap { $0["xp"] }.reduce(0, +)
+                return ["completed": completed, "streak": data["streak"] as? Int ?? 0, "totalSkillXP": existingTotal, "skills": existingSkills]
             }
             completed.append(task.id)
 
@@ -680,11 +685,23 @@ extension LoggingView {
 
             transaction.updateData(updates, forDocument: userRef)
             let resultStreak = updates["streak"] as? Int ?? (data["streak"] as? Int ?? 0)
-            return ["completed": completed, "streak": resultStreak, "taskSkillXP": taskSkillXP, "totalSkillXP": totalSkillXP]
+
+            transaction.updateData([
+                "dailyLogs.\(todayStr)": [
+                    "completedCount": completed.count,
+                    "xpGained": todaySkillXP.values.reduce(0, +),
+                    "skillXP": todaySkillXP,
+                    "totalPossibleXP": self.todayTotalPossibleXP,
+                    "streak": resultStreak,
+                    "timestamp": FieldValue.serverTimestamp()
+                ]
+            ], forDocument: userRef)
+
+            return ["completed": completed, "streak": resultStreak, "taskSkillXP": taskSkillXP, "totalSkillXP": totalSkillXP, "skills": skills]
         }) { result, error in
             guard error == nil, let payload = result as? [String: Any] else { return }
             if let completed = payload["completed"] as? [String] {
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     completedTaskIDs = completed
                     if let newStreak = payload["streak"] as? Int {
                         streak = newStreak
@@ -696,7 +713,10 @@ extension LoggingView {
                         }
                         self.userData["todaySkillXP"] = current
                     }
-                    checkRankUp(totalSkillXP: payload["totalSkillXP"] as? Int ?? 0)
+                    let totalXP = payload["totalSkillXP"] as? Int ?? 0
+                    let skills = payload["skills"] as? [String: [String: Int]] ?? [:]
+                    let didRankUp = self.checkRankUp(totalSkillXP: totalXP)
+                    self.checkAchievements(totalXP: totalXP, skills: skills, didRankUp: didRankUp)
                 }
             }
         }
@@ -705,6 +725,7 @@ extension LoggingView {
     private func undoCompleteTask(_ task: TaskItem) {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let userRef = Firestore.firestore().collection("users").document(uid)
+        let todayStr = isoDateString(from: Date())
 
         userRef.firestore.runTransaction({ transaction, errorPointer -> Any? in
             let snapshot: DocumentSnapshot
@@ -762,6 +783,17 @@ extension LoggingView {
                 "todayCompletedTaskDetails": mutableDetails
             ], forDocument: userRef)
 
+            transaction.updateData([
+                "dailyLogs.\(todayStr)": [
+                    "completedCount": mutableCompleted.count,
+                    "xpGained": todaySkillXP.values.reduce(0, +),
+                    "skillXP": todaySkillXP,
+                    "totalPossibleXP": self.todayTotalPossibleXP,
+                    "streak": data["streak"] as? Int ?? 0,
+                    "timestamp": FieldValue.serverTimestamp()
+                ]
+            ], forDocument: userRef)
+
             return ["completed": mutableCompleted, "taskSkillXP": taskSkillXP]
         }) { result, error in
             guard error == nil, let payload = result as? [String: Any] else { return }
@@ -800,17 +832,81 @@ extension LoggingView {
             .updateData(["streak": 0])
     }
     
-    private func checkRankUp(totalSkillXP: Int) {
+    @discardableResult
+    private func checkRankUp(totalSkillXP: Int) -> Bool {
         let computedRank = ranks.last(where: { Double(totalSkillXP) >= $0.requiredXP }) ?? ranks[0]
-        if computedRank.id > lastRankId {
-            if let oldRank = ranks.first(where: { $0.id == lastRankId }), lastRankId > 0 {
-                celebrationPrevRank = oldRank
-            }
-            celebrationRank = computedRank
-            showCelebration = true
+        let didRankUp = computedRank.id > lastRankId
+        if didRankUp {
+            let prevRank = ranks.first(where: { $0.id == lastRankId })
+            onCelebrationEvent?(.rankUp(computedRank, prevRank))
             UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
         }
         lastRankId = computedRank.id
+        return didRankUp
+    }
+
+    private func checkAchievements(totalXP: Int, skills: [String: [String: Int]], didRankUp: Bool) {
+        let computedRankId = ranks.last(where: { Double(totalXP) >= $0.requiredXP })?.id ?? 0
+        let existingUnlocked = (try? JSONDecoder().decode(Set<Int>.self, from: UserDefaults.standard.data(forKey: "unlockedAchievementIndices") ?? Data())) ?? []
+        var newlyUnlocked: [Achievement] = []
+
+        for achievement in allAchievements {
+            guard !existingUnlocked.contains(achievement.index) else { continue }
+
+            let shouldUnlock: Bool = {
+                switch achievement.index {
+                case 1 where computedRankId >= 2: return true
+                case 2 where computedRankId >= 3: return true
+                case 3 where computedRankId >= 4: return true
+                case 4 where computedRankId >= 5: return true
+                case 5 where computedRankId >= 6: return true
+                case 6 where computedRankId >= 7: return true
+                case 7 where computedRankId >= 8: return true
+                case 8 where computedRankId >= 9: return true
+                case 9 where computedRankId >= 10: return true
+                case 10 where totalXP > 0: return true
+                case 11 where calculateSkillLevel(from: skills["Discipline"]?["xp"] ?? 0) >= 10: return true
+                case 12 where calculateSkillLevel(from: skills["Fitness"]?["xp"] ?? 0) >= 10: return true
+                case 13 where calculateSkillLevel(from: skills["Fuel"]?["xp"] ?? 0) >= 10: return true
+                case 14 where calculateSkillLevel(from: skills["Network"]?["xp"] ?? 0) >= 10: return true
+                case 15 where calculateSkillLevel(from: skills["Resilience"]?["xp"] ?? 0) >= 10: return true
+                case 16 where calculateSkillLevel(from: skills["Wisdom"]?["xp"] ?? 0) >= 10: return true
+                default: return false
+                }
+            }()
+            guard shouldUnlock else { continue }
+
+            var unlocked = achievement
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM yyyy"
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            unlocked.unlockedDate = formatter.string(from: Date())
+            unlocked.unlocked = true
+            newlyUnlocked.append(unlocked)
+
+            var stored = (try? JSONDecoder().decode(Set<Int>.self, from: UserDefaults.standard.data(forKey: "unlockedAchievementIndices") ?? Data())) ?? []
+            stored.insert(achievement.index)
+            if let encoded = try? JSONEncoder().encode(stored) {
+                UserDefaults.standard.set(encoded, forKey: "unlockedAchievementIndices")
+            }
+
+            guard let uid = Auth.auth().currentUser?.uid else { continue }
+            Firestore.firestore().collection("users").document(uid).setData([
+                "achievements.\(achievement.index)": [
+                    "unlocked": true,
+                    "unlockedDate": unlocked.unlockedDate ?? ""
+                ]
+            ], merge: true)
+        }
+
+        if let first = newlyUnlocked.first {
+            if didRankUp {
+                onCelebrationEvent?(.queuedAchievement(first))
+            } else {
+                onCelebrationEvent?(.achievement(first))
+                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+            }
+        }
     }
 
     private func handleStreakContinuity(using data: [String: Any]) {
@@ -830,52 +926,39 @@ extension LoggingView {
     // MARK: - Midnight reset logic
     private func checkForMidnightReset() {
         let today = isoDateString(from: Date())
-        if lastResetDate != today {
-            let previousDate = lastResetDate
-            lastResetDate = today
-            completedTaskIDs.removeAll()
-            if let uid = Auth.auth().currentUser?.uid {
-                let userRef = Firestore.firestore().collection("users").document(uid)
-                userRef.getDocument { snapshot, _ in
-                    guard let data = snapshot?.data() else {
-                        userRef.updateData(["completedTasks": [], "todaySkillXP": [:], "todayCompletedTaskDetails": []])
-                        self.fetchUserData()
-                        return
-                    }
-                    let skillXP = data["todaySkillXP"] as? [String: Int] ?? [:]
-                    let completedCount = (data["completedTasks"] as? [String])?.count ?? 0
-                    let xpGained = skillXP.values.reduce(0, +)
+        guard lastResetDate != today else { return }
+        lastResetDate = today
+        completedTaskIDs.removeAll()
+        guard let uid = Auth.auth().currentUser?.uid else {
+            fetchUserData()
+            return
+        }
+        let userRef = Firestore.firestore().collection("users").document(uid)
 
-                    if !previousDate.isEmpty, completedCount > 0 || xpGained > 0 {
-                        let logRef = userRef.collection("dailyLogs").document(previousDate)
+        // Daily logs are written into the user document on every task completion
+        // (`dailyLogs.<date>`), so history is already persisted here. Midnight only
+        // resets the today-tracking fields and bounds the log map size.
+        userRef.updateData([
+            "completedTasks": [],
+            "todaySkillXP": [:],
+            "todayCompletedTaskDetails": []
+        ]) { _ in
+            self.pruneDailyLogs(userRef: userRef)
+            self.fetchUserData()
+        }
+    }
 
-                        let prevTotalXP: Int = {
-                            let fmt = DateFormatter()
-                            fmt.dateFormat = "yyyy-MM-dd"
-                            guard let prevDate = fmt.date(from: previousDate) else { return 0 }
-                            return self.makeTasks(from: data, date: prevDate).reduce(0) { $0 + $1.xp }
-                        }()
-
-                        logRef.setData([
-                            "date": previousDate,
-                            "completedCount": completedCount,
-                            "xpGained": xpGained,
-                            "totalPossibleXP": prevTotalXP,
-                            "skillXP": skillXP,
-                            "streak": data["streak"] as? Int ?? 0,
-                            "timestamp": FieldValue.serverTimestamp()
-                        ], merge: true)
-                    }
-
-                    userRef.updateData([
-                        "completedTasks": [],
-                        "todaySkillXP": [:],
-                        "todayCompletedTaskDetails": []
-                    ]) { _ in self.fetchUserData() }
-                }
-            } else {
-                fetchUserData()
+    /// Drops `dailyLogs` entries older than 120 days so the in-document map stays small.
+    private func pruneDailyLogs(userRef: DocumentReference) {
+        userRef.getDocument { snapshot, _ in
+            guard let rawLogs = snapshot?.data()?["dailyLogs"] as? [String: Any] else { return }
+            let cutoff = self.isoDateString(from: Calendar.current.date(byAdding: .day, value: -120, to: Date()) ?? Date())
+            var stale: [String: Any] = [:]
+            for key in rawLogs.keys where key < cutoff {
+                stale["dailyLogs.\(key)"] = FieldValue.delete()
             }
+            guard !stale.isEmpty else { return }
+            userRef.updateData(stale)
         }
     }
     
@@ -1170,3 +1253,4 @@ struct TaskCard: View {
         }
     }
 }
+

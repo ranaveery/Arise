@@ -105,6 +105,104 @@ struct Achievement: Identifiable {
     var unlockedDate: String? = nil
 }
 
+let allAchievements: [Achievement] = [
+    Achievement(index: 1,
+                title: "The Journey Begins",
+                imageName: "a1_image",
+                description: "Reach Initiate.",
+                quote: "Every master was once an initiate."),
+
+    Achievement(index: 2,
+                title: "Trailblazer",
+                imageName: "a2_image",
+                description: "Reach Pioneer.",
+                quote: "Those who dare, lead the way."),
+
+    Achievement(index: 3,
+                title: "World Explorer",
+                imageName: "a3_image",
+                description: "Reach Explorer.",
+                quote: "Adventure begins where comfort ends."),
+
+    Achievement(index: 4,
+                title: "Against All Odds",
+                imageName: "a4_image",
+                description: "Reach Challenger.",
+                quote: "Greatness is forged in challenges."),
+
+    Achievement(index: 5,
+                title: "The Refiner's Flame",
+                imageName: "a5_image",
+                description: "Reach Refiner.",
+                quote: "Through refinement, we find destiny — you're halfway there."),
+
+    Achievement(index: 6,
+                title: "Path to Mastery",
+                imageName: "a6_image",
+                description: "Reach Master.",
+                quote: "Discipline transforms talent into mastery."),
+
+    Achievement(index: 7,
+                title: "The Conqueror",
+                imageName: "a7_image",
+                description: "Reach Conquerer.",
+                quote: "Victory belongs to the relentless."),
+
+    Achievement(index: 8,
+                title: "Beyond Limits",
+                imageName: "a8_image",
+                description: "Reach Ascendant.",
+                quote: "Rise above what you once thought impossible."),
+
+    Achievement(index: 9,
+                title: "Transcendent Being",
+                imageName: "a9_image",
+                description: "Reach Transcendent.",
+                quote: "Transcendence is not the end, but a new beginning."),
+
+    Achievement(index: 10,
+                title: "First Steps",
+                imageName: "a10_image",
+                description: "You earned your very first XP!",
+                quote: "Every journey begins with a single step."),
+
+    Achievement(index: 11,
+                title: "Flame of Discipline",
+                imageName: "a11_image",
+                description: "Reached level 10 in Discipline.",
+                quote: "Consistency beats intensity."),
+
+    Achievement(index: 12,
+                title: "Peak Performer",
+                imageName: "a12_image",
+                description: "Reached Level 10 in Fitness.",
+                quote: "Strength is built one rep at a time."),
+
+    Achievement(index: 13,
+                title: "Fuel of Champions",
+                imageName: "a13_image",
+                description: "Reached Level 10 in Fuel.",
+                quote: "Discipline at the table shapes results in the gym."),
+
+    Achievement(index: 14,
+                title: "Master Connector",
+                imageName: "a14_image",
+                description: "Reached Level 10 in Network.",
+                quote: "Your network is your net worth."),
+
+    Achievement(index: 15,
+                title: "Unbreakable Spirit",
+                imageName: "a15_image",
+                description: "Reached Level 10 in Resilience.",
+                quote: "The strongest steel is forged in the hottest fire."),
+
+    Achievement(index: 16,
+                title: "Wisdom Seeker",
+                imageName: "a16_image",
+                description: "Reached Level 10 in Wisdom.",
+                quote: "The beginning of wisdom is the search for it.")
+]
+
 struct DailyLog: Identifiable, Codable {
     var id: String { date }
     let date: String
@@ -123,6 +221,12 @@ struct IdentifiedString: Identifiable {
 }
 
 // MARK: - Ranks
+
+enum CelebrationEvent {
+    case rankUp(Rank, Rank?)
+    case achievement(Achievement)
+    case queuedAchievement(Achievement)
+}
 
 let ranks: [Rank] = [
     Rank(id: 1,  name: "Seeker",       emblemName: "seeker_emblem",       requiredXP: 0,
