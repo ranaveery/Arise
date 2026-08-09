@@ -1,9 +1,11 @@
 import SwiftUI
+import Combine
 import FirebaseAuth
 import FirebaseFirestore
 
 struct MainTabView: View {
     @Binding var isUserLoggedIn: Bool
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("animationsEnabled") private var animationsEnabled = true
     @State private var selectedTab: Tab = .home
     @State private var showCelebration = false
@@ -12,6 +14,7 @@ struct MainTabView: View {
     @State private var showAchievementCelebration = false
     @State private var pendingAchievement: Achievement? = nil
     @State private var queuedAchievement: Achievement? = nil
+    @State private var resetTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     @AppStorage("unlockedAchievementIndices") private var unlockedAchievementData: Data = Data()
     private var unlockedAchievementIndices: Set<Int> {
         get { (try? JSONDecoder().decode(Set<Int>.self, from: unlockedAchievementData)) ?? [] }
@@ -98,7 +101,20 @@ struct MainTabView: View {
         .animation(.easeOut(duration: 0.3), value: showAchievementCelebration)
         .onAppear {
             checkSessionGapAchievements()
+            runDailyResetIfNeeded()
         }
+        .onReceive(resetTimer) { _ in
+            runDailyResetIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                runDailyResetIfNeeded()
+            }
+        }
+    }
+
+    private func runDailyResetIfNeeded() {
+        DailyReset.performIfNeeded()
     }
 
     private func checkSessionGapAchievements() {

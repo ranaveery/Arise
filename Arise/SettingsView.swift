@@ -176,13 +176,15 @@ struct SettingsView: View {
             .navigationDestination(isPresented: $navigateToChangePassword) {
                 ChangePasswordView()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .ariseRescheduleNotifications)) { _ in
+                fetchUserTimesAndReschedule()
+            }
             .onAppear {
                 if let cached = UserDefaults.standard.dictionary(forKey: "cachedUserData") {
                     self.name = cached["name"] as? String ?? ""
                     self.userEmail = cached["email"] as? String ?? ""
                 }
-                loadUserData()
-                loadPreferences()
+                loadUserDataAndPreferences()
                 requestNotificationAuthorizationIfNeeded()
                 fetchUserTimesAndReschedule()
             }
@@ -376,40 +378,33 @@ struct SettingsView: View {
         }
     }
 
-    private func loadPreferences() {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        let db = Firestore.firestore()
-        db.collection("users").document(uid).getDocument { snapshot, _ in
-            if let data = snapshot?.data() {
-                if let notifications = data["notifications"] as? [String: Bool] {
-                    expiringTasks = notifications["expiringTasks"] ?? true
-                    newTasks = notifications["newTasks"] ?? true
-                    sleepTime = notifications["sleepTime"] ?? true
-                }
-                if let animationsPref = data["animationsEnabled"] as? Bool {
-                    animationsEnabled = animationsPref
-                }
-            }
-            preferencesLoaded = true
+    private func loadUserDataAndPreferences() {
+        guard let uid = Auth.auth().currentUser?.uid else {
             DispatchQueue.main.async { self.isLoading = false }
+            return
         }
-    }
-
-    private func loadUserData() {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
         db.collection("users").document(uid).getDocument { snapshot, error in
-            if let data = snapshot?.data(), error == nil {
-                let fetchedName = sanitizeName(data["name"] as? String ?? "")
-                let fetchedEmail = data["email"] as? String ?? ""
-                DispatchQueue.main.async {
-                    self.name = fetchedName
-                    self.userEmail = fetchedEmail
-                    self.isLoading = false
-                }
-                UserDefaults.standard.set(["name": fetchedName, "email": fetchedEmail], forKey: "cachedUserData")
-            } else {
+            guard let data = snapshot?.data(), error == nil else {
                 DispatchQueue.main.async { self.isLoading = false }
+                return
+            }
+            let fetchedName = sanitizeName(data["name"] as? String ?? "")
+            let fetchedEmail = data["email"] as? String ?? ""
+            DispatchQueue.main.async {
+                self.name = fetchedName
+                self.userEmail = fetchedEmail
+                self.isLoading = false
+            }
+            UserDefaults.standard.set(["name": fetchedName, "email": fetchedEmail], forKey: "cachedUserData")
+
+            if let notifications = data["notifications"] as? [String: Bool] {
+                expiringTasks = notifications["expiringTasks"] ?? expiringTasks
+                newTasks = notifications["newTasks"] ?? newTasks
+                sleepTime = notifications["sleepTime"] ?? sleepTime
+            }
+            if let animationsPref = data["animationsEnabled"] as? Bool {
+                animationsEnabled = animationsPref
             }
         }
     }
@@ -489,26 +484,47 @@ struct SettingsView: View {
                                            body: String,
                                            hour: Int,
                                            minute: Int,
-                                           repeats: Bool = true) {
+                                           weekdays: [Int]? = nil) {
         // build content
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
 
-        // build calendar trigger
-        var comps = DateComponents()
-        comps.hour = hour
-        comps.minute = minute
+        if let weekdays, !weekdays.isEmpty {
+            // One repeating weekly trigger per weekday (a single DateComponents
+            // can only match one weekday). Calendar weekday: 1=Sun ... 7=Sat.
+            for weekday in weekdays {
+                var comps = DateComponents()
+                comps.weekday = weekday
+                comps.hour = hour
+                comps.minute = minute
 
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: repeats)
-        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+                let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
+                let request = UNNotificationRequest(identifier: "\(id).\(weekday)", content: content, trigger: trigger)
+                UNUserNotificationCenter.current().add(request) { _ in }
+            }
+        } else {
+            var comps = DateComponents()
+            comps.hour = hour
+            comps.minute = minute
 
-        UNUserNotificationCenter.current().add(request) { _ in }
+            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
+            let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+            UNUserNotificationCenter.current().add(request) { _ in }
+        }
     }
 
     private func cancelNotification(id: String) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+        // Also drop the per-weekday copies (`<id>.<weekday>`) scheduled by
+        // scheduleDailyNotification.
+        UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+            let prefixed = requests.filter { $0.identifier.hasPrefix(id + ".") }.map { $0.identifier }
+            if !prefixed.isEmpty {
+                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: prefixed)
+            }
+        }
     }
 
     private func timeFromMilitaryInt(_ intTime: Int) -> DateComponents {
@@ -539,72 +555,74 @@ struct SettingsView: View {
             return
         }
 
-        // pick weekday vs weekend based on today
-        let calendar = Calendar.current
-        let todaySystem = calendar.component(.weekday, from: Date()) // Sunday=1
-        let todayIndex = (todaySystem == 1) ? 7 : (todaySystem - 1) // convert to 1=Monday..7=Sunday
+        // Clear any previous copies first (including old bare-id schedules).
+        cancelNotification(id: NotificationIDs.bedTime)
 
-        let isWeekend = (todayIndex == 6 || todayIndex == 7)
+        // Weekday (Mon-Fri) and weekend (Sat-Sun) use their own wake times.
+        scheduleBedtimeVariant(data: wakeOrBedData, wakeKey: "wakeWeekday", sleepHoursKey: "sleepHoursWeekday", weekdays: [2, 3, 4, 5, 6])
+        scheduleBedtimeVariant(data: wakeOrBedData, wakeKey: "wakeWeekend", sleepHoursKey: "sleepHoursWeekend", weekdays: [7, 1])
+    }
 
-        let wakeKey = isWeekend ? "wakeWeekend" : "wakeWeekday"
-        let sleepHoursKey = isWeekend ? "sleepHoursWeekend" : "sleepHoursWeekday"
-
-        if let wakeInt = wakeOrBedData[wakeKey] as? Int,
-           let sleepHours = wakeOrBedData[sleepHoursKey] as? Double,
-           let wakeDate = Calendar.current.date(from: DateComponents(hour: wakeInt/100, minute: wakeInt%100)) {
-            // compute bedtime by subtracting sleepHours
-            if let bedtimeDate = Calendar.current.date(byAdding: .minute, value: Int(-sleepHours*60), to: wakeDate) {
-                // subtract 30 minutes for the notification
-                if let notifyDate = Calendar.current.date(byAdding: .minute, value: -30, to: bedtimeDate) {
-                    let comps = Calendar.current.dateComponents([.hour, .minute], from: notifyDate)
-                    scheduleDailyNotification(id: NotificationIDs.bedTime,
-                                              title: "Bedtime Reminder",
-                                              body: "It's almost bedtime — wind down for rest.",
-                                              hour: comps.hour ?? 0,
-                                              minute: comps.minute ?? 0)
-                    return
-                }
+    private func scheduleBedtimeVariant(data: [String: Any], wakeKey: String, sleepHoursKey: String, weekdays: [Int]) {
+        let id = NotificationIDs.bedTime
+        if let wakeInt = data[wakeKey] as? Int,
+           let sleepHours = data[sleepHoursKey] as? Double,
+           let wakeDate = Calendar.current.date(from: DateComponents(hour: wakeInt/100, minute: wakeInt%100)),
+           let bedtimeDate = Calendar.current.date(byAdding: .minute, value: Int(-sleepHours*60), to: wakeDate),
+           let notifyDate = Calendar.current.date(byAdding: .minute, value: -30, to: bedtimeDate) {
+            let comps = Calendar.current.dateComponents([.hour, .minute], from: notifyDate)
+            scheduleDailyNotification(id: id,
+                                      title: "Bedtime Reminder",
+                                      body: "It's almost bedtime — wind down for rest.",
+                                      hour: comps.hour ?? 0,
+                                      minute: comps.minute ?? 0,
+                                      weekdays: weekdays)
+        } else {
+            // couldn't compute this variant's time; remove any copies for these weekdays
+            for weekday in weekdays {
+                cancelNotification(id: "\(id).\(weekday)")
             }
         }
-
-        // fallback: cancel if we couldn't compute
-        cancelNotification(id: NotificationIDs.bedTime)
     }
 
     private func scheduleNewTasksNotificationIfNeeded(userData: [String: Any]) {
-        if !newTasks {
+        guard newTasks else {
             cancelNotification(id: NotificationIDs.newTasks)
             return
         }
 
-        // Decide wake key depending on weekday/weekend similar to above
-        let calendar = Calendar.current
-        let todaySystem = calendar.component(.weekday, from: Date()) // Sunday=1
-        let todayIndex = (todaySystem == 1) ? 7 : (todaySystem - 1)
-        let isWeekend = (todayIndex == 6 || todayIndex == 7)
-        let wakeKey = isWeekend ? "wakeWeekend" : "wakeWeekday"
+        // Clear any previous copies first (including old bare-id schedules).
+        cancelNotification(id: NotificationIDs.newTasks)
 
-        if let wakeInt = userData[wakeKey] as? Int {
-            // compute wake time + 30 minutes
-            let hour = wakeInt / 100
-            let minute = wakeInt % 100
-            var comps = DateComponents()
-            comps.hour = hour
-            comps.minute = minute
-            if let wakeDate = Calendar.current.date(from: comps),
-               let notifyDate = Calendar.current.date(byAdding: .minute, value: 30, to: wakeDate) {
-                let final = Calendar.current.dateComponents([.hour, .minute], from: notifyDate)
-                scheduleDailyNotification(id: NotificationIDs.newTasks,
-                                          title: "New Tasks Assigned",
-                                          body: "Your daily tasks are here — check your list and get started!",
-                                          hour: final.hour ?? 0,
-                                          minute: final.minute ?? 0)
-                return
+        scheduleNewTasksVariant(data: userData, wakeKey: "wakeWeekday", weekdays: [2, 3, 4, 5, 6])
+        scheduleNewTasksVariant(data: userData, wakeKey: "wakeWeekend", weekdays: [7, 1])
+    }
+
+    private func scheduleNewTasksVariant(data: [String: Any], wakeKey: String, weekdays: [Int]) {
+        let id = NotificationIDs.newTasks
+        guard let wakeInt = data[wakeKey] as? Int else {
+            for weekday in weekdays {
+                cancelNotification(id: "\(id).\(weekday)")
             }
+            return
         }
 
-        // fallback
-        cancelNotification(id: NotificationIDs.newTasks)
+        let hour = wakeInt / 100
+        let minute = wakeInt % 100
+        if let wakeDate = Calendar.current.date(from: DateComponents(hour: hour, minute: minute)),
+           let notifyDate = Calendar.current.date(byAdding: .minute, value: 30, to: wakeDate) {
+            let final = Calendar.current.dateComponents([.hour, .minute], from: notifyDate)
+            scheduleDailyNotification(id: id,
+                                      title: "New Tasks Assigned",
+                                      body: "Your daily tasks are here — check your list and get started!",
+                                      hour: final.hour ?? 0,
+                                      minute: final.minute ?? 0,
+                                      weekdays: weekdays)
+        } else {
+            for weekday in weekdays {
+                cancelNotification(id: "\(id).\(weekday)")
+            }
+        }
     }
 
 

@@ -777,15 +777,11 @@ struct TrendsView: View {
     // MARK: - Helpers
 
     private func dateFromISO(_ str: String) -> Date? {
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-        return fmt.date(from: str)
+        AriseDate.date(fromISO: str)
     }
 
     private func isoDateString(from date: Date) -> String {
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-        return fmt.string(from: date)
+        AriseDate.isoString(from: date)
     }
 
     private func formatXP(_ xp: Double) -> String {

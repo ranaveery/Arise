@@ -1,5 +1,7 @@
 import SwiftUI
 import CryptoKit
+import FirebaseAuth
+import FirebaseFirestore
 
 // MARK: - Constants
 
@@ -218,6 +220,90 @@ struct IdentifiedString: Identifiable {
     let id: String
     init(_ value: String) { self.id = value }
     var value: String { id }
+}
+
+// MARK: - Shared Services
+
+extension Notification.Name {
+    /// Posted after preferences are saved so the Settings screen can reschedule
+    /// notifications without needing to be reopened.
+    static let ariseRescheduleNotifications = Notification.Name("arise.rescheduleNotifications")
+}
+
+/// Single source of truth for the "yyyy-MM-dd" day string used for task IDs,
+/// daily logs, and reset tracking. Always formats and parses in the device's
+/// current time zone so round-tripping is consistent.
+enum AriseDate {
+    static func isoString(from date: Date) -> String {
+        formatter().string(from: date)
+    }
+    static func date(fromISO str: String) -> Date? {
+        formatter().date(from: str)
+    }
+    private static func formatter() -> DateFormatter {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.timeZone = TimeZone.current
+        return fmt
+    }
+}
+
+/// Single source of truth for achievement unlock rules, shared by the celebration
+/// path (LoggingView) and the achievement gallery (RankDetailsView).
+enum AchievementEngine {
+    static func isUnlocked(_ achievement: Achievement, totalXP: Int, currentRankId: Int, skillXP: [String: Int]) -> Bool {
+        switch achievement.index {
+        case 1: return currentRankId >= 2
+        case 2: return currentRankId >= 3
+        case 3: return currentRankId >= 4
+        case 4: return currentRankId >= 5
+        case 5: return currentRankId >= 6
+        case 6: return currentRankId >= 7
+        case 7: return currentRankId >= 8
+        case 8: return currentRankId >= 9
+        case 9: return currentRankId >= 10
+        case 10: return totalXP > 0
+        case 11: return calculateSkillLevel(from: skillXP["Discipline"] ?? 0) >= 10
+        case 12: return calculateSkillLevel(from: skillXP["Fitness"] ?? 0) >= 10
+        case 13: return calculateSkillLevel(from: skillXP["Fuel"] ?? 0) >= 10
+        case 14: return calculateSkillLevel(from: skillXP["Network"] ?? 0) >= 10
+        case 15: return calculateSkillLevel(from: skillXP["Resilience"] ?? 0) >= 10
+        case 16: return calculateSkillLevel(from: skillXP["Wisdom"] ?? 0) >= 10
+        default: return false
+        }
+    }
+}
+
+/// App-wide daily rollover. Clears today-scoped fields on the user document and
+/// prunes old `dailyLogs` entries when the calendar day changes. Runs from
+/// MainTabView (always mounted), so it no longer depends on the Tasks tab.
+enum DailyReset {
+    static func performIfNeeded() {
+        let today = AriseDate.isoString(from: Date())
+        let defaults = UserDefaults.standard
+        guard defaults.string(forKey: "lastResetDate") != today else { return }
+        defaults.set(today, forKey: "lastResetDate")
+
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let userRef = Firestore.firestore().collection("users").document(uid)
+        userRef.updateData([
+            "completedTasks": [],
+            "todaySkillXP": [:],
+            "todayCompletedTaskDetails": []
+        ]) { _ in
+            userRef.getDocument { snapshot, _ in
+                guard let rawLogs = snapshot?.data()?["dailyLogs"] as? [String: Any] else { return }
+                let cutoff = AriseDate.isoString(from: Calendar.current.date(byAdding: .day, value: -120, to: Date()) ?? Date())
+                var stale: [String: Any] = [:]
+                for key in rawLogs.keys where key < cutoff {
+                    stale["dailyLogs.\(key)"] = FieldValue.delete()
+                }
+                if !stale.isEmpty {
+                    userRef.updateData(stale)
+                }
+            }
+        }
+    }
 }
 
 // MARK: - Ranks

@@ -139,48 +139,13 @@ struct RankDetailsView: View {
     private func updateAchievements() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let userRef = Firestore.firestore().collection("users").document(uid)
+        let skillXP: [String: Int] = Dictionary(uniqueKeysWithValues: skillXPs.map { ($0.name, $0.xp) })
+
         achievements = achievements.map { achievement in
             var updated = achievement
 
-            switch achievement.index {
-            // --- Rank based ---
-            case 1 where currentRankId >= 2: // Initiate
+            if AchievementEngine.isUnlocked(achievement, totalXP: Int(currentXP), currentRankId: currentRankId, skillXP: skillXP) {
                 updated.unlocked = true
-            case 2 where currentRankId >= 3: // Pioneer
-                updated.unlocked = true
-            case 3 where currentRankId >= 4: // Explorer
-                updated.unlocked = true
-            case 4 where currentRankId >= 5: // Challenger
-                updated.unlocked = true
-            case 5 where currentRankId >= 6: // Refiner
-                updated.unlocked = true
-            case 6 where currentRankId >= 7: // Master
-                updated.unlocked = true
-            case 7 where currentRankId >= 8: // Conquerer
-                updated.unlocked = true
-            case 8 where currentRankId >= 9: // Ascendant
-                updated.unlocked = true
-            case 9 where currentRankId >= 10: // Transcendent
-                updated.unlocked = true
-
-            // --- Progression based ---
-            case 10 where currentXP > 0: // First Steps
-                updated.unlocked = true
-            case 11 where skillXPs.first(where: { $0.name == "Discipline" })?.level ?? 0 >= 10:
-                updated.unlocked = true
-            case 12 where skillXPs.first(where: { $0.name == "Fitness" })?.level ?? 0 >= 10:
-                updated.unlocked = true
-            case 13 where skillXPs.first(where: { $0.name == "Fuel" })?.level ?? 0 >= 10:
-                updated.unlocked = true
-            case 14 where skillXPs.first(where: { $0.name == "Network" })?.level ?? 0 >= 10:
-                updated.unlocked = true
-            case 15 where skillXPs.first(where: { $0.name == "Resilience" })?.level ?? 0 >= 10:
-                updated.unlocked = true
-            case 16 where skillXPs.first(where: { $0.name == "Wisdom" })?.level ?? 0 >= 10:
-                updated.unlocked = true
-
-            default:
-                break
             }
 
             if updated.unlocked && updated.unlockedDate == nil {
@@ -190,15 +155,17 @@ struct RankDetailsView: View {
                 let monthYear = formatter.string(from: Date())
 
                 updated.unlockedDate = monthYear
-                
+
                 userRef.setData([
-                    "achievements.\(updated.index)" : [
+                    "achievements.\(updated.index)": [
                         "unlocked": true,
                         "unlockedDate": monthYear
                     ]
-                ], merge: true)
+                ], merge: true) { error in
+                    // Silence the error here: the gallery still shows the unlock, and
+                    // the next snapshot will retry the persistence.
+                }
             }
-
 
             return updated
         }

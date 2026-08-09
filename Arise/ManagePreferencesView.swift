@@ -430,6 +430,8 @@ struct ManagePreferencesView: View {
 
             DispatchQueue.main.async {
                 isSaving = false
+                // Wake/sleep times changed, so refresh the scheduled notifications.
+                NotificationCenter.default.post(name: .ariseRescheduleNotifications, object: nil)
                 if animationsEnabled {
                     withAnimation { savedSuccessfully = true }
                 } else {

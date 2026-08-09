@@ -170,7 +170,7 @@ struct LoggingView: View {
 
     private var headerView: some View {
         VStack(spacing: 4) {
-            Text("Tasks")
+            Text("Your tasks")
                 .font(.system(size: 28, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -726,6 +726,9 @@ extension LoggingView {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let userRef = Firestore.firestore().collection("users").document(uid)
         let todayStr = isoDateString(from: Date())
+        let assignedIDs = Set(assignedTasks.map { $0.id })
+        guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) else { return }
+        let yesterdayStr = isoDateString(from: yesterday)
 
         userRef.firestore.runTransaction({ transaction, errorPointer -> Any? in
             let snapshot: DocumentSnapshot
@@ -775,13 +778,28 @@ extension LoggingView {
                 }
             }
 
-            transaction.updateData([
+            var updates: [String: Any] = [
                 "skills": skills,
                 "xp": totalSkillXP,
                 "completedTasks": mutableCompleted,
                 "todaySkillXP": todaySkillXP,
                 "todayCompletedTaskDetails": mutableDetails
-            ], forDocument: userRef)
+            ]
+
+            // Revert today's streak increment when this undo breaks the full-set
+            // completion that earned it (and keep the record consistent).
+            let currentStreak = data["streak"] as? Int ?? 0
+            let lastStreakDate = data["lastStreakDate"] as? String ?? ""
+            let fullSetNow = !assignedIDs.isEmpty && assignedIDs.isSubset(of: Set(mutableCompleted))
+            var resultStreak = currentStreak
+            if !fullSetNow && lastStreakDate == todayStr {
+                resultStreak = max(0, currentStreak - 1)
+                updates["streak"] = resultStreak
+                updates["lastStreakDate"] = resultStreak == 0 ? "" : yesterdayStr
+                updates["longestStreak"] = self.recomputeLongestStreak(currentStreak: resultStreak, from: data, excludingDay: todayStr)
+            }
+
+            transaction.updateData(updates, forDocument: userRef)
 
             transaction.updateData([
                 "dailyLogs.\(todayStr)": [
@@ -789,17 +807,20 @@ extension LoggingView {
                     "xpGained": todaySkillXP.values.reduce(0, +),
                     "skillXP": todaySkillXP,
                     "totalPossibleXP": self.todayTotalPossibleXP,
-                    "streak": data["streak"] as? Int ?? 0,
+                    "streak": resultStreak,
                     "timestamp": FieldValue.serverTimestamp()
                 ]
             ], forDocument: userRef)
 
-            return ["completed": mutableCompleted, "taskSkillXP": taskSkillXP]
+            return ["completed": mutableCompleted, "streak": resultStreak, "taskSkillXP": taskSkillXP]
         }) { result, error in
             guard error == nil, let payload = result as? [String: Any] else { return }
             if let completed = payload["completed"] as? [String] {
                 DispatchQueue.main.async {
                     completedTaskIDs = completed
+                    if let newStreak = payload["streak"] as? Int {
+                        streak = newStreak
+                    }
                     if let skillXP = payload["taskSkillXP"] as? [String: Int] {
                         var current = self.userData["todaySkillXP"] as? [String: Int] ?? [:]
                         for (key, add) in skillXP {
@@ -811,6 +832,21 @@ extension LoggingView {
                 }
             }
         }
+    }
+
+    /// Recomputes the all-time best streak from the `dailyLogs` history plus the
+    /// current streak, ignoring the entry for `excludingDay` (which is being
+    /// rewritten by the caller).
+    private func recomputeLongestStreak(currentStreak: Int, from data: [String: Any], excludingDay: String) -> Int {
+        var best = currentStreak
+        if let rawLogs = data["dailyLogs"] as? [String: Any] {
+            for (key, entry) in rawLogs where key != excludingDay {
+                if let log = entry as? [String: Any], let logged = log["streak"] as? Int {
+                    best = max(best, logged)
+                }
+            }
+        }
+        return best
     }
 
     private func normalizeSkillsMap(_ any: Any?) -> [String: [String: Int]] {
@@ -829,7 +865,10 @@ extension LoggingView {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         streak = 0
         Firestore.firestore().collection("users").document(uid)
-            .updateData(["streak": 0])
+            .updateData(["streak": 0]) { _ in
+                // Local streak already reset; a failed write is reconciled by the
+                // next fetch (continuity check rewrites it).
+            }
     }
     
     @discardableResult
@@ -849,32 +888,11 @@ extension LoggingView {
         let computedRankId = ranks.last(where: { Double(totalXP) >= $0.requiredXP })?.id ?? 0
         let existingUnlocked = (try? JSONDecoder().decode(Set<Int>.self, from: UserDefaults.standard.data(forKey: "unlockedAchievementIndices") ?? Data())) ?? []
         var newlyUnlocked: [Achievement] = []
+        let skillXP = skills.mapValues { $0["xp"] ?? 0 }
 
         for achievement in allAchievements {
             guard !existingUnlocked.contains(achievement.index) else { continue }
-
-            let shouldUnlock: Bool = {
-                switch achievement.index {
-                case 1 where computedRankId >= 2: return true
-                case 2 where computedRankId >= 3: return true
-                case 3 where computedRankId >= 4: return true
-                case 4 where computedRankId >= 5: return true
-                case 5 where computedRankId >= 6: return true
-                case 6 where computedRankId >= 7: return true
-                case 7 where computedRankId >= 8: return true
-                case 8 where computedRankId >= 9: return true
-                case 9 where computedRankId >= 10: return true
-                case 10 where totalXP > 0: return true
-                case 11 where calculateSkillLevel(from: skills["Discipline"]?["xp"] ?? 0) >= 10: return true
-                case 12 where calculateSkillLevel(from: skills["Fitness"]?["xp"] ?? 0) >= 10: return true
-                case 13 where calculateSkillLevel(from: skills["Fuel"]?["xp"] ?? 0) >= 10: return true
-                case 14 where calculateSkillLevel(from: skills["Network"]?["xp"] ?? 0) >= 10: return true
-                case 15 where calculateSkillLevel(from: skills["Resilience"]?["xp"] ?? 0) >= 10: return true
-                case 16 where calculateSkillLevel(from: skills["Wisdom"]?["xp"] ?? 0) >= 10: return true
-                default: return false
-                }
-            }()
-            guard shouldUnlock else { continue }
+            guard AchievementEngine.isUnlocked(achievement, totalXP: totalXP, currentRankId: computedRankId, skillXP: skillXP) else { continue }
 
             var unlocked = achievement
             let formatter = DateFormatter()
@@ -896,7 +914,10 @@ extension LoggingView {
                     "unlocked": true,
                     "unlockedDate": unlocked.unlockedDate ?? ""
                 ]
-            ], merge: true)
+            ], merge: true) { _ in
+                // The unlock index is already cached in UserDefaults, so a failed
+                // write is silently retried on the next completion event.
+            }
         }
 
         if let first = newlyUnlocked.first {
@@ -927,39 +948,12 @@ extension LoggingView {
     private func checkForMidnightReset() {
         let today = isoDateString(from: Date())
         guard lastResetDate != today else { return }
-        lastResetDate = today
-        completedTaskIDs.removeAll()
-        guard let uid = Auth.auth().currentUser?.uid else {
-            fetchUserData()
-            return
-        }
-        let userRef = Firestore.firestore().collection("users").document(uid)
-
         // Daily logs are written into the user document on every task completion
-        // (`dailyLogs.<date>`), so history is already persisted here. Midnight only
-        // resets the today-tracking fields and bounds the log map size.
-        userRef.updateData([
-            "completedTasks": [],
-            "todaySkillXP": [:],
-            "todayCompletedTaskDetails": []
-        ]) { _ in
-            self.pruneDailyLogs(userRef: userRef)
-            self.fetchUserData()
-        }
-    }
-
-    /// Drops `dailyLogs` entries older than 120 days so the in-document map stays small.
-    private func pruneDailyLogs(userRef: DocumentReference) {
-        userRef.getDocument { snapshot, _ in
-            guard let rawLogs = snapshot?.data()?["dailyLogs"] as? [String: Any] else { return }
-            let cutoff = self.isoDateString(from: Calendar.current.date(byAdding: .day, value: -120, to: Date()) ?? Date())
-            var stale: [String: Any] = [:]
-            for key in rawLogs.keys where key < cutoff {
-                stale["dailyLogs.\(key)"] = FieldValue.delete()
-            }
-            guard !stale.isEmpty else { return }
-            userRef.updateData(stale)
-        }
+        // (`dailyLogs.<date>`), so history is already persisted. DailyReset only
+        // clears the today-tracking fields and prunes old log entries.
+        DailyReset.performIfNeeded()
+        completedTaskIDs.removeAll()
+        fetchUserData()
     }
     
     // Helper: coerce various Firestore array types to [Int]
@@ -978,10 +972,7 @@ extension LoggingView {
 // MARK: - Date & time helpers
 extension LoggingView {
     private func isoDateString(from date: Date) -> String {
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-        fmt.timeZone = TimeZone.current
-        return fmt.string(from: date)
+        AriseDate.isoString(from: date)
     }
     
     func timeRemainingString() -> String {

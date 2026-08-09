@@ -338,19 +338,32 @@ struct HomeView: View {
 
     private func syncRank(_ rankName: String, uid: String) {
         Firestore.firestore().collection("users").document(uid)
-            .updateData(["rank": rankName])
+            .updateData(["rank": rankName]) { _ in
+                // Failure is silent: the rank is recomputed and re-synced on every
+                // snapshot, so a lost write is corrected on the next event.
+            }
     }
 
     private func safeForUserDefaults(_ dict: [String: Any]) -> [String: Any] {
+        // Whitelist only small scalar fields for the offline cache. Everything else
+        // (e.g. the up-to-120-day `dailyLogs` map) would bloat UserDefaults on every
+        // snapshot.
+        let allowedKeys: Set<String> = [
+            "name", "email", "rank", "xp", "streak", "longestStreak",
+            "lastStreakDate", "animationsEnabled", "todayTotalPossibleXP",
+            "wakeWeekday", "wakeWeekend", "sleepWeekday", "sleepWeekend",
+            "notifications", "skills", "achievements", "createdAt"
+        ]
         var safe = [String: Any]()
-        for (key, value) in dict {
+        for key in allowedKeys {
+            guard let value = dict[key] else { continue }
             if let ts = value as? Timestamp {
                 let formatter = DateFormatter()
                 formatter.dateFormat = "MMM yyyy"
                 formatter.locale = Locale(identifier: "en_US_POSIX")
                 safe[key] = formatter.string(from: ts.dateValue())
             } else if let subDict = value as? [String: Any] {
-                safe[key] = safeForUserDefaults(subDict)
+                safe[key] = subDict
             } else {
                 safe[key] = value
             }
