@@ -16,101 +16,132 @@ struct ChangePasswordView: View {
     let gradient = LinearGradient.brand
     
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Change Password")
-                .font(.title.bold())
-                .foregroundColor(.white)
-                .padding(.top, 40)
-            
-            ScrollView {
-                VStack(spacing: 20) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Change Password")
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
+
+                VStack(spacing: 0) {
                     if step == 1 {
-                        SecureField("Current Password", text: $currentPassword)
-                            .padding()
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(12)
-                            .foregroundColor(.white)
-                            .textInputAutocapitalization(.never)
-                            .accessibilityLabel("Current password")
-                        
+                        formField(label: "Current Password") {
+                            SecureField("Enter current password", text: $currentPassword)
+                                .foregroundColor(.white)
+                                .textInputAutocapitalization(.never)
+                                .accessibilityLabel("Current password")
+                        }
+
                         Button(action: verifyCurrentPassword) {
-                            if isLoading {
-                                ProgressView().tint(.white)
-                            } else {
-                                Text("Verify")
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(gradient)
-                                    .cornerRadius(12)
+                            HStack {
+                                if isLoading {
+                                    ProgressView().tint(.white)
+                                } else {
+                                    Text("Verify")
+                                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                        .foregroundColor(.white)
+                                }
                             }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(LinearGradient.brand)
+                            .cornerRadius(12)
                         }
                         .accessibilityLabel("Verify current password")
-                        
-                        // --- RESET PASSWORD OPTION ---
-                        Button(action: sendResetPassword) {
-                            Text("Forgot Password? Reset via Email")
-                                .foregroundColor(.blue)
-                                .font(.footnote)
-                        }
-                        .accessibilityLabel("Reset password via email")
-                        .padding(.top, 10)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 16)
+
                     } else if step == 2 {
-                        SecureField("New Password", text: $newPassword)
-                            .padding()
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(12)
-                            .foregroundColor(.white)
-                            .textInputAutocapitalization(.never)
-                            .accessibilityLabel("New password")
-                        
-                        SecureField("Confirm New Password", text: $confirmPassword)
-                            .padding()
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(12)
-                            .foregroundColor(.white)
-                            .textInputAutocapitalization(.never)
-                            .accessibilityLabel("Confirm new password")
-                        
+                        formField(label: "New Password") {
+                            SecureField("Enter new password", text: $newPassword)
+                                .foregroundColor(.white)
+                                .textInputAutocapitalization(.never)
+                                .accessibilityLabel("New password")
+                        }
+
+                        formField(label: "Confirm New Password") {
+                            SecureField("Re-enter new password", text: $confirmPassword)
+                                .foregroundColor(.white)
+                                .textInputAutocapitalization(.never)
+                                .accessibilityLabel("Confirm new password")
+                        }
+
                         Button(action: updatePassword) {
-                            if isLoading {
-                                ProgressView().tint(.white)
-                            } else {
-                                Text("Update Password")
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(gradient)
-                                    .cornerRadius(12)
+                            HStack {
+                                if isLoading {
+                                    ProgressView().tint(.white)
+                                } else {
+                                    Text("Update Password")
+                                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                        .foregroundColor(.white)
+                                }
                             }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(LinearGradient.brand)
+                            .cornerRadius(12)
                         }
                         .accessibilityLabel("Update password")
-                    }
-                    
-                    if !errorMessage.isEmpty {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                            .font(.footnote)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                    
-                    if !successMessage.isEmpty {
-                        Text(successMessage)
-                            .foregroundColor(.green)
-                            .font(.footnote)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 16)
                     }
                 }
-                .padding()
+                .background(Color.white.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                )
+
+                if step == 1 {
+                    Button(action: sendResetPassword) {
+                        Text("Forgot Password? Reset via Email")
+                            .font(.system(size: 13))
+                            .foregroundColor(.white.opacity(0.4))
+                    }
+                    .accessibilityLabel("Reset password via email")
+                }
+
+                if !errorMessage.isEmpty {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .font(.system(size: 13))
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal)
+                }
+
+                if !successMessage.isEmpty {
+                    Text(successMessage)
+                        .foregroundColor(.green)
+                        .font(.system(size: 13))
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal)
+                }
             }
-            .scrollIndicators(.hidden)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 48)
         }
+        .scrollIndicators(.hidden)
         .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)
+    }
+
+    private func formField(label: String, @ViewBuilder content: @escaping () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.white.opacity(0.5))
+            content()
+                .font(.system(size: 15))
+                .padding(12)
+                .background(Color.white.opacity(0.07))
+                .cornerRadius(10)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
     }
     
     private func verifyCurrentPassword() {

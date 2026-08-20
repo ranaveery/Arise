@@ -45,9 +45,10 @@ struct ManagePreferencesView: View {
         ScrollView {
             VStack(spacing: 24) {
                 Text("Manage Preferences")
-                    .font(.title.bold())
-                    .foregroundStyle(gradient)
-                    .padding(.top)
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
 
                 focusSection
                 wakeWeekdaySection
@@ -94,7 +95,7 @@ struct ManagePreferencesView: View {
                         }
                         .padding()
                         .background(Color.white.opacity(0.05))
-                        .cornerRadius(10)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .accessibilityLabel(option)
                     .accessibilityAddTraits(majorFocus == option ? .isSelected : [])
@@ -177,14 +178,14 @@ struct ManagePreferencesView: View {
                         savedSuccessfully = false
                     } label: {
                         Text(weekLetters[day - 1])
-                            .font(.subheadline.bold())
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundColor(coldShowerDays.contains(day) ? .white : .gray)
                             .padding(.vertical, 8)
                             .frame(minWidth: 35)
                             .background(
                                 coldShowerDays.contains(day)
-                                ? AnyView(RoundedRectangle(cornerRadius: 8).fill(gradient))
-                                : AnyView(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10)))
+                                ? AnyView(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.15)))
+                                : AnyView(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.05)))
                             )
                     }
                     .accessibilityLabel(dayNames[day - 1])
@@ -216,7 +217,7 @@ struct ManagePreferencesView: View {
                             }
                             .padding()
                             .background(Color.white.opacity(0.05))
-                            .cornerRadius(10)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
                         .accessibilityLabel(option)
                         .accessibilityAddTraits(selectedActivities.keys.contains(option) ? .isSelected : [])
@@ -235,14 +236,14 @@ struct ManagePreferencesView: View {
                                         savedSuccessfully = false
                                     } label: {
                                         Text(weekLetters[day - 1])
-                                            .font(.subheadline.bold())
+                                            .font(.system(size: 13, weight: .semibold, design: .rounded))
                                             .foregroundColor(days.contains(day) ? .white : .gray)
                                             .padding(.vertical, 8)
                                             .frame(minWidth: 35)
                                             .background(
                                                 days.contains(day)
-                                                ? AnyView(RoundedRectangle(cornerRadius: 8).fill(gradient))
-                                                : AnyView(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10)))
+                                                ? AnyView(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.15)))
+                                                : AnyView(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.05)))
                                             )
                                     }
                                     .accessibilityLabel(dayNames[day - 1])
@@ -263,12 +264,23 @@ struct ManagePreferencesView: View {
                     ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .frame(maxWidth: .infinity, minHeight: 50)
                 } else {
-                    Text(savedSuccessfully ? "Saved" : "Save Changes")
-                        .bold()
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                        .background(gradient)
-                        .cornerRadius(12)
-                        .foregroundColor(.white)
+                    Group {
+                        if savedSuccessfully {
+                            Text("Saved")
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundColor(.white)
+                        } else {
+                            Text("Save Changes")
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(LinearGradient.brand)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(
+                            savedSuccessfully
+                                ? AnyView(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.07)))
+                                : AnyView(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.07)).overlay(RoundedRectangle(cornerRadius: 12).stroke(LinearGradient.brand, lineWidth: 1)))
+                        )
                 }
             }
         }
@@ -329,16 +341,24 @@ struct ManagePreferencesView: View {
                     expandedSection = (expandedSection == title ? nil : title)
                 }
             } label: {
-                HStack {
-                    Image(systemName: systemImage).foregroundStyle(gradient)
+                HStack(spacing: 12) {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.45))
+                        .frame(width: 20)
                     Text(title).foregroundColor(.white)
                     Spacer()
                     Image(systemName: expandedSection == title ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.gray)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.2))
                 }
                 .padding()
-                .background(Color.white.opacity(0.03))
-                .cornerRadius(12)
+                .background(Color.white.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                )
             }
             .accessibilityLabel(title)
             .accessibilityAddTraits(.isHeader)
@@ -350,7 +370,11 @@ struct ManagePreferencesView: View {
                 }
                 .padding()
                 .background(Color.white.opacity(0.05))
-                .cornerRadius(12)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                )
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }

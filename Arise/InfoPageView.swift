@@ -17,22 +17,34 @@ struct InfoPageView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(title)
-                        .font(.largeTitle.weight(.bold))
-                        .foregroundStyle(LinearGradient.brand)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 16)
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 8)
 
-                    ForEach(sections) { section in
-                        sectionRow(icon: section.icon, title: section.title, description: section.description)
+                    VStack(spacing: 0) {
+                        ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
+                            sectionRow(icon: section.icon, title: section.title, description: section.description)
+                            if index < sections.count - 1 {
+                                Divider()
+                                    .background(Color.white.opacity(0.06))
+                                    .padding(.leading, 44)
+                            }
+                        }
                     }
+                    .background(Color.white.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                    )
 
                     Text(footer)
-                        .font(.footnote)
-                        .foregroundColor(.white.opacity(0.6))
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.35))
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
+                        .padding(.vertical, 16)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 48)
@@ -48,21 +60,22 @@ struct InfoPageView: View {
     private func sectionRow(icon: String, title: String, description: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(.white.opacity(0.9))
-                .frame(width: 36, alignment: .center)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.white.opacity(0.45))
+                .frame(width: 20)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.headline)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
 
                 Text(description)
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.85))
+                    .font(.system(size: 13))
+                    .foregroundColor(.white.opacity(0.5))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
     }
 }

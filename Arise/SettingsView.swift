@@ -49,141 +49,135 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 26) {
-                    // HEADER
-                    VStack(spacing: 4) {
-                        Text("Settings")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-
-                        Text("Customize your experience")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                    .padding(.top, 20)
-
+                VStack(spacing: 24) {
                     if isLoading {
                         ProgressView()
                             .tint(.white)
-                            .padding(.top, 60)
+                            .padding(.top, 40)
                     } else {
-                        // ACCOUNT (title + card grouped)
+                        // ACCOUNT
                         sectionBlock("ACCOUNT") {
-                        inputRow(systemImage: "person", label: "Name", binding: $name, isEditable: true) {
-                            saveNameToFirestore(name)
+                            inputRow(systemImage: "person", label: "Name", binding: $name, isEditable: true) {
+                                saveNameToFirestore(name)
+                            }
+                            .accessibilityLabel("Name")
+                            dividerLine()
+                            inputRow(systemImage: "envelope",
+                                     label: "Email",
+                                     binding: .constant(userEmail.isEmpty ? "No email set" : userEmail),
+                                     isEditable: false)
+                            dividerLine()
+                            userIDRow
+                            dividerLine()
+                            navRow(systemImage: "slider.horizontal.3", label: "Preferences") { ManagePreferencesView() }
+                            dividerLine()
+                            buttonRow(systemImage: "lock.rotation", label: "Change Password") {
+                                if let provider = Auth.auth().currentUser?.providerData.first?.providerID,
+                                   provider == "password" {
+                                    navigateToChangePassword = true
+                                } else {
+                                    showGoogleSignInAlert = true
+                                }
+                            }
+                            .accessibilityLabel("Change password")
+                            .alert(isPresented: $showGoogleSignInAlert) {
+                                Alert(
+                                    title: Text("Cannot Change Password"),
+                                    message: Text("This account uses Apple or Google sign-in. To change your password, update it from your Apple ID or Google Account settings."),
+                                    dismissButton: .default(Text("OK"))
+                                )
+                            }
+                            dividerLine()
+                            navRow(systemImage: "trash", label: "Delete Account") {
+                                DeleteAccountView(isUserLoggedIn: $isUserLoggedIn)
+                            }
+                            .accessibilityLabel("Delete account")
                         }
-                        .accessibilityLabel("Name")
-                        dividerLine()
-                        inputRow(systemImage: "envelope",
-                                 label: "Email",
-                                 binding: .constant(userEmail.isEmpty ? "No email set" : userEmail),
-                                 isEditable: false)
-                        dividerLine()
-                        navRow(systemImage: "slider.horizontal.3", label: "Preferences") { ManagePreferencesView() }
-                        dividerLine()
-                        buttonRow(systemImage: "lock.rotation", label: "Change Password") {
-                            if let provider = Auth.auth().currentUser?.providerData.first?.providerID,
-                               provider == "password" {
-                                navigateToChangePassword = true
-                            } else {
-                                showGoogleSignInAlert = true
+
+                        // NOTIFICATIONS
+                        sectionBlock("NOTIFICATIONS") {
+                            notificationsContent()
+                        }
+
+                        // APPEARANCE
+                        sectionBlock("APPEARANCE") {
+                            staticRow(systemImage: "circle.lefthalf.filled", label: "Mode", value: "Dark")
+                            dividerLine()
+                            Toggle(isOn: $animationsEnabled) {
+                                HStack(spacing: 12) {
+                                    plainIcon(systemImage: "circle.dotted.and.circle")
+                                    Text("Animations").foregroundColor(.white)
+                                }
+                            }
+                            .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
+                            .accessibilityLabel("Enable Animations")
+                            .accessibilityHint("Double tap to toggle")
+                            .padding(.horizontal)
+                            .padding(.vertical, 13)
+                            .onChange(of: animationsEnabled) { _, newValue in
+                                guard preferencesLoaded else { return }
+                                PreferenceManager.saveTopLevelPreference(key: "animationsEnabled", value: newValue)
                             }
                         }
-                        .accessibilityLabel("Change password")
-                        .alert(isPresented: $showGoogleSignInAlert) {
+
+                        // APP
+                        sectionBlock("APP") {
+                            appRow(systemImage: "questionmark.circle", label: "Help Center") { HelpCenterView() }
+                            dividerLine()
+                            appRow(systemImage: "doc.text", label: "Terms of Use") { TermsOfUseView() }
+                            dividerLine()
+                            buttonRow(systemImage: "lock.shield", label: "Privacy Policy") {
+                                if let url = URL(string: "https://ranaveery.github.io/Arise/") {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                            dividerLine()
+                            staticRow(systemImage: "info.circle", label: "Version", value: versionInfo)
+                            .accessibilityLabel("Version \(versionInfo)")
+                        }
+
+                        // LOG OUT
+                        Button(action: { showLogoutConfirmation = true }) {
+                            Text("Log Out")
+                                .fontWeight(.semibold)
+                                .font(.system(size: 15, design: .rounded))
+                                .foregroundColor(.white.opacity(0.7))
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 11)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.white.opacity(0.07))
+                                        .overlay(
+                                            Capsule()
+                                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                        )
+                                )
+                        }
+                        .accessibilityLabel("Log out")
+                        .accessibilityHint("Signs you out of your account")
+                        .alert(isPresented: $showLogoutConfirmation) {
                             Alert(
-                                title: Text("Cannot Change Password"),
-                                message: Text("This account uses Apple or Google sign-in. To change your password, update it from your Apple ID or Google Account settings."),
-                                dismissButton: .default(Text("OK"))
+                                title: Text("Are you sure?"),
+                                message: Text("Do you really want to log out?"),
+                                primaryButton: .destructive(Text("Log Out")) {
+                                    do {
+                                        let defaults = UserDefaults.standard
+                                        defaults.removeObject(forKey: "cachedUserData")
+                                        defaults.removeObject(forKey: "unlockedAchievementIndices")
+                                        defaults.removeObject(forKey: "lastResetDate")
+                                        defaults.removeObject(forKey: "lastRankId")
+                                        try Auth.auth().signOut()
+                                        isUserLoggedIn = false
+                                    } catch { }
+                                },
+                                secondaryButton: .cancel()
                             )
                         }
-                        dividerLine()
-                        navRow(systemImage: "trash", label: "Delete Account") {
-                            DeleteAccountView(isUserLoggedIn: $isUserLoggedIn)
-                        }
-                        .accessibilityLabel("Delete account")
-                    }
-
-                    // NOTIFICATIONS (title + card grouped)
-                    sectionBlock("NOTIFICATIONS") {
-                        notificationsContent()
-                    }
-
-                    // APPEARANCE
-                    sectionBlock("APPEARANCE") {
-                        staticRow(systemImage: "circle.lefthalf.filled", label: "Mode", value: "Dark")
-                        dividerLine()
-                        Toggle(isOn: $animationsEnabled) {
-                            HStack {
-                                Image(systemName: "circle.dotted.and.circle")
-                                    .foregroundColor(.gray)
-                                    .frame(width: 20)
-                                Text("Animations").foregroundColor(.white)
-                            }
-                        }
-                        .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
-                        .accessibilityLabel("Enable Animations")
-                        .accessibilityHint("Double tap to toggle")
-                        .padding(.horizontal)
-                        .padding(.vertical, 12)
-                        .onChange(of: animationsEnabled) { _, newValue in
-                            guard preferencesLoaded else { return }
-                            PreferenceManager.saveTopLevelPreference(key: "animationsEnabled", value: newValue)
-                        }
-                    }
-
-                    // APP / ABOUT
-                    sectionBlock("APP") {
-                        appRow(systemImage: "questionmark.circle", label: "Help Center") { HelpCenterView() }
-                        dividerLine()
-                        appRow(systemImage: "doc.text", label: "Terms of Use") { TermsOfUseView() }
-                        dividerLine()
-                        buttonRow(systemImage: "lock.shield", label: "Privacy Policy") {
-                            if let url = URL(string: "https://ranaveery.github.io/Arise/") {
-                                UIApplication.shared.open(url)
-                            }
-                        }
-                        dividerLine()
-                        userIDRow()
-                        dividerLine()
-                        staticRow(systemImage: "info.circle", label: "Version", value: versionInfo)
-                        .accessibilityLabel("Version \(versionInfo)")
-                    }
-
-                    // LOG OUT
-                    Button(action: { showLogoutConfirmation = true }) {
-                        Text("Log Out")
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                            .background(Capsule().fill(Color.white.opacity(0.1)))
-                    }
-                    .accessibilityLabel("Log out")
-                    .accessibilityHint("Signs you out of your account")
-                    .alert(isPresented: $showLogoutConfirmation) {
-                        Alert(
-                            title: Text("Are you sure?"),
-                            message: Text("Do you really want to log out?"),
-                            primaryButton: .destructive(Text("Log Out")) {
-                                do {
-                                    let defaults = UserDefaults.standard
-                                    defaults.removeObject(forKey: "cachedUserData")
-                                    defaults.removeObject(forKey: "unlockedAchievementIndices")
-                                    defaults.removeObject(forKey: "lastResetDate")
-                                    defaults.removeObject(forKey: "lastRankId")
-                                    try Auth.auth().signOut()
-                                    isUserLoggedIn = false
-                                } catch { }
-                            },
-                            secondaryButton: .cancel()
-                        )
-                    }
-                    .padding(.bottom, 100)
+                        .padding(.bottom, 100)
                     }
                 }
                 .padding(.horizontal)
-                .padding(.top)
+                .padding(.top, 8)
             }
             .background(Color.black.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
@@ -209,13 +203,15 @@ struct SettingsView: View {
 
 
 
+    // MARK: - Profile Card
     // MARK: - SECTION BLOCK (title + card grouped)
     private func sectionBlock<Content: View>(_ title: String,
                                              @ViewBuilder content: @escaping () -> Content) -> some View {
         VStack(spacing: 6) {
             Text(title)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(gradient)
+                .tracking(0.5)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 0)
 
@@ -231,8 +227,8 @@ struct SettingsView: View {
     @ViewBuilder
     private func notificationsContent() -> some View {
         Toggle(isOn: $expiringTasks) {
-            HStack {
-                Image(systemName: "clock.badge.exclamationmark").foregroundColor(.gray).frame(width: 20)
+            HStack(spacing: 12) {
+                plainIcon(systemImage: "clock.badge.exclamationmark")
                 Text("Expiring Tasks").foregroundColor(.white)
             }
         }
@@ -240,7 +236,7 @@ struct SettingsView: View {
         .accessibilityLabel("Enable Expiring Tasks notifications")
         .accessibilityHint("Double tap to toggle")
         .padding(.horizontal)
-        .padding(.vertical, 12)
+        .padding(.vertical, 13)
         .onChange(of: expiringTasks) { _, newValue in
             guard preferencesLoaded else { return }
             PreferenceManager.savePreference(key: "expiringTasks", value: newValue)
@@ -250,8 +246,8 @@ struct SettingsView: View {
         dividerLine()
 
         Toggle(isOn: $newTasks) {
-            HStack {
-                Image(systemName: "plus.square.on.square").foregroundColor(.gray).frame(width: 20)
+            HStack(spacing: 12) {
+                plainIcon(systemImage: "plus.square.on.square")
                 Text("New Tasks").foregroundColor(.white)
             }
         }
@@ -259,7 +255,7 @@ struct SettingsView: View {
         .accessibilityLabel("Enable New Tasks notifications")
         .accessibilityHint("Double tap to toggle")
         .padding(.horizontal)
-        .padding(.vertical, 12)
+        .padding(.vertical, 13)
         .onChange(of: newTasks) { _, newValue in
             guard preferencesLoaded else { return }
             PreferenceManager.savePreference(key: "newTasks", value: newValue)
@@ -269,8 +265,8 @@ struct SettingsView: View {
         dividerLine()
 
         Toggle(isOn: $sleepTime) {
-            HStack {
-                Image(systemName: "moon.fill").foregroundColor(.gray).frame(width: 20)
+            HStack(spacing: 12) {
+                plainIcon(systemImage: "moon.fill")
                 Text("Bedtime").foregroundColor(.white)
             }
         }
@@ -278,7 +274,7 @@ struct SettingsView: View {
         .accessibilityLabel("Enable Bedtime notifications")
         .accessibilityHint("Double tap to toggle")
         .padding(.horizontal)
-        .padding(.vertical, 12)
+        .padding(.vertical, 13)
         .onChange(of: sleepTime) { _, newValue in
             guard preferencesLoaded else { return }
             PreferenceManager.savePreference(key: "sleepTime", value: newValue)
@@ -294,66 +290,84 @@ struct SettingsView: View {
     }
 
     // MARK: - Reusable Rows
+    private func plainIcon(systemImage: String) -> some View {
+        Image(systemName: systemImage)
+            .foregroundColor(.white.opacity(0.45))
+            .frame(width: 20)
+    }
+
+    private var userIDRow: some View {
+        Button {
+            if let uid = Auth.auth().currentUser?.uid {
+                UIPasteboard.general.string = uid
+            }
+        } label: {
+            HStack(spacing: 12) {
+                plainIcon(systemImage: "number")
+                Text("User ID").foregroundColor(.white)
+                Spacer()
+                if let uid = Auth.auth().currentUser?.uid {
+                    let short = uid.count > 12 ? String(uid.prefix(8)) + "…" + String(uid.suffix(4)) : uid
+                    Text(short)
+                        .font(.system(size: 13, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.35))
+                }
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.35))
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 13)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Copy User ID")
+    }
+
     private func staticRow(systemImage: String, label: String, value: String) -> some View {
-        HStack {
-            Image(systemName: systemImage).foregroundColor(.white.opacity(0.5)).frame(width: 20)
+        HStack(spacing: 12) {
+            plainIcon(systemImage: systemImage)
             Text(label).foregroundColor(.white)
             Spacer()
-            Text(value).foregroundColor(.white.opacity(0.5))
+            Text(value).foregroundColor(.white.opacity(0.4))
+                .font(.system(size: 14))
         }
         .padding(.horizontal)
-        .padding(.vertical, 12)
+        .padding(.vertical, 13)
     }
 
     private func navRow<Destination: View>(systemImage: String, label: String, destination: @escaping () -> Destination) -> some View {
         NavigationLink(destination: destination()) {
-            HStack {
-                Image(systemName: systemImage).foregroundColor(.white.opacity(0.5)).frame(width: 20)
+            HStack(spacing: 12) {
+                plainIcon(systemImage: systemImage)
                 Text(label).foregroundColor(.white)
                 Spacer()
-                Image(systemName: "chevron.right").foregroundColor(.white.opacity(0.5))
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.2))
             }
             .padding(.horizontal)
-            .padding(.vertical, 12)
+            .padding(.vertical, 13)
         }
     }
 
     private func buttonRow(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack {
-                Image(systemName: systemImage).foregroundColor(.white.opacity(0.5)).frame(width: 20)
+            HStack(spacing: 12) {
+                plainIcon(systemImage: systemImage)
                 Text(label).foregroundColor(.white)
                 Spacer()
-                Image(systemName: "chevron.right").foregroundColor(.white.opacity(0.5))
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.2))
             }
             .padding(.horizontal)
-            .padding(.vertical, 12)
+            .padding(.vertical, 13)
         }
     }
 
     @ViewBuilder
     private func appRow<Destination: View>(systemImage: String, label: String, destination: @escaping () -> Destination) -> some View {
         navRow(systemImage: systemImage, label: label, destination: destination)
-    }
-
-    private func userIDRow() -> some View {
-        HStack {
-            Image(systemName: "grid.circle")
-                .foregroundColor(.white.opacity(0.5))
-                .frame(width: 20)
-            Text("User ID").foregroundColor(.white)
-            Spacer()
-            if let user = Auth.auth().currentUser {
-                Text(user.uid)
-                    .font(.footnote)
-                    .foregroundColor(.white.opacity(0.5))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
-            }
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 12)
     }
 
     private func inputRow(
@@ -363,10 +377,8 @@ struct SettingsView: View {
         isEditable: Bool,
         onCommit: (() -> Void)? = nil
     ) -> some View {
-        HStack {
-            Image(systemName: systemImage)
-                .foregroundColor(.white.opacity(0.5))
-                .frame(width: 20)
+        HStack(spacing: 12) {
+            plainIcon(systemImage: systemImage)
             Text(label)
                 .foregroundColor(.white)
             Spacer()
@@ -374,13 +386,13 @@ struct SettingsView: View {
                 EditableTextField(text: binding, onCommit: onCommit)
             } else {
                 Text(binding.wrappedValue)
-                    .foregroundColor(.white.opacity(0.5))
-                    .font(.footnote)
+                    .foregroundColor(.white.opacity(0.4))
+                    .font(.system(size: 14))
                     .multilineTextAlignment(.trailing)
             }
         }
         .padding(.horizontal)
-        .padding(.vertical, 12)
+        .padding(.vertical, 13)
     }
 
 
