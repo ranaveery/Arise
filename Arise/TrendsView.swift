@@ -130,7 +130,7 @@ struct TrendsView: View {
         let points = trendPoints
         guard points.count >= offset else { return 0 }
         let slice = points.dropFirst(max(0, points.count - offset - days)).prefix(days)
-        let done = slice.reduce(0) { $0 + $1.completedCount }
+        let done = slice.reduce(0) { $0 + $1.xpGained }
         let total = slice.reduce(0) { $0 + $1.totalPossible }
         return total > 0 ? Double(done) / Double(total) : 0
     }
@@ -162,7 +162,7 @@ struct TrendsView: View {
     }
 
     private var periodCompletionRate: Double {
-        let done = trendPoints.reduce(0) { $0 + $1.completedCount }
+        let done = trendPoints.reduce(0) { $0 + $1.xpGained }
         let total = trendPoints.reduce(0) { $0 + $1.totalPossible }
         return total > 0 ? min(Double(done) / Double(total), 1) : 0
     }
@@ -241,6 +241,8 @@ struct TrendsView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("\(option.rawValue) range")
+                .accessibilityAddTraits(selectedRange == option ? .isSelected : [])
             }
         }
         .padding(4)
@@ -346,6 +348,7 @@ struct TrendsView: View {
                     .stroke(Color.white.opacity(0.07), lineWidth: 1)
             )
         }
+        .accessibilityElement(children: .contain)
         .padding(.horizontal)
     }
 
@@ -427,6 +430,7 @@ struct TrendsView: View {
                     .stroke(Color.white.opacity(0.07), lineWidth: 1)
             )
         }
+        .accessibilityElement(children: .contain)
         .padding(.horizontal)
     }
 
@@ -750,6 +754,21 @@ struct TrendsView: View {
                 self.achievements = []
             }
 
+            if self.achievements.isEmpty {
+                let skillXP: [String: Int] = skillsData.mapValues { $0["xp"] ?? 0 }
+                let rankId = currentRank?.id ?? 1
+                self.achievements = allAchievements.compactMap { base in
+                    guard AchievementEngine.isUnlocked(base, totalXP: currentXP, currentRankId: rankId, skillXP: skillXP) else { return nil }
+                    var a = base
+                    a.unlocked = true
+                    let fmt = DateFormatter()
+                    fmt.dateFormat = "MMM yyyy"
+                    fmt.locale = Locale(identifier: "en_US_POSIX")
+                    a.unlockedDate = fmt.string(from: Date())
+                    return a
+                }
+            }
+
             if let rawLogs = data["dailyLogs"] as? [String: [String: Any]] {
                 var logs: [DailyLog] = []
                 for (dateStr, entry) in rawLogs {
@@ -808,7 +827,7 @@ struct TrendPoint: Identifiable {
 
     var completionRate: Double {
         guard totalPossible > 0 else { return 0 }
-        return min(Double(completedCount) / Double(totalPossible), 1)
+        return min(Double(xpGained) / Double(totalPossible), 1)
     }
 }
 

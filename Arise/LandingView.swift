@@ -16,6 +16,8 @@ struct LandingView: View {
     @State private var charIndex = 0
     
     @State private var animateLogo = false
+    @State private var authError: String? = nil
+    @State private var showAuthError = false
     
     private let phrases = [
         "A new you begins here",
@@ -43,6 +45,7 @@ struct LandingView: View {
                             .scaledToFit()
                             .frame(width: 150, height: 150)
                             .padding(.bottom, 20)
+                            .accessibilityHidden(true)
                             .scaleEffect(animateLogo ? 1.1 : 1.0)
                             .rotationEffect(.degrees(animateLogo ? 6 : 0))
                             .animation(.spring(response: 0.4, dampingFraction: 0.5), value: animateLogo)
@@ -79,6 +82,7 @@ struct LandingView: View {
                             .cornerRadius(12)
                             .foregroundColor(.white)
                         }
+                        .accessibilityLabel("Continue with Google")
                         
                         SignInWithAppleButton(.signIn, onRequest: { request in
                             let nonce = randomNonceString()
@@ -100,6 +104,7 @@ struct LandingView: View {
                         .frame(height: 50)
                         .cornerRadius(12)
                         .padding(.horizontal, 1)
+                        .accessibilityLabel("Continue with Apple")
                         
                         NavigationLink(destination: SignUpView(isUserLoggedIn: $isUserLoggedIn, showLogin: $showLogin)) {
                             Text("Sign up")
@@ -110,6 +115,7 @@ struct LandingView: View {
                                 .cornerRadius(14)
                                 .foregroundColor(.white)
                         }
+                        .accessibilityLabel("Create a new account")
 
                         NavigationLink(destination: LoginView(isUserLoggedIn: $isUserLoggedIn, showLogin: $showLogin)) {
                             Text("Log in")
@@ -126,6 +132,7 @@ struct LandingView: View {
                                 .foregroundColor(.white)
                                 .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
                         }
+                        .accessibilityLabel("Log in to existing account")
                     }
                     .padding(16)
                     .background(
@@ -147,6 +154,11 @@ struct LandingView: View {
                 }
             }
         }
+        .alert("Sign-In Failed", isPresented: $showAuthError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(authError ?? "An error occurred. Please try again.")
+        }
     }
     
     private func handleAppleSignIn(credential: ASAuthorizationAppleIDCredential) {
@@ -166,7 +178,11 @@ struct LandingView: View {
         )
         
         Auth.auth().signIn(with: firebaseCredential) { result, error in
-            if error != nil {
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.authError = error.localizedDescription
+                    self.showAuthError = true
+                }
                 return
             }
             
@@ -261,7 +277,11 @@ struct LandingView: View {
             additionalScopes: nil,
             nonce: nil
         ) { signInResult, error in
-            if error != nil {
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.authError = error.localizedDescription
+                    self.showAuthError = true
+                }
                 return
             }
             
@@ -276,7 +296,11 @@ struct LandingView: View {
             )
             
             Auth.auth().signIn(with: credential) { result, error in
-                if error != nil {
+                if let error = error {
+                    DispatchQueue.main.async {
+                        self.authError = error.localizedDescription
+                        self.showAuthError = true
+                    }
                     return
                 }
                 

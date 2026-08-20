@@ -86,6 +86,7 @@ struct RankUpCelebrationView: View {
                     .opacity(transitionStage >= 1 ? 1 : 0)
                     .padding(.bottom, 60)
             }
+            .accessibilityLabel("Rank up! You are now \(rank.name)")
         }
         .onTapGesture {
             withAnimation(.easeOut(duration: 0.3)) {

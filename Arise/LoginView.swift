@@ -22,6 +22,7 @@ struct LoginView: View {
                 .scaledToFit()
                 .frame(width: 100, height: 100)
                 .padding(.top, 10)
+                .accessibilityHidden(true)
 
             Text("Time to Arise")
                 .font(.title.bold())
@@ -34,8 +35,9 @@ struct LoginView: View {
                     .background(Color.white.opacity(0.05))
                     .cornerRadius(25)
                     .foregroundColor(.white)
-                    .autocapitalization(.none)
+                    .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
+                .accessibilityLabel("Email")
 
                 SecureField("Password", text: $password)
                     .padding(.horizontal, 16)
@@ -43,6 +45,7 @@ struct LoginView: View {
                     .background(Color.white.opacity(0.05))
                     .cornerRadius(25)
                     .foregroundColor(.white)
+                    .accessibilityLabel("Password")
 
                 if !errorMessage.isEmpty {
                     Text(errorMessage)
@@ -71,6 +74,7 @@ struct LoginView: View {
                         .cornerRadius(25)
                 }
             }
+            .accessibilityLabel("Log in")
 
             HStack(spacing: 4) {
                 Text("Don't have an account?")
@@ -84,35 +88,7 @@ struct LoginView: View {
                         .foregroundColor(Color.blue)
                         .fontWeight(.semibold)
                 }
-            }
-
-            HStack {
-                Rectangle().fill(Color.gray.opacity(0.3)).frame(height: 1)
-                Text("OR")
-                    .foregroundColor(.gray)
-                Rectangle().fill(Color.gray.opacity(0.3)).frame(height: 1)
-            }
-            .padding(.vertical, 10)
-
-            Button(action: {
-                withAnimation {
-                    dismiss()
-                }
-            }) {
-                HStack {
-                    Image(systemName: "person.circle")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 20, height: 20)
-
-                    Text("Sign in with a provider")
-                        .fontWeight(.medium)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.white.opacity(0.05))
-                .foregroundColor(.white)
-                .cornerRadius(30)
+                .accessibilityLabel("Go to sign up")
             }
 
             Spacer()

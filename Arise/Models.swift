@@ -311,7 +311,6 @@ enum DailyReset {
 enum CelebrationEvent {
     case rankUp(Rank, Rank?)
     case achievement(Achievement)
-    case queuedAchievement(Achievement)
 }
 
 let ranks: [Rank] = [
@@ -371,7 +370,7 @@ func randomNonceString(length: Int = 32) -> String {
             var random: UInt8 = 0
             let errorCode = SecRandomCopyBytes(kSecRandomDefault, 1, &random)
             if errorCode != errSecSuccess {
-                fatalError("Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(errorCode)")
+                random = UInt8(arc4random_uniform(256))
             }
             return random
         }

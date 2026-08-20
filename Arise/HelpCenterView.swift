@@ -6,7 +6,7 @@ struct HelpCenterView: View {
             title: "Help Center",
             sections: [
                 InfoPageSection(icon: "clock", title: "Response Time",
-                    description: "We aim to respond within 24–48 hours. Please note that weekends may take longer."),
+                    description: "We aim to respond as soon as possible. Please note that weekends may take longer."),
                 InfoPageSection(icon: "checkmark.shield", title: "Common Issues",
                     description: "Restarting the app or ensuring you're on the latest version often resolves most issues."),
                 InfoPageSection(icon: "envelope", title: "Contact Support",

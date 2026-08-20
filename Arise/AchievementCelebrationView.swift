@@ -70,6 +70,7 @@ struct AchievementCelebrationView: View {
                     .opacity(transitionStage >= 1 ? 1 : 0)
                     .padding(.bottom, 60)
             }
+            .accessibilityLabel("Achievement unlocked: \(achievement.title)")
         }
         .onTapGesture {
             withAnimation(.easeOut(duration: 0.3)) {

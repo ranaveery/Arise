@@ -29,11 +29,14 @@ struct ManagePreferencesView: View {
     @State private var expandedSection: String? = nil
     @State private var isSaving = false
     @State private var savedSuccessfully = false
+    @State private var showError = false
+    @State private var errorMessage = ""
 
     // MARK: - Constants
     private let focusOptions = ["Smoking", "Gaming", "Screentime", "Alcohol", "Vaping", "Porn"]
     private let activityOptions = ["Meditation", "Reading", "Pray", "Study", "Walk", "Run"]
     private let weekLetters = ["M", "T", "W", "T", "F", "S", "S"]
+    private let dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
     private let gradient = LinearGradient.brand
 
@@ -65,6 +68,11 @@ struct ManagePreferencesView: View {
         .scrollIndicators(.hidden)
         .background(Color.black.ignoresSafeArea())
         .onAppear(perform: loadPreferences)
+        .alert("Error", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage)
+        }
     }
 
     // MARK: - Expandable Sections
@@ -88,6 +96,8 @@ struct ManagePreferencesView: View {
                         .background(Color.white.opacity(0.05))
                         .cornerRadius(10)
                     }
+                    .accessibilityLabel(option)
+                    .accessibilityAddTraits(majorFocus == option ? .isSelected : [])
                 }
             }
         }
@@ -142,6 +152,8 @@ struct ManagePreferencesView: View {
                     }
                 ), in: 50...400, step: 5)
                 .tint(.gray)
+                .accessibilityLabel("Weight")
+                .accessibilityValue("\(weightLbs) pounds")
                 HStack {
                     Text("\(weightLbs) lbs").foregroundColor(.white)
                     Spacer()
@@ -175,6 +187,7 @@ struct ManagePreferencesView: View {
                                 : AnyView(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10)))
                             )
                     }
+                    .accessibilityLabel(dayNames[day - 1])
                 }
             }
         }
@@ -205,6 +218,8 @@ struct ManagePreferencesView: View {
                             .background(Color.white.opacity(0.05))
                             .cornerRadius(10)
                         }
+                        .accessibilityLabel(option)
+                        .accessibilityAddTraits(selectedActivities.keys.contains(option) ? .isSelected : [])
 
                         if let days = selectedActivities[option] {
                             HStack(spacing: 8) {
@@ -230,6 +245,7 @@ struct ManagePreferencesView: View {
                                                 : AnyView(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10)))
                                             )
                                     }
+                                    .accessibilityLabel(dayNames[day - 1])
                                 }
                             }
                             .animation(animationsEnabled ? .easeInOut : nil, value: selectedActivities)
@@ -256,6 +272,7 @@ struct ManagePreferencesView: View {
                 }
             }
         }
+        .accessibilityLabel(savedSuccessfully ? "Saved" : "Save Changes")
         .padding(.bottom, 20)
     }
 
@@ -323,6 +340,9 @@ struct ManagePreferencesView: View {
                 .background(Color.white.opacity(0.03))
                 .cornerRadius(12)
             }
+            .accessibilityLabel(title)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityHint(expandedSection == title ? "Collapse section" : "Expand section")
 
             if expandedSection == title {
                 VStack(alignment: .leading, spacing: 12) {
@@ -355,38 +375,40 @@ struct ManagePreferencesView: View {
         Firestore.firestore().collection("users").document(uid).getDocument { snapshot, _ in
             guard let data = snapshot?.data() else { return }
 
-            majorFocus = data["majorFocus"] as? String ?? ""
-            if let weekdayInt = data["wakeWeekday"] as? Int { wakeWeekday = dateFromMilitary(weekdayInt) }
-            if let weekendInt = data["wakeWeekend"] as? Int { wakeWeekend = dateFromMilitary(weekendInt) }
+            DispatchQueue.main.async {
+                self.majorFocus = data["majorFocus"] as? String ?? ""
+                if let weekdayInt = data["wakeWeekday"] as? Int { self.wakeWeekday = self.dateFromMilitary(weekdayInt) }
+                if let weekendInt = data["wakeWeekend"] as? Int { self.wakeWeekend = self.dateFromMilitary(weekendInt) }
 
-            sleepHoursWeekday = data["sleepHoursWeekday"] as? Double ?? 8
-            sleepHoursWeekend = data["sleepHoursWeekend"] as? Double ?? 8
-            workoutHoursPerDay = data["workoutHoursPerDay"] as? Double ?? 1
-            screenLimitHours = data["screenLimitHours"] as? Double ?? 2
-            weightLbs = data["weightLbs"] as? Int ?? 160
-            updateWater()
+                self.sleepHoursWeekday = data["sleepHoursWeekday"] as? Double ?? 8
+                self.sleepHoursWeekend = data["sleepHoursWeekend"] as? Double ?? 8
+                self.workoutHoursPerDay = data["workoutHoursPerDay"] as? Double ?? 1
+                self.screenLimitHours = data["screenLimitHours"] as? Double ?? 2
+                self.weightLbs = data["weightLbs"] as? Int ?? 160
+                self.updateWater()
 
-            if let days = data["coldShowerDays"] as? [Int] {
-                coldShowerDays = Set(days)
-            }
-
-            addictionDaysPerWeek = data["addictionDaysPerWeek"] as? Int ?? 0
-
-            if let days = data["workoutDays"] as? [Int] {
-                workoutDays = Set(days)
-            }
-
-            if let activities = data["selectedActivities"] as? [String: Any] {
-                var mapped: [String: [Int]] = [:]
-                for (key, value) in activities {
-                    let normalizedKey = key.capitalized
-                    if let arr = value as? [Int] {
-                        mapped[normalizedKey] = arr
-                    } else if let single = value as? Int {
-                        mapped[normalizedKey] = [single]
-                    }
+                if let days = data["coldShowerDays"] as? [Int] {
+                    self.coldShowerDays = Set(days)
                 }
-                selectedActivities = mapped
+
+                self.addictionDaysPerWeek = data["addictionDaysPerWeek"] as? Int ?? 0
+
+                if let days = data["workoutDays"] as? [Int] {
+                    self.workoutDays = Set(days)
+                }
+
+                if let activities = data["selectedActivities"] as? [String: Any] {
+                    var mapped: [String: [Int]] = [:]
+                    for (key, value) in activities {
+                        let normalizedKey = key.capitalized
+                        if let arr = value as? [Int] {
+                            mapped[normalizedKey] = arr
+                        } else if let single = value as? Int {
+                            mapped[normalizedKey] = [single]
+                        }
+                    }
+                    self.selectedActivities = mapped
+                }
             }
         }
     }
@@ -398,7 +420,11 @@ struct ManagePreferencesView: View {
     }
 
     private func savePreferences() {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
+        guard let uid = Auth.auth().currentUser?.uid else {
+            errorMessage = "Session expired. Please log in again."
+            showError = true
+            return
+        }
         isSaving = true
 
         let docRef = Firestore.firestore().collection("users").document(uid)
@@ -423,19 +449,21 @@ struct ManagePreferencesView: View {
         ]
 
         docRef.setData(payload, merge: true) { err in
-            if err != nil {
-                isSaving = false
-                return
-            }
-
             DispatchQueue.main.async {
-                isSaving = false
+                if err != nil {
+                    self.isSaving = false
+                    self.errorMessage = "Failed to save preferences. Please try again."
+                    self.showError = true
+                    return
+                }
+
+                self.isSaving = false
                 // Wake/sleep times changed, so refresh the scheduled notifications.
                 NotificationCenter.default.post(name: .ariseRescheduleNotifications, object: nil)
-                if animationsEnabled {
-                    withAnimation { savedSuccessfully = true }
+                if self.animationsEnabled {
+                    withAnimation { self.savedSuccessfully = true }
                 } else {
-                    savedSuccessfully = true
+                    self.savedSuccessfully = true
                 }
             }
         }

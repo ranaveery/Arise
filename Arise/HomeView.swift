@@ -109,6 +109,7 @@ struct HomeView: View {
                 Text("Welcome back, \(userName)")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
+                    .accessibilityAddTraits(.isHeader)
                 Text(greeting)
                     .font(.system(size: 15, weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.55))
@@ -125,6 +126,7 @@ struct HomeView: View {
                     .foregroundColor(.white)
                     .font(.system(size: 18, weight: .bold, design: .rounded))
             }
+            .accessibilityLabel("Streak: \(streak) days")
             .padding(.horizontal, 14)
             .padding(.vertical, 7)
             .background(
@@ -222,8 +224,9 @@ struct HomeView: View {
                     .stroke(Color.white.opacity(0.07), lineWidth: 1)
             )
         }
-        .buttonStyle(PlainButtonStyle())
-        .accessibilityHint("Tap to view rank details and achievements")
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Current rank: \(currentRank.name)")
+            .accessibilityHint("Tap to view rank details and achievements")
     }
 
     // MARK: - Skill Cards
@@ -254,6 +257,7 @@ struct HomeView: View {
                     gradient:    rankGradient,
                     onTap: { selectedSkill = IdentifiedString(skill) }
                 )
+                .accessibilityLabel("\(skill), level \(level), \(xp) XP")
             }
         }
     }

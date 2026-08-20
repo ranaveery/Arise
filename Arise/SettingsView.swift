@@ -72,6 +72,7 @@ struct SettingsView: View {
                         inputRow(systemImage: "person", label: "Name", binding: $name, isEditable: true) {
                             saveNameToFirestore(name)
                         }
+                        .accessibilityLabel("Name")
                         dividerLine()
                         inputRow(systemImage: "envelope",
                                  label: "Email",
@@ -88,6 +89,7 @@ struct SettingsView: View {
                                 showGoogleSignInAlert = true
                             }
                         }
+                        .accessibilityLabel("Change password")
                         .alert(isPresented: $showGoogleSignInAlert) {
                             Alert(
                                 title: Text("Cannot Change Password"),
@@ -99,6 +101,7 @@ struct SettingsView: View {
                         navRow(systemImage: "trash", label: "Delete Account") {
                             DeleteAccountView(isUserLoggedIn: $isUserLoggedIn)
                         }
+                        .accessibilityLabel("Delete account")
                     }
 
                     // NOTIFICATIONS (title + card grouped)
@@ -119,9 +122,12 @@ struct SettingsView: View {
                             }
                         }
                         .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
+                        .accessibilityLabel("Enable Animations")
+                        .accessibilityHint("Double tap to toggle")
                         .padding(.horizontal)
                         .padding(.vertical, 12)
                         .onChange(of: animationsEnabled) { _, newValue in
+                            guard preferencesLoaded else { return }
                             PreferenceManager.saveTopLevelPreference(key: "animationsEnabled", value: newValue)
                         }
                     }
@@ -141,6 +147,7 @@ struct SettingsView: View {
                         userIDRow()
                         dividerLine()
                         staticRow(systemImage: "info.circle", label: "Version", value: versionInfo)
+                        .accessibilityLabel("Version \(versionInfo)")
                     }
 
                     // LOG OUT
@@ -152,12 +159,19 @@ struct SettingsView: View {
                             .padding(.vertical, 10)
                             .background(Capsule().fill(Color.white.opacity(0.1)))
                     }
+                    .accessibilityLabel("Log out")
+                    .accessibilityHint("Signs you out of your account")
                     .alert(isPresented: $showLogoutConfirmation) {
                         Alert(
                             title: Text("Are you sure?"),
                             message: Text("Do you really want to log out?"),
                             primaryButton: .destructive(Text("Log Out")) {
                                 do {
+                                    let defaults = UserDefaults.standard
+                                    defaults.removeObject(forKey: "cachedUserData")
+                                    defaults.removeObject(forKey: "unlockedAchievementIndices")
+                                    defaults.removeObject(forKey: "lastResetDate")
+                                    defaults.removeObject(forKey: "lastRankId")
                                     try Auth.auth().signOut()
                                     isUserLoggedIn = false
                                 } catch { }
@@ -223,9 +237,12 @@ struct SettingsView: View {
             }
         }
         .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
+        .accessibilityLabel("Enable Expiring Tasks notifications")
+        .accessibilityHint("Double tap to toggle")
         .padding(.horizontal)
         .padding(.vertical, 12)
         .onChange(of: expiringTasks) { _, newValue in
+            guard preferencesLoaded else { return }
             PreferenceManager.savePreference(key: "expiringTasks", value: newValue)
             fetchUserTimesAndReschedule()
         }
@@ -239,9 +256,12 @@ struct SettingsView: View {
             }
         }
         .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
+        .accessibilityLabel("Enable New Tasks notifications")
+        .accessibilityHint("Double tap to toggle")
         .padding(.horizontal)
         .padding(.vertical, 12)
         .onChange(of: newTasks) { _, newValue in
+            guard preferencesLoaded else { return }
             PreferenceManager.savePreference(key: "newTasks", value: newValue)
             fetchUserTimesAndReschedule()
         }
@@ -255,9 +275,12 @@ struct SettingsView: View {
             }
         }
         .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
+        .accessibilityLabel("Enable Bedtime notifications")
+        .accessibilityHint("Double tap to toggle")
         .padding(.horizontal)
         .padding(.vertical, 12)
         .onChange(of: sleepTime) { _, newValue in
+            guard preferencesLoaded else { return }
             PreferenceManager.savePreference(key: "sleepTime", value: newValue)
             fetchUserTimesAndReschedule()
         }
@@ -391,20 +414,23 @@ struct SettingsView: View {
             }
             let fetchedName = sanitizeName(data["name"] as? String ?? "")
             let fetchedEmail = data["email"] as? String ?? ""
+            UserDefaults.standard.set(["name": fetchedName, "email": fetchedEmail], forKey: "cachedUserData")
+
+            let fetchedNotifications = data["notifications"] as? [String: Bool] ?? [:]
+            let fetchedAnimations = data["animationsEnabled"] as? Bool
+
             DispatchQueue.main.async {
                 self.name = fetchedName
                 self.userEmail = fetchedEmail
                 self.isLoading = false
-            }
-            UserDefaults.standard.set(["name": fetchedName, "email": fetchedEmail], forKey: "cachedUserData")
-
-            if let notifications = data["notifications"] as? [String: Bool] {
-                expiringTasks = notifications["expiringTasks"] ?? expiringTasks
-                newTasks = notifications["newTasks"] ?? newTasks
-                sleepTime = notifications["sleepTime"] ?? sleepTime
-            }
-            if let animationsPref = data["animationsEnabled"] as? Bool {
-                animationsEnabled = animationsPref
+                self.preferencesLoaded = false
+                self.expiringTasks = fetchedNotifications["expiringTasks"] ?? self.expiringTasks
+                self.newTasks = fetchedNotifications["newTasks"] ?? self.newTasks
+                self.sleepTime = fetchedNotifications["sleepTime"] ?? self.sleepTime
+                if let anim = fetchedAnimations { self.animationsEnabled = anim }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.preferencesLoaded = true
+                }
             }
         }
     }

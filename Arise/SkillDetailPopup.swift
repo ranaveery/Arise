@@ -88,6 +88,7 @@ struct SkillDetailPopup: View {
                     .foregroundColor(.white)
             }
             .shadow(color: (themeColors.first ?? .purple).opacity(0.4), radius: 12, y: 4)
+            .accessibilityLabel("\(skillName) skill emblem")
 
             Text(skillName)
                 .font(.title.bold())
@@ -118,6 +119,7 @@ struct SkillDetailPopup: View {
         .padding(.vertical, 4)
         .background((themeColors.first ?? .purple).opacity(0.15))
         .clipShape(Capsule())
+        .accessibilityLabel("Level \(skillLevel)")
     }
 
     // MARK: - Progress ring
@@ -139,6 +141,7 @@ struct SkillDetailPopup: View {
                         .foregroundColor(.white.opacity(0.5))
                 }
             }
+            .accessibilityLabel("\(Int(progressToNext * 100)) percent progress to next level")
 
             if skillLevel < skillLevelThresholds.count {
                 Text("\(skillXP - currentThreshold) / \(nextThreshold - currentThreshold) XP")
@@ -150,6 +153,7 @@ struct SkillDetailPopup: View {
                     .foregroundStyle(
                         LinearGradient(colors: themeColors, startPoint: .leading, endPoint: .trailing)
                     )
+                    .accessibilityLabel("Maximum level reached")
             }
         }
     }
@@ -217,6 +221,7 @@ struct SkillDetailPopup: View {
                     levelRow(level: level, lower: lower, upper: upper, isCurrent: isCurrent)
                 }
             }
+            .accessibilityElement(children: .contain)
         }
     }
 
@@ -275,11 +280,13 @@ struct SkillDetailPopup: View {
         let db = Firestore.firestore()
         db.collection("users").document(uid).getDocument { snapshot, _ in
             guard let data = snapshot?.data() else { return }
-            todaySkillXP = data["todaySkillXP"] as? [String: Int] ?? [:]
-            if let details = data["todayCompletedTaskDetails"] as? [[String: Any]] {
-                todayTaskContributions = details.filter { entry in
-                    guard let skillXP = entry["skillXP"] as? [String: Int] else { return false }
-                    return skillXP.keys.contains(skillName)
+            DispatchQueue.main.async {
+                self.todaySkillXP = data["todaySkillXP"] as? [String: Int] ?? [:]
+                if let details = data["todayCompletedTaskDetails"] as? [[String: Any]] {
+                    self.todayTaskContributions = details.filter { entry in
+                        guard let skillXP = entry["skillXP"] as? [String: Int] else { return false }
+                        return skillXP.keys.contains(self.skillName)
+                    }
                 }
             }
         }

@@ -1,6 +1,7 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
+import GoogleSignIn
 
 struct AuthGateView: View {
     @State private var isUserLoggedIn = Auth.auth().currentUser != nil
@@ -19,6 +20,8 @@ struct AuthGateView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: 150, height: 150)
+                            .accessibilityLabel("Loading")
+                            .accessibilityAddTraits(.updatesFrequently)
                         Spacer()
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -61,6 +64,9 @@ struct AuthGateView: View {
             if let listener = authListener {
                 Auth.auth().removeStateDidChangeListener(listener)
             }
+        }
+        .onOpenURL { url in
+            GIDSignIn.sharedInstance.handle(url)
         }
     }
 

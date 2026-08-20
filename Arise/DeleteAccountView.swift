@@ -104,6 +104,7 @@ struct DeleteAccountView: View {
     @State private var customReason: String = ""
     @State private var showConfirmation = false
     @State private var isDeleting = false
+    @State private var deleteError: String? = nil
     @Binding var isUserLoggedIn: Bool
     
     let reasons = [
@@ -140,6 +141,8 @@ struct DeleteAccountView: View {
                                     selectedReasons.insert(reason)
                                 }
                             }
+                            .accessibilityLabel(reason)
+                            .accessibilityAddTraits(selectedReasons.contains(reason) ? .isSelected : [])
                         }
                         
                         if selectedReasons.contains("Other") {
@@ -176,6 +179,7 @@ struct DeleteAccountView: View {
                         .foregroundColor(.white)
                         .cornerRadius(20)
                     }
+                    .accessibilityLabel("Delete account permanently")
                     .disabled(selectedReasons.isEmpty || (selectedReasons.contains("Other") && customReason.isEmpty))
                     .padding(.bottom, 60)
                 }
@@ -193,6 +197,14 @@ struct DeleteAccountView: View {
             }
         }
         .scrollIndicators(.hidden)
+        .alert("Deletion Failed", isPresented: .init(
+            get: { deleteError != nil },
+            set: { if !$0 { deleteError = nil } }
+        )) {
+            Button("OK", role: .cancel) { deleteError = nil }
+        } message: {
+            Text(deleteError ?? "")
+        }
     }
 
     private func deleteAccount() {
@@ -225,6 +237,10 @@ struct DeleteAccountView: View {
 
             user.reauthenticate(with: credential) { _, err in
                 if err != nil {
+                    DispatchQueue.main.async {
+                        self.isDeleting = false
+                        self.deleteError = "Re-authentication failed. Please try again."
+                    }
                     return
                 }
 
@@ -253,42 +269,60 @@ struct DeleteAccountView: View {
     
     // --- New helper: heavily instrumented delete (copy/paste entire function) ---
     private func performDeleteWithChecks(uid: String, authUser: User) {
-        isDeleting = true
+        DispatchQueue.main.async { self.isDeleting = true }
         let db = Firestore.firestore()
         let docRef = db.collection("users").document(uid)
 
         docRef.getDocument { snapshot, getErr in
             if getErr != nil {
-                self.isDeleting = false
+                DispatchQueue.main.async {
+                    self.isDeleting = false
+                    self.deleteError = "Failed to verify account data. Please try again."
+                }
                 return
             }
 
             if let snapshot = snapshot, snapshot.exists {
                 docRef.delete { deleteErr in
                     if deleteErr != nil {
-                        self.isDeleting = false
+                        DispatchQueue.main.async {
+                            self.isDeleting = false
+                            self.deleteError = "Failed to delete account data. Please try again."
+                        }
                         return
                     }
 
                     authUser.delete { authDeleteErr in
-                        self.isDeleting = false
                         if authDeleteErr != nil {
+                            DispatchQueue.main.async {
+                                self.isDeleting = false
+                                self.deleteError = "Failed to delete account. Please try again."
+                            }
                             return
                         }
 
                         do {
+                            let defaults = UserDefaults.standard
+                            defaults.removeObject(forKey: "cachedUserData")
+                            defaults.removeObject(forKey: "unlockedAchievementIndices")
+                            defaults.removeObject(forKey: "lastResetDate")
+                            defaults.removeObject(forKey: "lastRankId")
                             try Auth.auth().signOut()
-                            isUserLoggedIn = false
+                            DispatchQueue.main.async {
+                                self.isUserLoggedIn = false
+                                self.dismiss()
+                            }
                         } catch { }
-
-                        dismiss()
                     }
                 }
             } else {
                 if let email = authUser.email {
                     db.collection("users").whereField("email", isEqualTo: email).getDocuments { qSnap, qErr in
                         if qErr != nil {
-                            self.isDeleting = false
+                            DispatchQueue.main.async {
+                                self.isDeleting = false
+                                self.deleteError = "Failed to search for account data. Please try again."
+                            }
                             return
                         }
 
@@ -297,48 +331,81 @@ struct DeleteAccountView: View {
                             qSnap.documents.forEach { batch.deleteDocument($0.reference) }
                             batch.commit { batchErr in
                                 if batchErr != nil {
-                                    self.isDeleting = false
+                                    DispatchQueue.main.async {
+                                        self.isDeleting = false
+                                        self.deleteError = "Failed to delete account data. Please try again."
+                                    }
                                     return
                                 }
 
                                 authUser.delete { authDeleteErr in
-                                    self.isDeleting = false
                                     if authDeleteErr != nil {
+                                        DispatchQueue.main.async {
+                                            self.isDeleting = false
+                                            self.deleteError = "Failed to delete account. Please try again."
+                                        }
                                         return
                                     }
 
                                     do {
+                                        let defaults = UserDefaults.standard
+                                        defaults.removeObject(forKey: "cachedUserData")
+                                        defaults.removeObject(forKey: "unlockedAchievementIndices")
+                                        defaults.removeObject(forKey: "lastResetDate")
+                                        defaults.removeObject(forKey: "lastRankId")
                                         try Auth.auth().signOut()
-                                        isUserLoggedIn = false
+                                        DispatchQueue.main.async {
+                                            self.isUserLoggedIn = false
+                                            self.dismiss()
+                                        }
                                     } catch { }
-                                    dismiss()
                                 }
                             }
                         } else {
                             authUser.delete { authDeleteErr in
-                                self.isDeleting = false
                                 if authDeleteErr != nil {
+                                    DispatchQueue.main.async {
+                                        self.isDeleting = false
+                                        self.deleteError = "Failed to delete account. Please try again."
+                                    }
                                     return
                                 }
                                 do {
+                                    let defaults = UserDefaults.standard
+                                    defaults.removeObject(forKey: "cachedUserData")
+                                    defaults.removeObject(forKey: "unlockedAchievementIndices")
+                                    defaults.removeObject(forKey: "lastResetDate")
+                                    defaults.removeObject(forKey: "lastRankId")
                                     try Auth.auth().signOut()
-                                    isUserLoggedIn = false
+                                    DispatchQueue.main.async {
+                                        self.isUserLoggedIn = false
+                                        self.dismiss()
+                                    }
                                 } catch { }
-                                dismiss()
                             }
                         }
                     }
                 } else {
                     authUser.delete { authDeleteErr in
-                        self.isDeleting = false
                         if authDeleteErr != nil {
+                            DispatchQueue.main.async {
+                                self.isDeleting = false
+                                self.deleteError = "Failed to delete account. Please try again."
+                            }
                             return
                         }
                         do {
+                            let defaults = UserDefaults.standard
+                            defaults.removeObject(forKey: "cachedUserData")
+                            defaults.removeObject(forKey: "unlockedAchievementIndices")
+                            defaults.removeObject(forKey: "lastResetDate")
+                            defaults.removeObject(forKey: "lastRankId")
                             try Auth.auth().signOut()
-                            isUserLoggedIn = false
+                            DispatchQueue.main.async {
+                                self.isUserLoggedIn = false
+                                self.dismiss()
+                            }
                         } catch { }
-                        dismiss()
                     }
                 }
             }
@@ -366,6 +433,10 @@ struct DeleteAccountView: View {
 
             user.reauthenticate(with: credential) { _, error in
                 if error != nil {
+                    DispatchQueue.main.async {
+                        self.isDeleting = false
+                        self.deleteError = "Re-authentication failed. Please try again."
+                    }
                     return
                 }
 
@@ -398,6 +469,10 @@ struct DeleteAccountView: View {
             let credential = EmailAuthProvider.credential(withEmail: email, password: password)
             user.reauthenticate(with: credential) { _, error in
                 if error != nil {
+                    DispatchQueue.main.async {
+                        self.isDeleting = false
+                        self.deleteError = "Incorrect password. Please try again."
+                    }
                     return
                 }
                 
@@ -412,28 +487,40 @@ struct DeleteAccountView: View {
     }
 
     private func performDelete(user: User) {
-        isDeleting = true
+        DispatchQueue.main.async { self.isDeleting = true }
         let db = Firestore.firestore()
         let uid = user.uid
 
         db.collection("users").document(uid).delete { error in
             if error != nil {
-                isDeleting = false
+                DispatchQueue.main.async {
+                    self.isDeleting = false
+                    self.deleteError = "Failed to delete account data. Please try again."
+                }
                 return
             }
 
             user.delete { error in
-                isDeleting = false
                 if error != nil {
+                    DispatchQueue.main.async {
+                        self.isDeleting = false
+                        self.deleteError = "Failed to delete account. Please try again."
+                    }
                     return
                 }
 
                 do {
+                    let defaults = UserDefaults.standard
+                    defaults.removeObject(forKey: "cachedUserData")
+                    defaults.removeObject(forKey: "unlockedAchievementIndices")
+                    defaults.removeObject(forKey: "lastResetDate")
+                    defaults.removeObject(forKey: "lastRankId")
                     try Auth.auth().signOut()
-                    isUserLoggedIn = false
+                    DispatchQueue.main.async {
+                        self.isUserLoggedIn = false
+                        self.dismiss()
+                    }
                 } catch { }
-
-                dismiss()
             }
         }
     }

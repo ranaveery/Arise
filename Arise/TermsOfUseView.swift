@@ -6,7 +6,7 @@ struct TermsOfUseView: View {
             title: "Terms of Use",
             sections: [
                 InfoPageSection(icon: "person.crop.circle", title: "Eligibility",
-                    description: "You must be at least 9 years old to use the app."),
+                    description: "You must be at least 13 years old to use the app."),
                 InfoPageSection(icon: "iphone.homebutton", title: "App Usage",
                     description: "Use the app responsibly. No harassment, abuse, or disruption of features is tolerated."),
                 InfoPageSection(icon: "gearshape.2", title: "Modifications",

@@ -44,6 +44,7 @@ struct SkillCardView: View {
                 .stroke(Color.white.opacity(0.07), lineWidth: 1)
         )
         .contentShape(Rectangle())
+        .accessibilityLabel("\(skillName), level \(level), \(xp) XP")
     }
 
     private var iconContainer: some View {

@@ -17,6 +17,7 @@ struct OnboardingView: View {
     @State private var currentStep: Int = 0
     @State private var navHeight: CGFloat = 0
     @State private var isSaving: Bool = false
+    @State private var errorMessage: String = ""
 
     // --- Answers state ---
     // Intro has no inputs
@@ -1246,6 +1247,13 @@ struct OnboardingView: View {
         VStack(spacing: 20) {
             Text("All set!").font(.largeTitle).bold().foregroundColor(.white)
             Text("Your plan is saved. You can tweak it anytime in settings.").foregroundColor(.gray)
+            if !errorMessage.isEmpty {
+                Text(errorMessage)
+                    .foregroundColor(.red)
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
             Button(action: { onFinish() }) {
                 Text("Start Journey").font(.headline).foregroundColor(.white).padding().frame(maxWidth: .infinity)
                     .background(appGradient)
@@ -1373,10 +1381,13 @@ struct OnboardingView: View {
 
         isSaving = true
         docRef.setData(payload, merge: true) { error in
-            isSaving = false
-            if error != nil {
-            } else {
-                onFinish()
+            DispatchQueue.main.async {
+                isSaving = false
+                if error != nil {
+                    errorMessage = "Failed to save. Please try again."
+                } else {
+                    onFinish()
+                }
             }
         }
     }

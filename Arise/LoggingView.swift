@@ -140,6 +140,7 @@ struct LoggingView: View {
     private var todayStatsView: some View {
         HStack(spacing: 0) {
             statItem(value: "\(completedTaskIDs.count)/\(assignedTasks.count)", label: "Done", icon: "checkmark.circle.fill", color: .green)
+                .accessibilityLabel("\(Int(completionPercentage * 100))% complete")
             Divider().frame(height: 28).background(Color.white.opacity(0.1))
             statItem(value: "\(todayXP)", label: "XP", icon: "bolt.fill", color: Color(red: 84/255, green: 0/255, blue: 232/255))
             Divider().frame(height: 28).background(Color.white.opacity(0.1))
@@ -181,6 +182,7 @@ struct LoggingView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 20)
+        .accessibilityAddTraits(.isHeader)
     }
 
     private var formattedToday: String {
@@ -215,6 +217,8 @@ struct LoggingView: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(tab.rawValue)
+                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
             }
         }
         .padding(4)
@@ -316,6 +320,7 @@ struct LoggingView: View {
         }
         .padding(.horizontal, 4)
         .padding(.top, 6)
+        .accessibilityAddTraits(.isHeader)
     }
 
     private func sectionIcon(for title: String) -> String {
@@ -816,7 +821,7 @@ extension LoggingView {
         }) { result, error in
             guard error == nil, let payload = result as? [String: Any] else { return }
             if let completed = payload["completed"] as? [String] {
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     completedTaskIDs = completed
                     if let newStreak = payload["streak"] as? Int {
                         streak = newStreak
@@ -863,12 +868,13 @@ extension LoggingView {
     
     private func resetStreakInFirestore() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
-        streak = 0
-        Firestore.firestore().collection("users").document(uid)
-            .updateData(["streak": 0]) { _ in
-                // Local streak already reset; a failed write is reconciled by the
-                // next fetch (continuity check rewrites it).
-            }
+        let userRef = Firestore.firestore().collection("users").document(uid)
+        Firestore.firestore().runTransaction({ transaction, _ in
+            transaction.updateData(["streak": 0, "lastStreakDate": ""], forDocument: userRef)
+            return nil
+        }) { _, _ in
+            DispatchQueue.main.async { self.streak = 0 }
+        }
     }
     
     @discardableResult
@@ -920,13 +926,11 @@ extension LoggingView {
             }
         }
 
-        if let first = newlyUnlocked.first {
-            if didRankUp {
-                onCelebrationEvent?(.queuedAchievement(first))
-            } else {
-                onCelebrationEvent?(.achievement(first))
-                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-            }
+        for achievement in newlyUnlocked {
+            onCelebrationEvent?(.achievement(achievement))
+        }
+        if !newlyUnlocked.isEmpty {
+            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
         }
     }
 
@@ -953,6 +957,7 @@ extension LoggingView {
         // clears the today-tracking fields and prunes old log entries.
         DailyReset.performIfNeeded()
         completedTaskIDs.removeAll()
+        isLoading = true
         fetchUserData()
     }
     
@@ -1128,6 +1133,7 @@ struct TaskCard: View {
                                 .background(Color.white.opacity(0.07))
                                 .clipShape(Capsule())
                             }
+                            .accessibilityLabel("Undo completion of \(task.name)")
                         } else {
                             Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                                 .font(.system(size: 11, weight: .semibold))
@@ -1167,6 +1173,7 @@ struct TaskCard: View {
                                 .stroke(AnyShapeStyle(accentGradient), lineWidth: 1.5)
                         )
                     }
+                    .accessibilityLabel("Mark \(task.name) as complete")
 
                     Button(action: { onPartial?() }) {
                         Text("Partial")
@@ -1181,6 +1188,7 @@ struct TaskCard: View {
                                     .stroke(Color.white.opacity(0.18), lineWidth: 1)
                             )
                     }
+                    .accessibilityLabel("Mark \(task.name) as partially complete")
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
@@ -1198,23 +1206,11 @@ struct TaskCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .opacity(isCompleted ? 0.6 : 1)
         .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 4)
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            if !isCompleted {
-                Button { onComplete?() } label: {
-                    Label("Complete", systemImage: "checkmark")
-                }
-                .tint(.green)
-            }
-        }
-        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            if !isCompleted {
-                Button { onPartial?() } label: {
-                    Label("Partial", systemImage: "star.leadinghalf.filled")
-                }
-                .tint(.orange)
-            }
-        }
+
         .onTapGesture { onTap?() }
+        .accessibilityLabel(isCompleted
+            ? "Task: \(task.name). Completed."
+            : "Task: \(task.name). \(isExpanded ? "Collapse" : "Expand")")
         .animation(.spring(response: 0.32, dampingFraction: 0.8), value: isExpanded)
     }
 

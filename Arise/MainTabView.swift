@@ -8,19 +8,21 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("animationsEnabled") private var animationsEnabled = true
     @State private var selectedTab: Tab = .home
-    @State private var showCelebration = false
-    @State private var celebrationRank: Rank? = nil
-    @State private var celebrationPrevRank: Rank? = nil
-    @State private var showAchievementCelebration = false
-    @State private var pendingAchievement: Achievement? = nil
-    @State private var queuedAchievement: Achievement? = nil
     @State private var resetTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     @AppStorage("unlockedAchievementIndices") private var unlockedAchievementData: Data = Data()
     private var unlockedAchievementIndices: Set<Int> {
         get { (try? JSONDecoder().decode(Set<Int>.self, from: unlockedAchievementData)) ?? [] }
         set { if let encoded = try? JSONEncoder().encode(newValue) { unlockedAchievementData = encoded } }
     }
-    
+
+    // Celebration queue
+    @State private var celebrationQueue: [CelebrationEvent] = []
+    @State private var showingRankUp = false
+    @State private var currentRankUpRank: Rank? = nil
+    @State private var currentRankUpPrevRank: Rank? = nil
+    @State private var showingAchievement = false
+    @State private var currentAchievement: Achievement? = nil
+
     enum Tab {
         case home, logging, trends, settings
     }
@@ -32,17 +34,10 @@ struct MainTabView: View {
                 if selectedTab == .home {
                     HomeView()
                 } else if selectedTab == .logging {
-                    LoggingView(onCelebrationEvent: { [self] event in
-                        switch event {
-                        case .rankUp(let rank, let prevRank):
-                            self.celebrationRank = rank
-                            self.celebrationPrevRank = prevRank
-                            self.showCelebration = true
-                        case .achievement(let achievement):
-                            self.pendingAchievement = achievement
-                            self.showAchievementCelebration = true
-                        case .queuedAchievement(let achievement):
-                            self.queuedAchievement = achievement
+                    LoggingView(onCelebrationEvent: { event in
+                        Task { @MainActor in
+                            celebrationQueue.append(event)
+                            dequeueNextCelebration()
                         }
                     })
                 } else if selectedTab == .trends {
@@ -75,30 +70,31 @@ struct MainTabView: View {
             .ignoresSafeArea(edges: .bottom)
 
             // Celebration overlays
-            if showCelebration, let rank = celebrationRank {
+            if showingRankUp, let rank = currentRankUpRank {
                 RankUpCelebrationView(
                     rank: rank,
-                    previousRank: celebrationPrevRank,
+                    previousRank: currentRankUpPrevRank,
                     onDismiss: {
-                        showCelebration = false
-                        if let queued = queuedAchievement {
-                            pendingAchievement = queued
-                            queuedAchievement = nil
-                            showAchievementCelebration = true
-                        }
+                        showingRankUp = false
+                        dequeueNextCelebration()
                     }
                 )
+                .accessibilityAddTraits(.isModal)
             }
-            if showAchievementCelebration, let achievement = pendingAchievement {
+            if showingAchievement, let achievement = currentAchievement {
                 AchievementCelebrationView(
                     achievement: achievement,
-                    onDismiss: { showAchievementCelebration = false }
+                    onDismiss: {
+                        showingAchievement = false
+                        dequeueNextCelebration()
+                    }
                 )
+                .accessibilityAddTraits(.isModal)
             }
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
-        .animation(.easeOut(duration: 0.3), value: showCelebration)
-        .animation(.easeOut(duration: 0.3), value: showAchievementCelebration)
+        .animation(.easeOut(duration: 0.3), value: showingRankUp)
+        .animation(.easeOut(duration: 0.3), value: showingAchievement)
         .onAppear {
             checkSessionGapAchievements()
             runDailyResetIfNeeded()
@@ -110,6 +106,23 @@ struct MainTabView: View {
             if newPhase == .active {
                 runDailyResetIfNeeded()
             }
+        }
+    }
+
+    private func dequeueNextCelebration() {
+        guard !showingRankUp, !showingAchievement, !celebrationQueue.isEmpty else { return }
+        let next = celebrationQueue.removeFirst()
+
+        switch next {
+        case .rankUp(let rank, let prevRank):
+            currentRankUpRank = rank
+            currentRankUpPrevRank = prevRank
+            showingRankUp = true
+            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        case .achievement(let achievement):
+            currentAchievement = achievement
+            showingAchievement = true
+            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
         }
     }
 
@@ -141,13 +154,15 @@ struct MainTabView: View {
                     UserDefaults.standard.set(encoded, forKey: "unlockedAchievementIndices")
                 }
 
-                if let firstIdx = newlyFound.sorted().first,
-                   let achievement = allAchievements.first(where: { $0.index == firstIdx }) {
-                    Task { @MainActor in
-                        self.pendingAchievement = achievement
-                        self.showAchievementCelebration = true
-                        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                let newlyFoundAchievements = newlyFound.sorted().compactMap { idx in
+                    allAchievements.first(where: { $0.index == idx })
+                }
+
+                Task { @MainActor in
+                    for achievement in newlyFoundAchievements {
+                        self.celebrationQueue.append(.achievement(achievement))
                     }
+                    self.dequeueNextCelebration()
                 }
             }
         }
@@ -209,5 +224,7 @@ struct TabButton: View {
             }
             .padding(.top, 6)
         }
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

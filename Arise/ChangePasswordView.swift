@@ -30,7 +30,8 @@ struct ChangePasswordView: View {
                             .background(Color.white.opacity(0.1))
                             .cornerRadius(12)
                             .foregroundColor(.white)
-                            .autocapitalization(.none)
+                            .textInputAutocapitalization(.never)
+                            .accessibilityLabel("Current password")
                         
                         Button(action: verifyCurrentPassword) {
                             if isLoading {
@@ -45,6 +46,7 @@ struct ChangePasswordView: View {
                                     .cornerRadius(12)
                             }
                         }
+                        .accessibilityLabel("Verify current password")
                         
                         // --- RESET PASSWORD OPTION ---
                         Button(action: sendResetPassword) {
@@ -52,6 +54,7 @@ struct ChangePasswordView: View {
                                 .foregroundColor(.blue)
                                 .font(.footnote)
                         }
+                        .accessibilityLabel("Reset password via email")
                         .padding(.top, 10)
                     } else if step == 2 {
                         SecureField("New Password", text: $newPassword)
@@ -59,14 +62,16 @@ struct ChangePasswordView: View {
                             .background(Color.white.opacity(0.1))
                             .cornerRadius(12)
                             .foregroundColor(.white)
-                            .autocapitalization(.none)
+                            .textInputAutocapitalization(.never)
+                            .accessibilityLabel("New password")
                         
                         SecureField("Confirm New Password", text: $confirmPassword)
                             .padding()
                             .background(Color.white.opacity(0.1))
                             .cornerRadius(12)
                             .foregroundColor(.white)
-                            .autocapitalization(.none)
+                            .textInputAutocapitalization(.never)
+                            .accessibilityLabel("Confirm new password")
                         
                         Button(action: updatePassword) {
                             if isLoading {
@@ -81,6 +86,7 @@ struct ChangePasswordView: View {
                                     .cornerRadius(12)
                             }
                         }
+                        .accessibilityLabel("Update password")
                     }
                     
                     if !errorMessage.isEmpty {
@@ -117,12 +123,14 @@ struct ChangePasswordView: View {
         isLoading = true
         let credential = EmailAuthProvider.credential(withEmail: email, password: currentPassword)
         user.reauthenticate(with: credential) { result, error in
-            isLoading = false
-            if error != nil {
-                errorMessage = "Incorrect password. Try again."
-            } else {
-                step = 2
-                errorMessage = ""
+            DispatchQueue.main.async {
+                self.isLoading = false
+                if error != nil {
+                    self.errorMessage = "Incorrect password. Try again."
+                } else {
+                    self.step = 2
+                    self.errorMessage = ""
+                }
             }
         }
     }
@@ -140,13 +148,15 @@ struct ChangePasswordView: View {
         
         isLoading = true
         Auth.auth().currentUser?.updatePassword(to: newPassword) { error in
-            isLoading = false
-            if let error = error {
-                errorMessage = "Failed to update password: \(error.localizedDescription)"
-            } else {
-                successMessage = "Password updated successfully!"
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    dismiss()
+            DispatchQueue.main.async {
+                self.isLoading = false
+                if let error = error {
+                    self.errorMessage = "Failed to update password: \(error.localizedDescription)"
+                } else {
+                    self.successMessage = "Password updated successfully!"
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        self.dismiss()
+                    }
                 }
             }
         }
@@ -160,11 +170,13 @@ struct ChangePasswordView: View {
         
         isLoading = true
         Auth.auth().sendPasswordReset(withEmail: email) { error in
-            isLoading = false
-            if let error = error {
-                errorMessage = "Failed to send reset email: \(error.localizedDescription)"
-            } else {
-                successMessage = "Password reset email sent! Check your inbox."
+            DispatchQueue.main.async {
+                self.isLoading = false
+                if let error = error {
+                    self.errorMessage = "Failed to send reset email: \(error.localizedDescription)"
+                } else {
+                    self.successMessage = "Password reset email sent! Check your inbox."
+                }
             }
         }
     }

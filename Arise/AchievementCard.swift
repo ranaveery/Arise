@@ -14,10 +14,12 @@ struct AchievementCard: View {
                         .resizable()
                         .scaledToFill()   // cover the whole square
                         .clipped()        // safety
+                        .accessibilityLabel(achievement.title)
                 } else {
                     Image(systemName: "questionmark")
                         .font(.title2.bold())
                         .foregroundStyle(.gray)
+                        .accessibilityLabel("Locked achievement")
                 }
             }
             .clipShape(shape) // keep image inside rounded corners
