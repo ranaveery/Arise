@@ -63,7 +63,8 @@ struct MainTabView: View {
                     TabButton(icon: "gearshape", label: "Settings", tab: .settings, selectedTab: $selectedTab, animationsEnabled: animationsEnabled)
                 }
                 .padding(.horizontal, 30)
-                .frame(height: 76)
+                .padding(.bottom, 12)
+                .frame(height: 88)
                 .background(Color.black)
             }
             .frame(maxWidth: .infinity)

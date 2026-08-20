@@ -9,7 +9,7 @@ struct RankUpCelebrationView: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.98)
+            Color.black
                 .ignoresSafeArea()
                 .transition(.opacity)
 
