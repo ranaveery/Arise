@@ -817,7 +817,7 @@ extension LoggingView {
                 ]
             ], forDocument: userRef)
 
-            return ["completed": mutableCompleted, "streak": resultStreak, "taskSkillXP": taskSkillXP]
+            return ["completed": mutableCompleted, "streak": resultStreak, "taskSkillXP": taskSkillXP, "totalSkillXP": totalSkillXP]
         }) { result, error in
             guard error == nil, let payload = result as? [String: Any] else { return }
             if let completed = payload["completed"] as? [String] {
@@ -834,6 +834,8 @@ extension LoggingView {
                         }
                         self.userData["todaySkillXP"] = current
                     }
+                    let totalXP = payload["totalSkillXP"] as? Int ?? 0
+                    self.checkRankUp(totalSkillXP: totalXP)
                 }
             }
         }
@@ -908,29 +910,28 @@ extension LoggingView {
             unlocked.unlocked = true
             newlyUnlocked.append(unlocked)
 
-            var stored = (try? JSONDecoder().decode(Set<Int>.self, from: UserDefaults.standard.data(forKey: "unlockedAchievementIndices") ?? Data())) ?? []
-            stored.insert(achievement.index)
-            if let encoded = try? JSONEncoder().encode(stored) {
-                UserDefaults.standard.set(encoded, forKey: "unlockedAchievementIndices")
-            }
-
             guard let uid = Auth.auth().currentUser?.uid else { continue }
             Firestore.firestore().collection("users").document(uid).setData([
                 "achievements.\(achievement.index)": [
                     "unlocked": true,
                     "unlockedDate": unlocked.unlockedDate ?? ""
                 ]
-            ], merge: true) { _ in
-                // The unlock index is already cached in UserDefaults, so a failed
-                // write is silently retried on the next completion event.
-            }
+            ], merge: true) { _ in }
         }
 
         for achievement in newlyUnlocked {
             onCelebrationEvent?(.achievement(achievement))
         }
+
         if !newlyUnlocked.isEmpty {
             UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+            var stored = (try? JSONDecoder().decode(Set<Int>.self, from: UserDefaults.standard.data(forKey: "unlockedAchievementIndices") ?? Data())) ?? []
+            for achievement in newlyUnlocked {
+                stored.insert(achievement.index)
+            }
+            if let encoded = try? JSONEncoder().encode(stored) {
+                UserDefaults.standard.set(encoded, forKey: "unlockedAchievementIndices")
+            }
         }
     }
 

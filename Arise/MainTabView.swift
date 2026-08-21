@@ -97,6 +97,7 @@ struct MainTabView: View {
         .animation(.easeOut(duration: 0.3), value: showingRankUp)
         .animation(.easeOut(duration: 0.3), value: showingAchievement)
         .onAppear {
+            migrateAchievementIndicesIfNeeded()
             checkSessionGapAchievements()
             runDailyResetIfNeeded()
         }
@@ -129,6 +130,13 @@ struct MainTabView: View {
 
     private func runDailyResetIfNeeded() {
         DailyReset.performIfNeeded()
+    }
+
+    private func migrateAchievementIndicesIfNeeded() {
+        let key = "achievementIndicesMigrated"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.removeObject(forKey: "unlockedAchievementIndices")
+        UserDefaults.standard.set(true, forKey: key)
     }
 
     private func checkSessionGapAchievements() {
