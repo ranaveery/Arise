@@ -106,8 +106,10 @@ struct HomeView: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Welcome back, \(userName)")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                     .accessibilityAddTraits(.isHeader)
                 Text(greeting)
                     .font(.system(size: 15, weight: .medium, design: .rounded))
