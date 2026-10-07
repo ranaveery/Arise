@@ -28,9 +28,15 @@ struct AriseApp: App {
     // Register AppDelegate for Firebase setup
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
 
+    @State private var proStore = ProStore()
+
     var body: some Scene {
         WindowGroup {
             AuthGateView()
+                .environment(proStore)
+                .task {
+                    proStore.start()
+                }
         }
     }
 }

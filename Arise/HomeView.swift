@@ -292,7 +292,6 @@ struct HomeView: View {
             }
 
             let computedRankName = ranks.last(where: { Double(newTotalXP) >= $0.requiredXP })?.name ?? "Seeker"
-            let computedRank = ranks.last(where: { Double(newTotalXP) >= $0.requiredXP }) ?? ranks[0]
 
             isFirstSnapshot = false
 

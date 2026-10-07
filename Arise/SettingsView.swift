@@ -38,11 +38,18 @@ struct SettingsView: View {
     @State private var showGoogleSignInAlert = false
     @State private var navigateToChangePassword = false
     @State private var isLoading = true
+    @Environment(ProStore.self) private var proStore
     
     private var versionInfo: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
         return "v\(version)"
     }
+
+#if DEBUG
+    private var currentProOverrideLabel: String {
+        ProDebugOverride.current?.label ?? "Off"
+    }
+#endif
     
     let gradient = LinearGradient.brand
 
@@ -135,6 +142,38 @@ struct SettingsView: View {
                             staticRow(systemImage: "info.circle", label: "Version", value: versionInfo)
                             .accessibilityLabel("Version \(versionInfo)")
                         }
+
+#if DEBUG
+                        // DEBUG — PRO OVERRIDE (never compiled into Release)
+                        sectionBlock("DEBUG — PRO OVERRIDE") {
+                            HStack(spacing: 12) {
+                                plainIcon(systemImage: "wrench.and.screwdriver")
+                                Text("Pro Status").foregroundColor(.white)
+                                Spacer()
+                                Menu {
+                                    Button("Off (use real entitlements)") {
+                                        proStore.setDebugOverride(nil)
+                                    }
+                                    ForEach(ProDebugOverride.allCases, id: \.self) { override in
+                                        Button(override.label) {
+                                            proStore.setDebugOverride(override)
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text(currentProOverrideLabel)
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.white.opacity(0.5))
+                                        Image(systemName: "chevron.up.chevron.down")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.white.opacity(0.3))
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 13)
+                        }
+#endif
 
                         // LOG OUT
                         Button(action: { showLogoutConfirmation = true }) {
