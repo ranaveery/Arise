@@ -710,6 +710,7 @@ extension LoggingView {
                     completedTaskIDs = completed
                     if let newStreak = payload["streak"] as? Int {
                         streak = newStreak
+                        ProPromptTracker.recordStreakIfNeeded(newStreak)
                     }
                     if let skillXP = payload["taskSkillXP"] as? [String: Int] {
                         var current = self.userData["todaySkillXP"] as? [String: Int] ?? [:]

@@ -6,6 +6,8 @@ import FirebaseFirestore
 struct MainTabView: View {
     @Binding var isUserLoggedIn: Bool
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(ProStore.self) private var proStore
     @AppStorage("animationsEnabled") private var animationsEnabled = true
     @State private var selectedTab: Tab = .home
     @State private var resetTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
@@ -22,6 +24,10 @@ struct MainTabView: View {
     @State private var currentRankUpPrevRank: Rank? = nil
     @State private var showingAchievement = false
     @State private var currentAchievement: Achievement? = nil
+
+    // Arise Pro soft prompt
+    @State private var showSoftProPrompt = false
+    @State private var showPaywall = false
 
     enum Tab {
         case home, logging, trends, settings
@@ -78,6 +84,7 @@ struct MainTabView: View {
                     onDismiss: {
                         showingRankUp = false
                         dequeueNextCelebration()
+                        considerSoftProPrompt()
                     }
                 )
                 .accessibilityAddTraits(.isModal)
@@ -92,10 +99,33 @@ struct MainTabView: View {
                 )
                 .accessibilityAddTraits(.isModal)
             }
+
+            // Arise Pro soft prompt — appears above the tab bar, never modal.
+            if showSoftProPrompt {
+                VStack {
+                    Spacer()
+                    SoftProPromptView(
+                        onLearnMore: {
+                            dismissSoftProPrompt()
+                            showPaywall = true
+                        },
+                        onDismiss: {
+                            dismissSoftProPrompt()
+                        }
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 104)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .animation(.easeOut(duration: 0.3), value: showingRankUp)
         .animation(.easeOut(duration: 0.3), value: showingAchievement)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: showSoftProPrompt)
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+        }
         .onAppear {
             migrateAchievementIndicesIfNeeded()
             checkSessionGapAchievements()
@@ -130,6 +160,20 @@ struct MainTabView: View {
 
     private func runDailyResetIfNeeded() {
         DailyReset.performIfNeeded()
+    }
+
+    /// Called only after a rank-up celebration is dismissed. Shows the
+    /// non-modal Arise Pro soft prompt when the milestones and throttles allow.
+    private func considerSoftProPrompt() {
+        guard !showingRankUp, !showingAchievement, celebrationQueue.isEmpty else { return }
+        guard !showPaywall, !showSoftProPrompt else { return }
+        guard ProPromptTracker.shouldPresentSoftPrompt(isPro: proStore.isPro) else { return }
+        ProPromptTracker.markPromptShown()
+        showSoftProPrompt = true
+    }
+
+    private func dismissSoftProPrompt() {
+        showSoftProPrompt = false
     }
 
     private func migrateAchievementIndicesIfNeeded() {

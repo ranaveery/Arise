@@ -38,6 +38,7 @@ struct SettingsView: View {
     @State private var showGoogleSignInAlert = false
     @State private var navigateToChangePassword = false
     @State private var isLoading = true
+    @State private var showPaywall = false
     @Environment(ProStore.self) private var proStore
     
     private var versionInfo: String {
@@ -62,6 +63,30 @@ struct SettingsView: View {
                             .tint(.white)
                             .padding(.top, 40)
                     } else {
+                        // ARISE PRO
+                        sectionBlock("ARISE PRO") {
+                            Button {
+                                showPaywall = true
+                            } label: {
+                                HStack(spacing: 12) {
+                                    plainIcon(systemImage: "crown.fill")
+                                    Text("Arise Pro").foregroundColor(.white)
+                                    Spacer()
+                                    Text(proStore.isPro ? "Active" : "Learn More")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white.opacity(0.4))
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(.white.opacity(0.2))
+                                }
+                                .padding(.horizontal)
+                                .padding(.vertical, 13)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Arise Pro")
+                            .accessibilityHint(proStore.isPro ? "You own Arise Pro" : "Opens the Arise Pro upgrade")
+                        }
+
                         // ACCOUNT
                         sectionBlock("ACCOUNT") {
                             inputRow(systemImage: "person", label: "Name", binding: $name, isEditable: true) {
@@ -237,6 +262,9 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+        }
     }
 
 
