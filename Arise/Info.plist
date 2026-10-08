@@ -4,5 +4,16 @@
 <dict>
 	<key>GIDClientID</key>
 	<string>1099016530925-t6283hfs6kko1gfvgdovplvfean8sq1v.apps.googleusercontent.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.ranaveer.Arise</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>arise</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

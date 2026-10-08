@@ -39,6 +39,14 @@ struct SettingsView: View {
     @State private var navigateToChangePassword = false
     @State private var isLoading = true
     @State private var showPaywall = false
+    @State private var expiringTasksTime = "18:00"
+    @State private var extraReminders: [Reminder] = []
+@State private var showReminderEditor = false
+    @State private var exportURL: URL?
+    @State private var showExportShare = false
+    @State private var exportError: String?
+    @State private var isExporting = false
+    @State private var exportMessage: String?
     @Environment(ProStore.self) private var proStore
     
     private var versionInfo: String {
@@ -129,6 +137,42 @@ struct SettingsView: View {
                         // NOTIFICATIONS
                         sectionBlock("NOTIFICATIONS") {
                             notificationsContent()
+                        }
+
+                        // DATA
+                        sectionBlock("DATA") {
+                            if proStore.isPro {
+                                Button {
+                                    performExport()
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        plainIcon(systemImage: "square.and.arrow.up")
+                                        Text("Export My Data").foregroundColor(.white)
+                                        Spacer()
+                                        if isExporting {
+                                            ProgressView()
+                                                .tint(.white.opacity(0.7))
+                                        } else {
+                                            Image(systemName: "chevron.right")
+                                                .font(.system(size: 13, weight: .semibold))
+                                                .foregroundColor(.white.opacity(0.2))
+                                        }
+                                    }
+                                    .padding(.horizontal)
+                                    .padding(.vertical, 13)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(isExporting)
+                                .accessibilityLabel("Export My Data")
+                                .accessibilityHint("Downloads your Arise history as a JSON file")
+                            } else {
+                                LockedFeatureRow(
+                                    icon: "square.and.arrow.up",
+                                    title: "Export My Data",
+                                    subtitle: "Download your history as JSON"
+                                )
+                            }
                         }
 
                         // APPEARANCE
@@ -265,6 +309,67 @@ struct SettingsView: View {
         .sheet(isPresented: $showPaywall) {
             PaywallView()
         }
+        .sheet(isPresented: $showReminderEditor) {
+            ReminderEditorView(
+                reminders: extraReminders,
+                expiringTasksTime: expiringTasksTime,
+                onSave: { newReminders, newTime in
+                    expiringTasksTime = newTime
+                    extraReminders = newReminders
+                    persistReminderSettings()
+                }
+            )
+        }
+        .sheet(isPresented: $showExportShare) {
+            if let exportURL {
+                ShareSheet(items: [exportURL])
+            }
+        }
+        .alert("Export failed", isPresented: Binding(
+            get: { exportError != nil },
+            set: { if !$0 { exportError = nil } }
+        )) {
+            Button("OK", role: .cancel) { exportError = nil }
+        } message: {
+            Text(exportError ?? "")
+        }
+    }
+
+    private func performExport() {
+        guard let uid = Auth.auth().currentUser?.uid else {
+            exportError = DataExporter.ExportError.noUser.localizedDescription
+            return
+        }
+        isExporting = true
+        Task {
+            do {
+                let data = try await DataExporter.exportData(uid: uid)
+                let url = try DataExporter.writeTemporaryFile(data: data, uid: uid)
+                await MainActor.run {
+                    isExporting = false
+                    exportURL = url
+                    showExportShare = true
+                }
+            } catch {
+                await MainActor.run {
+                    isExporting = false
+                    exportError = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func persistReminderSettings() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let payload: [String: Any] = [
+            "notifications": [
+                "expiringTasksTime": expiringTasksTime,
+                "extraReminders": extraReminders.map { $0.toDict() }
+            ]
+        ]
+        Firestore.firestore().collection("users").document(uid).setData(payload, merge: true) { _ in
+            NotificationCenter.default.post(name: .ariseRescheduleNotifications, object: nil)
+        }
     }
 
 
@@ -347,6 +452,63 @@ struct SettingsView: View {
             PreferenceManager.savePreference(key: "sleepTime", value: newValue)
             fetchUserTimesAndReschedule()
         }
+
+        dividerLine()
+
+        customRemindersContent()
+    }
+
+    // MARK: - Custom Reminders (Pro)
+
+    @ViewBuilder
+    private func customRemindersContent() -> some View {
+        if proStore.isPro {
+            Button {
+                showReminderEditor = true
+            } label: {
+                HStack(spacing: 12) {
+                    plainIcon(systemImage: "bell.badge")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Custom Reminders").foregroundColor(.white)
+                        Text(remindersSubtitle)
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.4))
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.2))
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 13)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Custom Reminders")
+            .accessibilityHint("Opens custom reminder settings")
+        } else {
+            LockedFeatureRow(
+                icon: "bell.badge",
+                title: "Custom Reminders",
+                subtitle: "Set your own reminder times"
+            )
+        }
+    }
+
+    private var remindersSubtitle: String {
+        var parts: [String] = ["Expiring tasks at \(formattedReminderTime(expiringTasksTime))"]
+        let count = extraReminders.filter { $0.enabled }.count
+        if count > 0 {
+            parts.append("\(count) extra reminder\(count == 1 ? "" : "s")")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func formattedReminderTime(_ hhmm: String) -> String {
+        guard let date = dateFromTimeString(hhmm) else { return hhmm }
+        let fmt = DateFormatter()
+        fmt.timeStyle = .short
+        return fmt.string(from: date)
     }
 
     // MARK: - Divider between rows (no gaps)
@@ -495,17 +657,21 @@ struct SettingsView: View {
             let fetchedEmail = data["email"] as? String ?? ""
             UserDefaults.standard.set(["name": fetchedName, "email": fetchedEmail], forKey: "cachedUserData")
 
-            let fetchedNotifications = data["notifications"] as? [String: Bool] ?? [:]
+            let fetchedNotifications = data["notifications"] as? [String: Any] ?? [:]
             let fetchedAnimations = data["animationsEnabled"] as? Bool
+            let fetchedReminders = Reminder.list(from: fetchedNotifications["extraReminders"])
+            let fetchedExpiringTime = fetchedNotifications["expiringTasksTime"] as? String
 
             DispatchQueue.main.async {
                 self.name = fetchedName
                 self.userEmail = fetchedEmail
                 self.isLoading = false
                 self.preferencesLoaded = false
-                self.expiringTasks = fetchedNotifications["expiringTasks"] ?? self.expiringTasks
-                self.newTasks = fetchedNotifications["newTasks"] ?? self.newTasks
-                self.sleepTime = fetchedNotifications["sleepTime"] ?? self.sleepTime
+                self.expiringTasks = fetchedNotifications["expiringTasks"] as? Bool ?? self.expiringTasks
+                self.newTasks = fetchedNotifications["newTasks"] as? Bool ?? self.newTasks
+                self.sleepTime = fetchedNotifications["sleepTime"] as? Bool ?? self.sleepTime
+                if let fetchedExpiringTime { self.expiringTasksTime = fetchedExpiringTime }
+                self.extraReminders = fetchedReminders
                 if let anim = fetchedAnimations { self.animationsEnabled = anim }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     self.preferencesLoaded = true
@@ -560,6 +726,7 @@ struct SettingsView: View {
         static let expiringTasks = "notif.expiringTasks"
         static let bedTime = "notif.bedTime"
         static let newTasks = "notif.newTasks"
+        static let extraPrefix = "notif.extra."
     }
 
     private func fetchUserTimesAndReschedule() {
@@ -573,6 +740,7 @@ struct SettingsView: View {
             scheduleExpiringTasksNotificationIfNeeded()  // independent of user times
             scheduleBedtimeNotificationIfNeeded(wakeOrBedData: data)
             scheduleNewTasksNotificationIfNeeded(userData: data)
+            scheduleExtraReminders()
         }
     }
 
@@ -641,15 +809,60 @@ struct SettingsView: View {
 
     private func scheduleExpiringTasksNotificationIfNeeded() {
         if expiringTasks {
-            // schedule at 18:00
+            let components = timeComponents(from: expiringTasksTime) ?? (18, 0)
             scheduleDailyNotification(id: NotificationIDs.expiringTasks,
                                       title: "Expiring Tasks",
                                       body: "Reminder to get all your tasks done.",
-                                      hour: 18,
-                                      minute: 0)
+                                      hour: components.0,
+                                      minute: components.1)
         } else {
             cancelNotification(id: NotificationIDs.expiringTasks)
         }
+    }
+
+    // MARK: - Custom reminder scheduling (Pro)
+
+    /// Schedules the Pro user's extra reminders and removes any stale ones.
+    /// Free users have all extra reminders cancelled.
+    private func scheduleExtraReminders() {
+        let center = UNUserNotificationCenter.current()
+        center.getPendingNotificationRequests { requests in
+            let stale = requests
+                .map(\.identifier)
+                .filter { $0.hasPrefix(NotificationIDs.extraPrefix) }
+            if !stale.isEmpty {
+                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: stale)
+            }
+
+            guard proStore.isPro else { return }
+
+            for reminder in extraReminders where reminder.enabled {
+                let id = "\(NotificationIDs.extraPrefix)\(reminder.id)"
+                let weekdays = reminder.days.isEmpty
+                    ? nil
+                    : reminder.days.map { ($0 % 7) + 1 } // Mon=1...Sun=7 -> Calendar 1=Sun...7=Sat
+                scheduleDailyNotification(id: id,
+                                          title: "Arise",
+                                          body: reminder.label,
+                                          hour: reminder.hour,
+                                          minute: reminder.minute,
+                                          weekdays: weekdays)
+            }
+        }
+    }
+
+    /// Parses "HH:mm" into an (hour, minute) pair.
+    private func timeComponents(from value: String) -> (Int, Int)? {
+        let parts = value.split(separator: ":")
+        guard parts.count == 2,
+              let hour = Int(parts[0]), let minute = Int(parts[1]),
+              (0...23).contains(hour), (0...59).contains(minute) else { return nil }
+        return (hour, minute)
+    }
+
+    private func dateFromTimeString(_ value: String) -> Date? {
+        guard let (hour, minute) = timeComponents(from: value) else { return nil }
+        return Calendar.current.date(from: DateComponents(hour: hour, minute: minute))
     }
 
     private func scheduleBedtimeNotificationIfNeeded(wakeOrBedData: [String: Any]) {

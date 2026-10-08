@@ -29,6 +29,7 @@ struct AriseApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
 
     @State private var proStore = ProStore()
+    @State private var showDeepLinkPaywall = false
 
     var body: some Scene {
         WindowGroup {
@@ -36,6 +37,14 @@ struct AriseApp: App {
                 .environment(proStore)
                 .task {
                     proStore.start()
+                }
+                .onOpenURL { url in
+                    if url.scheme == "arise", url.host == "pro" {
+                        showDeepLinkPaywall = true
+                    }
+                }
+                .sheet(isPresented: $showDeepLinkPaywall) {
+                    PaywallView()
                 }
         }
     }

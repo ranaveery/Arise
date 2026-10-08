@@ -247,6 +247,7 @@ struct MonthlySummary: Codable, Equatable {
     var totalPossibleXP: Int = 0
     var bestStreak: Int = 0
     var activeDays: Int = 0
+    var skillXP: [String: Int] = [:]
 }
 
 /// One month of the all-time chart.
@@ -258,6 +259,7 @@ struct MonthlyStat: Identifiable, Equatable {
     let totalPossibleXP: Int
     let bestStreak: Int
     let activeDays: Int
+    var skillXP: [String: Int] = [:]
 }
 
 /// Aggregated, pruned-safe view of the user's entire history.
@@ -267,6 +269,7 @@ struct AllTimeStats: Equatable {
     var totalPossibleXP: Int = 0
     var bestStreak: Int = 0
     var activeDays: Int = 0
+    var skillXP: [String: Int] = [:]
     var months: [MonthlyStat] = []
     var earliestMonth: String?
 
@@ -295,6 +298,9 @@ enum ProHistoryAggregator {
             if log.completedCount > 0 || log.xpGained > 0 {
                 summary.activeDays += 1
             }
+            for (skill, xp) in log.skillXP {
+                summary.skillXP[skill, default: 0] += xp
+            }
             result[key] = summary
         }
         return result
@@ -310,6 +316,9 @@ enum ProHistoryAggregator {
             summary.totalPossibleXP += add.totalPossibleXP
             summary.bestStreak = max(summary.bestStreak, add.bestStreak)
             summary.activeDays += add.activeDays
+            for (skill, xp) in add.skillXP {
+                summary.skillXP[skill, default: 0] += xp
+            }
             result[month] = summary
         }
         return result
@@ -325,7 +334,8 @@ enum ProHistoryAggregator {
                 completedCount: values["completedCount"] as? Int ?? 0,
                 totalPossibleXP: values["totalPossibleXP"] as? Int ?? 0,
                 bestStreak: values["bestStreak"] as? Int ?? 0,
-                activeDays: values["activeDays"] as? Int ?? 0
+                activeDays: values["activeDays"] as? Int ?? 0,
+                skillXP: values["skillXP"] as? [String: Int] ?? [:]
             )
         }
         return result
@@ -336,26 +346,59 @@ enum ProHistoryAggregator {
     /// than the retention cutoff), so simple addition is correct.
     static func allTimeStats(dailyLogs: [DailyLog], summaries: [String: MonthlySummary]) -> AllTimeStats {
         let combined = merging(monthlySummaries(from: dailyLogs), into: summaries)
-        var stats = AllTimeStats()
+        var months: [MonthlyStat] = []
         for (month, summary) in combined {
-            stats.totalXP += summary.xpGained
-            stats.totalCompleted += summary.completedCount
-            stats.totalPossibleXP += summary.totalPossibleXP
-            stats.bestStreak = max(stats.bestStreak, summary.bestStreak)
-            stats.activeDays += summary.activeDays
             let date = AriseDate.date(fromISO: "\(month)-01") ?? Date.distantPast
-            stats.months.append(MonthlyStat(
+            months.append(MonthlyStat(
                 id: month,
                 date: date,
                 xpGained: summary.xpGained,
                 completedCount: summary.completedCount,
                 totalPossibleXP: summary.totalPossibleXP,
                 bestStreak: summary.bestStreak,
-                activeDays: summary.activeDays
+                activeDays: summary.activeDays,
+                skillXP: summary.skillXP
             ))
         }
-        stats.months.sort { $0.id < $1.id }
-        stats.earliestMonth = stats.months.first?.id
+        months.sort { $0.id < $1.id }
+        return aggregate(months: months)
+    }
+
+    /// Totals for a set of months, optionally restricted to the trailing
+    /// `monthsBack` months relative to `referenceDate` (used by the Pro "1Y" range).
+    static func stats(
+        dailyLogs: [DailyLog],
+        summaries: [String: MonthlySummary],
+        monthsBack: Int,
+        referenceDate: Date = Date()
+    ) -> AllTimeStats {
+        let full = allTimeStats(dailyLogs: dailyLogs, summaries: summaries)
+        let calendar = Calendar(identifier: .gregorian)
+        let startOfReferenceMonth = calendar.date(
+            from: calendar.dateComponents([.year, .month], from: referenceDate)
+        ) ?? referenceDate
+        guard let cutoff = calendar.date(byAdding: .month, value: -(monthsBack - 1), to: startOfReferenceMonth) else {
+            return full
+        }
+        let window = full.months.filter { $0.date >= cutoff }
+        return aggregate(months: window)
+    }
+
+    /// Sums a list of monthly stats into an `AllTimeStats` value.
+    static func aggregate(months: [MonthlyStat]) -> AllTimeStats {
+        var stats = AllTimeStats()
+        for month in months {
+            stats.totalXP += month.xpGained
+            stats.totalCompleted += month.completedCount
+            stats.totalPossibleXP += month.totalPossibleXP
+            stats.bestStreak = max(stats.bestStreak, month.bestStreak)
+            stats.activeDays += month.activeDays
+            for (skill, xp) in month.skillXP {
+                stats.skillXP[skill, default: 0] += xp
+            }
+        }
+        stats.months = months
+        stats.earliestMonth = months.first?.id
         return stats
     }
 }
@@ -365,6 +408,200 @@ struct IdentifiedString: Identifiable {
     let id: String
     init(_ value: String) { self.id = value }
     var value: String { id }
+}
+
+// MARK: - Arise Pro: Custom Tasks
+
+/// A user-defined recurring task. Pro users may define several, but at most
+/// `maxPerDay` are generated on any single day. XP is user-editable, capped at
+/// `maxXP`.
+struct CustomTask: Identifiable, Equatable {
+    var id: String
+    var name: String
+    var details: String
+    var xp: Int
+    /// 1 = Monday ... 7 = Sunday (same convention as `DaysOfWeekPicker`).
+    var days: [Int]
+    var skillTargets: [String]
+
+    static let maxPerDay = 2
+    static let maxXP = 40
+    static let maxDefinitions = 4
+    static let maxDefined = 6
+
+    init(
+        id: String = UUID().uuidString,
+        name: String,
+        details: String = "",
+        xp: Int = CustomTask.maxXP,
+        days: [Int] = [],
+        skillTargets: [String] = []
+    ) {
+        self.id = id
+        self.name = name
+        self.details = details
+        self.xp = min(max(xp, 5), CustomTask.maxXP)
+        self.days = days
+        self.skillTargets = skillTargets
+    }
+
+    init?(dict: [String: Any]) {
+        guard let id = dict["id"] as? String,
+              let name = dict["name"] as? String, !name.isEmpty else { return nil }
+        self.id = id
+        self.name = name
+        self.details = dict["details"] as? String ?? ""
+        self.xp = min(max(dict["xp"] as? Int ?? CustomTask.maxXP, 5), CustomTask.maxXP)
+        self.days = dict["days"] as? [Int] ?? []
+        self.skillTargets = dict["skillTargets"] as? [String] ?? []
+    }
+
+    var firestoreValue: [String: Any] {
+        [
+            "id": id,
+            "name": name,
+            "details": details,
+            "xp": xp,
+            "days": days,
+            "skillTargets": skillTargets
+        ]
+    }
+}
+
+enum CustomTaskScheduler {
+    /// Tasks scheduled for a given weekday, capped at `CustomTask.maxPerDay`.
+    /// Order is preserved (definition order), so the first matching tasks win.
+    static func tasks(for dayIndex: Int, from tasks: [CustomTask]) -> [CustomTask] {
+        var result: [CustomTask] = []
+        for task in tasks where task.days.contains(dayIndex) {
+            if result.count >= CustomTask.maxPerDay { break }
+            result.append(task)
+        }
+        return result
+    }
+}
+
+// MARK: - Arise Pro: Custom Reminders
+
+/// A user-defined daily reminder (Pro). An empty `days` array means every day.
+struct Reminder: Identifiable, Equatable {
+    var id: String
+    var label: String
+    /// Local time formatted "HH:mm" (24-hour).
+    var time: String
+    /// 1 = Monday ... 7 = Sunday. Empty means every day.
+    var days: [Int]
+    var enabled: Bool
+
+    static let maxReminders = 5
+
+    init(id: String = UUID().uuidString, label: String, time: String, days: [Int] = [], enabled: Bool = true) {
+        self.id = id
+        self.label = label
+        self.time = time
+        self.days = days
+        self.enabled = enabled
+    }
+
+    init?(dict: [String: Any]) {
+        guard let id = dict["id"] as? String,
+              let label = dict["label"] as? String,
+              let time = dict["time"] as? String else { return nil }
+        self.id = id
+        self.label = label
+        self.time = time
+        self.days = dict["days"] as? [Int] ?? []
+        self.enabled = dict["enabled"] as? Bool ?? true
+    }
+
+    var hour: Int {
+        Int(time.split(separator: ":").first ?? "0") ?? 0
+    }
+
+    var minute: Int {
+        guard time.contains(":") else { return 0 }
+        return Int(time.split(separator: ":").last ?? "0") ?? 0
+    }
+
+    var daysLabel: String {
+        guard !days.isEmpty, days.count < 7 else { return "Every day" }
+        if Set(days) == [6, 7] { return "Weekends" }
+        let names = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        return days.sorted().compactMap { names[safe: $0] }.joined(separator: ", ")
+    }
+
+    private var daysLabelFallback: String {
+        let names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        return days.sorted().compactMap { names[safe: $0 - 1] }.joined(separator: ", ")
+    }
+
+    /// Converts stored `[String: Any]` reminders into models.
+    static func list(from raw: Any?) -> [Reminder] {
+        guard let array = raw as? [[String: Any]] else { return [] }
+        return array.compactMap { Reminder(dict: $0) }
+    }
+
+    func toDict() -> [String: Any] {
+        ["id": id, "label": label, "time": time, "days": days, "enabled": enabled]
+    }
+}
+
+// MARK: - Arise Pro: Insights
+
+/// The extra, Pro-only signals shown in the Advanced Insights pack.
+struct ProInsights: Equatable {
+    var consistency: Double = 0
+    var bestMonth: MonthlyStat?
+    var momentumPct: Int?
+    var skillTotals: [(skill: String, xp: Int)] = []
+
+    static func == (lhs: ProInsights, rhs: ProInsights) -> Bool {
+        lhs.consistency == rhs.consistency &&
+        lhs.bestMonth?.id == rhs.bestMonth?.id &&
+        lhs.momentumPct == rhs.momentumPct &&
+        lhs.skillTotals.map(\.skill) == rhs.skillTotals.map(\.skill) &&
+        lhs.skillTotals.map(\.xp) == rhs.skillTotals.map(\.xp)
+    }
+}
+
+/// Pure computation of the Advanced Insights values.
+enum ProInsightsEngine {
+    /// Month-over-month XP change for the calendar month containing `referenceDate`.
+    /// Returns `nil` when there isn't a prior month with XP to compare against.
+    static func momentum(months: [MonthlyStat], referenceDate: Date = Date()) -> Int? {
+        let calendar = Calendar(identifier: .gregorian)
+        let comps = calendar.dateComponents([.year, .month], from: referenceDate)
+        guard let year = comps.year, let month = comps.month else { return nil }
+        let currentKey = String(format: "%04d-%02d", year, month)
+
+        guard let previousDate = calendar.date(byAdding: .month, value: -1, to: referenceDate) else { return nil }
+        let previousComps = calendar.dateComponents([.year, .month], from: previousDate)
+        guard let previousYear = previousComps.year, let previousMonth = previousComps.month else { return nil }
+        let previousKey = String(format: "%04d-%02d", previousYear, previousMonth)
+
+        guard let current = months.first(where: { $0.id == currentKey }),
+              let previous = months.first(where: { $0.id == previousKey }),
+              previous.xpGained > 0 else { return nil }
+
+        let change = (Double(current.xpGained) - Double(previous.xpGained)) / Double(previous.xpGained)
+        return Int((change * 100).rounded())
+    }
+
+    static func bestMonth(months: [MonthlyStat]) -> MonthlyStat? {
+        months.filter { $0.xpGained > 0 }.max { $0.xpGained < $1.xpGained }
+    }
+
+    static func skillTotals(from skillXP: [String: Int]) -> [(skill: String, xp: Int)] {
+        skillXP
+            .filter { $0.value > 0 }
+            .map { (skill: $0.key, xp: $0.value) }
+            .sorted { $0.xp > $1.xp }
+    }
+
+    static func consistency(activeDays: Int, windowDays: Int) -> Double {
+        guard windowDays > 0 else { return 0 }
+        return min(Double(activeDays) / Double(windowDays), 1)
+    }
 }
 
 // MARK: - Shared Services
@@ -474,7 +711,8 @@ enum DailyReset {
                         "completedCount": summary.completedCount,
                         "totalPossibleXP": summary.totalPossibleXP,
                         "bestStreak": summary.bestStreak,
-                        "activeDays": summary.activeDays
+                        "activeDays": summary.activeDays,
+                        "skillXP": summary.skillXP
                     ]
                 }
 

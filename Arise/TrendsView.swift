@@ -28,6 +28,7 @@ struct TrendsView: View {
         case week = "7D"
         case month = "30D"
         case quarter = "90D"
+        case year = "1Y"
         case allTime = "ALL"
 
         var days: Int {
@@ -35,6 +36,7 @@ struct TrendsView: View {
             case .week: return 7
             case .month: return 30
             case .quarter: return 90
+            case .year: return 365
             case .allTime: return 0
             }
         }
@@ -44,11 +46,12 @@ struct TrendsView: View {
             case .week: return 1
             case .month: return 7
             case .quarter: return 20
+            case .year: return 1
             case .allTime: return 1
             }
         }
 
-        var isProOnly: Bool { self == .allTime }
+        var isProOnly: Bool { self == .year || self == .allTime }
     }
 
     // MARK: - Derived Data
@@ -71,6 +74,37 @@ struct TrendsView: View {
     /// Full-history roll-up (pruned monthly summaries + retained daily logs).
     private var allTimeStats: AllTimeStats {
         ProHistoryAggregator.allTimeStats(dailyLogs: dailyLogs, summaries: monthlySummaries)
+    }
+
+    /// Trailing 12 months, for the Pro "1Y" range.
+    private var yearStats: AllTimeStats {
+        ProHistoryAggregator.stats(dailyLogs: dailyLogs, summaries: monthlySummaries, monthsBack: 12)
+    }
+
+    private var rangeActiveDays: Int {
+        rangeLogs.filter { $0.completedCount > 0 || $0.xpGained > 0 }.count
+    }
+
+    private var allTimeWindowDays: Int {
+        guard let earliest = allTimeStats.earliestMonth,
+              let start = AriseDate.date(fromISO: "\(earliest)-01") else { return 1 }
+        let days = Calendar.current.dateComponents([.day], from: start, to: Date()).day ?? 0
+        return max(days + 1, 1)
+    }
+
+    private var bestMonthAllTime: MonthlyStat? {
+        ProInsightsEngine.bestMonth(months: allTimeStats.months)
+    }
+
+    private var monthMomentum: Int? {
+        ProInsightsEngine.momentum(months: allTimeStats.months)
+    }
+
+    private func reveal<Content: View>(_ content: Content, delay: Double) -> some View {
+        content
+            .opacity(animateBars ? 1 : 0)
+            .offset(y: animateBars ? 0 : 12)
+            .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(delay) : nil, value: animateBars)
     }
 
     private var rangeLogs: [DailyLog] {
@@ -197,46 +231,46 @@ struct TrendsView: View {
 
                     if selectedRange == .allTime {
                         if proStore.isPro {
-                            allTimeStatsSection
-                                .opacity(animateBars ? 1 : 0)
-                                .offset(y: animateBars ? 0 : 12)
-                                .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.05) : nil, value: animateBars)
-
-                            allTimeChartSection
-                                .opacity(animateBars ? 1 : 0)
-                                .offset(y: animateBars ? 0 : 12)
-                                .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.1) : nil, value: animateBars)
+                            reveal(allTimeStatsSection, delay: 0.05)
+                            reveal(allTimeChartSection, delay: 0.1)
+                            reveal(deeperInsightsSection(
+                                consistency: ProInsightsEngine.consistency(activeDays: allTimeStats.activeDays, windowDays: allTimeWindowDays),
+                                bestMonth: bestMonthAllTime,
+                                momentum: monthMomentum,
+                                skillTotals: ProInsightsEngine.skillTotals(from: allTimeStats.skillXP)
+                            ), delay: 0.15)
                         } else {
-                            lockedAllTimeSection
-                                .opacity(animateBars ? 1 : 0)
-                                .offset(y: animateBars ? 0 : 12)
-                                .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.05) : nil, value: animateBars)
+                            reveal(lockedAllTimeSection, delay: 0.05)
+                        }
+                    } else if selectedRange == .year {
+                        if proStore.isPro {
+                            reveal(yearStatsSection, delay: 0.05)
+                            reveal(yearChartSection, delay: 0.1)
+                            reveal(deeperInsightsSection(
+                                consistency: ProInsightsEngine.consistency(activeDays: yearStats.activeDays, windowDays: 365),
+                                bestMonth: bestMonthAllTime,
+                                momentum: monthMomentum,
+                                skillTotals: ProInsightsEngine.skillTotals(from: yearStats.skillXP)
+                            ), delay: 0.15)
+                        } else {
+                            reveal(lockedYearSection, delay: 0.05)
                         }
                     } else {
-                        xpChartSection
-                            .opacity(animateBars ? 1 : 0)
-                            .offset(y: animateBars ? 0 : 12)
-                            .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.05) : nil, value: animateBars)
-
-                        completionChartSection
-                            .opacity(animateBars ? 1 : 0)
-                            .offset(y: animateBars ? 0 : 12)
-                            .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.1) : nil, value: animateBars)
-
-                        skillGrowthSection
-                            .opacity(animateBars ? 1 : 0)
-                            .offset(y: animateBars ? 0 : 12)
-                            .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.15) : nil, value: animateBars)
-
-                        milestonesSection
-                            .opacity(animateBars ? 1 : 0)
-                            .offset(y: animateBars ? 0 : 12)
-                            .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.2) : nil, value: animateBars)
-
-                        insightsSection
-                            .opacity(animateBars ? 1 : 0)
-                            .offset(y: animateBars ? 0 : 12)
-                            .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.25) : nil, value: animateBars)
+                        reveal(xpChartSection, delay: 0.05)
+                        reveal(completionChartSection, delay: 0.1)
+                        reveal(skillGrowthSection, delay: 0.15)
+                        reveal(milestonesSection, delay: 0.2)
+                        reveal(insightsSection, delay: 0.25)
+                        if proStore.isPro {
+                            reveal(deeperInsightsSection(
+                                consistency: ProInsightsEngine.consistency(activeDays: rangeActiveDays, windowDays: selectedRange.days),
+                                bestMonth: bestMonthAllTime,
+                                momentum: monthMomentum,
+                                skillTotals: skillGains
+                            ), delay: 0.3)
+                        } else {
+                            reveal(lockedDeeperInsightsRow, delay: 0.3)
+                        }
                     }
 
                     Spacer(minLength: 40)
@@ -715,23 +749,31 @@ struct TrendsView: View {
         .padding(.horizontal, 16)
     }
 
-    // MARK: - All Time (Pro)
+    // MARK: - All Time / Year (Pro)
 
     private var allTimeStatsSection: some View {
+        monthlyStatsCards(title: "All Time", stats: allTimeStats, showEarliest: true)
+    }
+
+    private var yearStatsSection: some View {
+        monthlyStatsCards(title: "This Year", stats: yearStats, showEarliest: false)
+    }
+
+    private func monthlyStatsCards(title: String, stats: AllTimeStats, showEarliest: Bool) -> some View {
         VStack(spacing: 10) {
-            sectionTitle("All Time")
+            sectionTitle(title)
 
             LazyVGrid(
                 columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
                 spacing: 12
             ) {
-                statCard(icon: "bolt.fill", value: formatXP(Double(allTimeStats.totalXP)), label: "Total XP")
-                statCard(icon: "checkmark.circle.fill", value: formatXP(Double(allTimeStats.totalCompleted)), label: "Tasks completed")
-                statCard(icon: "flame.fill", value: "\(allTimeStats.bestStreak) days", label: "Best streak")
-                statCard(icon: "calendar", value: "\(allTimeStats.activeDays)", label: "Active days")
+                statCard(icon: "bolt.fill", value: formatXP(Double(stats.totalXP)), label: "Total XP")
+                statCard(icon: "checkmark.circle.fill", value: formatXP(Double(stats.totalCompleted)), label: "Tasks completed")
+                statCard(icon: "flame.fill", value: "\(stats.bestStreak) days", label: "Best streak")
+                statCard(icon: "calendar", value: "\(stats.activeDays)", label: "Active days")
             }
 
-            if let earliest = allTimeStats.earliestMonth {
+            if showEarliest, let earliest = stats.earliestMonth {
                 Text("History saved since \(monthLabel(earliest))")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.white.opacity(0.4))
@@ -744,16 +786,24 @@ struct TrendsView: View {
     }
 
     private var allTimeChartSection: some View {
+        monthlyChart(title: "XP by Month", stats: allTimeStats)
+    }
+
+    private var yearChartSection: some View {
+        monthlyChart(title: "XP by Month", stats: yearStats)
+    }
+
+    private func monthlyChart(title: String, stats: AllTimeStats) -> some View {
         VStack(spacing: 10) {
-            sectionTitle("XP by Month")
+            sectionTitle(title)
 
             VStack(spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("\(allTimeStats.months.count) month\(allTimeStats.months.count == 1 ? "" : "s") tracked")
+                    Text("\(stats.months.count) month\(stats.months.count == 1 ? "" : "s") tracked")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white.opacity(0.4))
                     Spacer()
-                    Text("\(Int(allTimeStats.completionRate * 100))% overall")
+                    Text("\(Int(stats.completionRate * 100))% overall")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white.opacity(0.4))
                 }
@@ -761,7 +811,7 @@ struct TrendsView: View {
                 .padding(.top, 14)
                 .padding(.bottom, 8)
 
-                Chart(allTimeStats.months) { month in
+                Chart(stats.months) { month in
                     BarMark(
                         x: .value("Month", month.date, unit: .month),
                         y: .value("XP", month.xpGained),
@@ -807,6 +857,134 @@ struct TrendsView: View {
         }
         .accessibilityElement(children: .contain)
         .padding(.horizontal)
+    }
+
+    // MARK: - Advanced Insights (Pro)
+
+    private func deeperInsightsSection(
+        consistency: Double,
+        bestMonth: MonthlyStat?,
+        momentum: Int?,
+        skillTotals: [(skill: String, xp: Int)]
+    ) -> some View {
+        VStack(spacing: 10) {
+            sectionTitle("Deeper Insights")
+
+            VStack(spacing: 0) {
+                insightRow(
+                    icon: "target",
+                    color: Color(red: 84/255, green: 0/255, blue: 232/255),
+                    title: "Consistency",
+                    value: "\(Int((consistency * 100).rounded()))%",
+                    subtitle: "active days"
+                )
+
+                if let best = bestMonth {
+                    insightRow(
+                        icon: "crown.fill",
+                        color: .yellow,
+                        title: "Best month",
+                        value: monthLabel(best.id),
+                        subtitle: "\(formatXP(Double(best.xpGained))) XP"
+                    )
+                }
+
+                if let momentum {
+                    insightRow(
+                        icon: momentum >= 0 ? "arrow.up.right" : "arrow.down.right",
+                        color: momentum >= 0 ? .green : .orange,
+                        title: "Momentum",
+                        value: "\(momentum >= 0 ? "+" : "")\(momentum)%",
+                        subtitle: "vs last month"
+                    )
+                }
+            }
+            .background(Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+            )
+
+            if !skillTotals.isEmpty {
+                skillBalanceCard(skillTotals)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private func skillBalanceCard(_ skillTotals: [(skill: String, xp: Int)]) -> some View {
+        let maxXP = skillTotals.map(\.xp).max() ?? 1
+        return VStack(spacing: 0) {
+            ForEach(Array(skillTotals.enumerated()), id: \.element.skill) { index, gain in
+                VStack(spacing: 6) {
+                    HStack(spacing: 10) {
+                        Image(systemName: skillIcons[gain.skill] ?? "star.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(LinearGradient.brand)
+                            .frame(width: 22)
+
+                        Text(gain.skill)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white)
+
+                        Spacer()
+
+                        Text("\(formatXP(Double(gain.xp))) XP")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(Color.white.opacity(0.06))
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(LinearGradient.brand)
+                                .frame(width: animateBars ? max(2, geo.size.width * (Double(gain.xp) / Double(maxXP))) : 0)
+                        }
+                        .animation(animationsEnabled ? .spring(response: 0.6) : nil, value: animateBars)
+                    }
+                    .frame(height: 8)
+                }
+                .padding(.vertical, 10)
+                .padding(.horizontal, 16)
+
+                if index != skillTotals.count - 1 {
+                    Divider()
+                        .background(Color.white.opacity(0.06))
+                        .padding(.leading, 48)
+                }
+            }
+        }
+        .background(Color.white.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+        )
+    }
+
+    private var lockedDeeperInsightsRow: some View {
+        VStack(spacing: 10) {
+            sectionTitle("Insights")
+            LockedProCard(
+                icon: "chart.xyaxis.line",
+                title: "Unlock Advanced Insights",
+                message: "See your consistency score, best month, momentum, and skill balance with Arise Pro.",
+                buttonTitle: "Unlock with Arise Pro"
+            )
+        }
+        .padding(.horizontal)
+    }
+
+    private var lockedYearSection: some View {
+        LockedProCard(
+            icon: "calendar",
+            title: "Unlock Your Year in Review",
+            message: "See 12 months of XP, completion trends, and deeper insights with Arise Pro.",
+            buttonTitle: "Unlock with Arise Pro"
+        )
     }
 
     private var lockedAllTimeSection: some View {

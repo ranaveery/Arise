@@ -27,11 +27,14 @@ struct LoggingView: View {
     @State private var streak: Int = 0
     @Namespace private var tabAnimation
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(ProStore.self) private var proStore
 
     // tasks
     @State private var assignedTasks: [TaskItem] = []
     @State private var completedTaskIDs: [String] = [] // persisted in Firestore
     @State private var expandedTaskID: String? = nil
+    @State private var showCustomTasks = false
+    @State private var showCustomPaywall = false
     
     // completed list derived from completedTaskIDs & assigned tasks
     private var completedTasks: [TaskItem] {
@@ -83,9 +86,10 @@ struct LoggingView: View {
         let sectionMap: [String: String] = [
             "Daily": "Daily Rituals",
             "Set Day": "Set Day",
-            "Addiction": "Addiction Focus"
+            "Addiction": "Addiction Focus",
+            "Custom": "Custom Tasks"
         ]
-        return ["Addiction", "Daily", "Set Day"].compactMap { key in
+        return ["Addiction", "Custom", "Daily", "Set Day"].compactMap { key in
             guard let tasks = grouped[key], !tasks.isEmpty else { return nil }
             return (sectionMap[key] ?? key, tasks)
         }
@@ -133,6 +137,12 @@ struct LoggingView: View {
                 checkForMidnightReset()
                 fetchUserData()
             }
+            .sheet(isPresented: $showCustomTasks, onDismiss: { fetchUserData() }) {
+                CustomTasksView()
+            }
+            .sheet(isPresented: $showCustomPaywall) {
+                PaywallView()
+            }
         }
     }
 
@@ -170,19 +180,48 @@ struct LoggingView: View {
     }
 
     private var headerView: some View {
-        VStack(spacing: 4) {
-            Text("Your tasks")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(alignment: .top) {
+            VStack(spacing: 4) {
+                Text("Your tasks")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(formattedToday)
-                .font(.subheadline)
-                .foregroundColor(.white.opacity(0.6))
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Text(formattedToday)
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.6))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Button {
+                if proStore.isPro {
+                    showCustomTasks = true
+                } else {
+                    showCustomPaywall = true
+                }
+            } label: {
+                VStack(spacing: 3) {
+                    Image(systemName: proStore.isPro ? "square.and.pencil" : "lock.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(LinearGradient.brand)
+                    Text("Custom")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                .frame(width: 58, height: 58)
+                .background(Color.white.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(proStore.isPro ? "Manage custom tasks" : "Custom tasks, Arise Pro feature")
+            .accessibilityHint(proStore.isPro ? "" : "Opens the Arise Pro upgrade")
         }
         .padding(.horizontal, 20)
-        .accessibilityAddTraits(.isHeader)
+        .accessibilityElement(children: .contain)
     }
 
     private var formattedToday: String {
@@ -580,9 +619,52 @@ extension LoggingView {
     }
 
     private func generateTasks(from data: [String: Any]) {
-        let tasks = makeTasks(from: data, date: Date())
+        let now = Date()
+        var tasks = makeTasks(from: data, date: now)
+        tasks.append(contentsOf: customTaskItems(from: data, date: now))
         self.assignedTasks = tasks.sorted { $0.name < $1.name }
         self.todayTotalPossibleXP = tasks.reduce(0) { $0 + $1.xp }
+        publishWidgetSnapshot()
+    }
+
+    /// Mirrors a small day summary into the App Group for the home-screen widget.
+    private func publishWidgetSnapshot() {
+        let completed = assignedTasks.filter { completedTaskIDs.contains($0.id) }.count
+        SharedStore.save(
+            SharedStore.Snapshot(
+                streak: streak,
+                completedToday: completed,
+                totalToday: assignedTasks.count,
+                isPro: proStore.isPro,
+                updatedAt: Date()
+            )
+        )
+    }
+
+    /// Builds TaskItems for the Pro user's custom tasks scheduled today,
+    /// capped at `CustomTask.maxPerDay`.
+    private func customTaskItems(from data: [String: Any], date: Date) -> [TaskItem] {
+        guard proStore.isPro else { return [] }
+        let raw = data["customTasks"] as? [[String: Any]] ?? []
+        let customTasks = raw.compactMap { CustomTask(dict: $0) }
+        guard !customTasks.isEmpty else { return [] }
+
+        let weekday = Calendar.current.component(.weekday, from: date)
+        let dayIndex = (weekday == 1) ? 7 : (weekday - 1)
+        let scheduled = CustomTaskScheduler.tasks(for: dayIndex, from: customTasks)
+        let day = isoDateString(from: date)
+
+        return scheduled.map { custom in
+            TaskItem(
+                id: "\(day)|Custom|\(custom.id)",
+                name: custom.name,
+                description: custom.details.isEmpty ? "Your custom task" : custom.details,
+                xp: custom.xp,
+                expiresInHours: 24,
+                internalType: "Custom",
+                skillTargets: custom.skillTargets.isEmpty ? allSkillNames : custom.skillTargets
+            )
+        }
     }
     
     // Deterministic ID generator for a task for the given day (so same id across reloads)
@@ -723,6 +805,7 @@ extension LoggingView {
                     let skills = payload["skills"] as? [String: [String: Int]] ?? [:]
                     let didRankUp = self.checkRankUp(totalSkillXP: totalXP)
                     self.checkAchievements(totalXP: totalXP, skills: skills, didRankUp: didRankUp)
+                    self.publishWidgetSnapshot()
                 }
             }
         }
@@ -837,6 +920,7 @@ extension LoggingView {
                     }
                     let totalXP = payload["totalSkillXP"] as? Int ?? 0
                     self.checkRankUp(totalSkillXP: totalXP)
+                    self.publishWidgetSnapshot()
                 }
             }
         }
