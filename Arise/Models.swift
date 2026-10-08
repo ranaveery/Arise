@@ -213,6 +213,151 @@ struct DailyLog: Identifiable, Codable {
     let skillXP: [String: Int]
     let streak: Int
     let totalPossibleXP: Int
+
+    init(date: String, completedCount: Int, xpGained: Int, skillXP: [String: Int], streak: Int, totalPossibleXP: Int) {
+        self.date = date
+        self.completedCount = completedCount
+        self.xpGained = xpGained
+        self.skillXP = skillXP
+        self.streak = streak
+        self.totalPossibleXP = totalPossibleXP
+    }
+
+    /// Builds a log from a raw Firestore `dailyLogs.<date>` map.
+    init?(date: String, dict: [String: Any]) {
+        guard dict["xpGained"] != nil || dict["completedCount"] != nil || dict["totalPossibleXP"] != nil else {
+            return nil
+        }
+        self.date = date
+        self.completedCount = dict["completedCount"] as? Int ?? 0
+        self.xpGained = dict["xpGained"] as? Int ?? 0
+        self.skillXP = dict["skillXP"] as? [String: Int] ?? [:]
+        self.streak = dict["streak"] as? Int ?? 0
+        self.totalPossibleXP = dict["totalPossibleXP"] as? Int ?? 0
+    }
+}
+
+// MARK: - Pro history roll-up
+
+/// Compact per-month aggregate kept after the raw `dailyLogs` for that month
+/// are pruned (120-day retention). Used to power the Pro "All Time" range.
+struct MonthlySummary: Codable, Equatable {
+    var xpGained: Int = 0
+    var completedCount: Int = 0
+    var totalPossibleXP: Int = 0
+    var bestStreak: Int = 0
+    var activeDays: Int = 0
+}
+
+/// One month of the all-time chart.
+struct MonthlyStat: Identifiable, Equatable {
+    let id: String
+    let date: Date
+    let xpGained: Int
+    let completedCount: Int
+    let totalPossibleXP: Int
+    let bestStreak: Int
+    let activeDays: Int
+}
+
+/// Aggregated, pruned-safe view of the user's entire history.
+struct AllTimeStats: Equatable {
+    var totalXP: Int = 0
+    var totalCompleted: Int = 0
+    var totalPossibleXP: Int = 0
+    var bestStreak: Int = 0
+    var activeDays: Int = 0
+    var months: [MonthlyStat] = []
+    var earliestMonth: String?
+
+    var completionRate: Double {
+        totalPossibleXP > 0 ? min(Double(totalXP) / Double(totalPossibleXP), 1) : 0
+    }
+}
+
+/// Pure roll-up math shared by the prune path (DailyReset) and the Trends view.
+enum ProHistoryAggregator {
+
+    static func monthKey(_ dateStr: String) -> String {
+        String(dateStr.prefix(7))
+    }
+
+    /// Groups raw daily logs into per-month summaries.
+    static func monthlySummaries(from logs: [DailyLog]) -> [String: MonthlySummary] {
+        var result: [String: MonthlySummary] = [:]
+        for log in logs {
+            let key = monthKey(log.date)
+            var summary = result[key] ?? MonthlySummary()
+            summary.xpGained += log.xpGained
+            summary.completedCount += log.completedCount
+            summary.totalPossibleXP += log.totalPossibleXP
+            summary.bestStreak = max(summary.bestStreak, log.streak)
+            if log.completedCount > 0 || log.xpGained > 0 {
+                summary.activeDays += 1
+            }
+            result[key] = summary
+        }
+        return result
+    }
+
+    /// Adds `added` summaries on top of `base` (neither is mutated).
+    static func merging(_ added: [String: MonthlySummary], into base: [String: MonthlySummary]) -> [String: MonthlySummary] {
+        var result = base
+        for (month, add) in added {
+            var summary = result[month] ?? MonthlySummary()
+            summary.xpGained += add.xpGained
+            summary.completedCount += add.completedCount
+            summary.totalPossibleXP += add.totalPossibleXP
+            summary.bestStreak = max(summary.bestStreak, add.bestStreak)
+            summary.activeDays += add.activeDays
+            result[month] = summary
+        }
+        return result
+    }
+
+    /// Decodes the stored `monthlySummaries` Firestore map.
+    static func summaries(from raw: Any?) -> [String: MonthlySummary] {
+        guard let dict = raw as? [String: [String: Any]] else { return [:] }
+        var result: [String: MonthlySummary] = [:]
+        for (month, values) in dict {
+            result[month] = MonthlySummary(
+                xpGained: values["xpGained"] as? Int ?? 0,
+                completedCount: values["completedCount"] as? Int ?? 0,
+                totalPossibleXP: values["totalPossibleXP"] as? Int ?? 0,
+                bestStreak: values["bestStreak"] as? Int ?? 0,
+                activeDays: values["activeDays"] as? Int ?? 0
+            )
+        }
+        return result
+    }
+
+    /// Combines pruned monthly summaries with the currently retained daily logs.
+    /// The two sources are disjoint by construction (summaries cover dates older
+    /// than the retention cutoff), so simple addition is correct.
+    static func allTimeStats(dailyLogs: [DailyLog], summaries: [String: MonthlySummary]) -> AllTimeStats {
+        let combined = merging(monthlySummaries(from: dailyLogs), into: summaries)
+        var stats = AllTimeStats()
+        for (month, summary) in combined {
+            stats.totalXP += summary.xpGained
+            stats.totalCompleted += summary.completedCount
+            stats.totalPossibleXP += summary.totalPossibleXP
+            stats.bestStreak = max(stats.bestStreak, summary.bestStreak)
+            stats.activeDays += summary.activeDays
+            let date = AriseDate.date(fromISO: "\(month)-01") ?? Date.distantPast
+            stats.months.append(MonthlyStat(
+                id: month,
+                date: date,
+                xpGained: summary.xpGained,
+                completedCount: summary.completedCount,
+                totalPossibleXP: summary.totalPossibleXP,
+                bestStreak: summary.bestStreak,
+                activeDays: summary.activeDays
+            ))
+        }
+        stats.months.sort { $0.id < $1.id }
+        stats.earliestMonth = stats.months.first?.id
+        return stats
+    }
 }
 
 /// Wrapper so `String` does not need a global `Identifiable` conformance.
@@ -292,15 +437,48 @@ enum DailyReset {
             "todayCompletedTaskDetails": []
         ]) { _ in
             userRef.getDocument { snapshot, _ in
-                guard let rawLogs = snapshot?.data()?["dailyLogs"] as? [String: Any] else { return }
+                guard let data = snapshot?.data() else { return }
+                let rawLogs = data["dailyLogs"] as? [String: Any] ?? [:]
                 let cutoff = AriseDate.isoString(from: Calendar.current.date(byAdding: .day, value: -120, to: Date()) ?? Date())
-                var stale: [String: Any] = [:]
-                for key in rawLogs.keys where key < cutoff {
-                    stale["dailyLogs.\(key)"] = FieldValue.delete()
+
+                var staleLogs: [DailyLog] = []
+                var updates: [String: Any] = [:]
+                for (key, value) in rawLogs where key < cutoff {
+                    if let dict = value as? [String: Any], let log = DailyLog(date: key, dict: dict) {
+                        staleLogs.append(log)
+                    } else {
+                        staleLogs.append(DailyLog(
+                            date: key,
+                            completedCount: 0,
+                            xpGained: 0,
+                            skillXP: [:],
+                            streak: 0,
+                            totalPossibleXP: 0
+                        ))
+                    }
+                    updates["dailyLogs.\(key)"] = FieldValue.delete()
                 }
-                if !stale.isEmpty {
-                    userRef.updateData(stale)
+
+                guard !staleLogs.isEmpty else { return }
+
+                // Roll the pruned days into their monthly summaries so Pro's
+                // "All Time" stats survive the 120-day retention window.
+                let existing = ProHistoryAggregator.summaries(from: data["monthlySummaries"])
+                let added = ProHistoryAggregator.monthlySummaries(from: staleLogs)
+                let merged = ProHistoryAggregator.merging(added, into: existing)
+
+                for month in added.keys {
+                    let summary = merged[month] ?? MonthlySummary()
+                    updates["monthlySummaries.\(month)"] = [
+                        "xpGained": summary.xpGained,
+                        "completedCount": summary.completedCount,
+                        "totalPossibleXP": summary.totalPossibleXP,
+                        "bestStreak": summary.bestStreak,
+                        "activeDays": summary.activeDays
+                    ]
                 }
+
+                userRef.updateData(updates)
             }
         }
     }

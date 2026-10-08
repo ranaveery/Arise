@@ -6,12 +6,14 @@ import FirebaseFirestore
 struct TrendsView: View {
 
     @AppStorage("animationsEnabled") private var animationsEnabled = true
+    @Environment(ProStore.self) private var proStore
     @State private var listener: ListenerRegistration?
     @State private var currentXP: Int = 0
     @State private var streak: Int = 0
     @State private var longestStreak: Int = 0
     @State private var skillsData: [String: [String: Int]] = [:]
     @State private var dailyLogs: [DailyLog] = []
+    @State private var monthlySummaries: [String: MonthlySummary] = [:]
     @State private var achievements: [Achievement] = []
     @State private var isLoading = true
     @State private var animateBars = false
@@ -20,17 +22,20 @@ struct TrendsView: View {
     @State private var todayCompletedCount: Int = 0
     @State private var todayTotalPossibleXP: Int = 0
     @State private var todaySkillXPData: [String: Int] = [:]
+    @State private var showPaywall = false
 
     enum RangeOption: String, CaseIterable {
         case week = "7D"
         case month = "30D"
         case quarter = "90D"
+        case allTime = "ALL"
 
         var days: Int {
             switch self {
             case .week: return 7
             case .month: return 30
             case .quarter: return 90
+            case .allTime: return 0
             }
         }
 
@@ -39,8 +44,11 @@ struct TrendsView: View {
             case .week: return 1
             case .month: return 7
             case .quarter: return 20
+            case .allTime: return 1
             }
         }
+
+        var isProOnly: Bool { self == .allTime }
     }
 
     // MARK: - Derived Data
@@ -58,6 +66,11 @@ struct TrendsView: View {
         let range = next.requiredXP - current.requiredXP
         guard range > 0 else { return 1.0 }
         return min(max((Double(currentXP) - current.requiredXP) / range, 0.0), 1.0)
+    }
+
+    /// Full-history roll-up (pruned monthly summaries + retained daily logs).
+    private var allTimeStats: AllTimeStats {
+        ProHistoryAggregator.allTimeStats(dailyLogs: dailyLogs, summaries: monthlySummaries)
     }
 
     private var rangeLogs: [DailyLog] {
@@ -182,30 +195,49 @@ struct TrendsView: View {
                         .offset(y: animateBars ? 0 : 12)
                         .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.0) : nil, value: animateBars)
 
-                    xpChartSection
-                        .opacity(animateBars ? 1 : 0)
-                        .offset(y: animateBars ? 0 : 12)
-                        .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.05) : nil, value: animateBars)
+                    if selectedRange == .allTime {
+                        if proStore.isPro {
+                            allTimeStatsSection
+                                .opacity(animateBars ? 1 : 0)
+                                .offset(y: animateBars ? 0 : 12)
+                                .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.05) : nil, value: animateBars)
 
-                    completionChartSection
-                        .opacity(animateBars ? 1 : 0)
-                        .offset(y: animateBars ? 0 : 12)
-                        .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.1) : nil, value: animateBars)
+                            allTimeChartSection
+                                .opacity(animateBars ? 1 : 0)
+                                .offset(y: animateBars ? 0 : 12)
+                                .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.1) : nil, value: animateBars)
+                        } else {
+                            lockedAllTimeSection
+                                .opacity(animateBars ? 1 : 0)
+                                .offset(y: animateBars ? 0 : 12)
+                                .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.05) : nil, value: animateBars)
+                        }
+                    } else {
+                        xpChartSection
+                            .opacity(animateBars ? 1 : 0)
+                            .offset(y: animateBars ? 0 : 12)
+                            .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.05) : nil, value: animateBars)
 
-                    skillGrowthSection
-                        .opacity(animateBars ? 1 : 0)
-                        .offset(y: animateBars ? 0 : 12)
-                        .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.15) : nil, value: animateBars)
+                        completionChartSection
+                            .opacity(animateBars ? 1 : 0)
+                            .offset(y: animateBars ? 0 : 12)
+                            .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.1) : nil, value: animateBars)
 
-                    milestonesSection
-                        .opacity(animateBars ? 1 : 0)
-                        .offset(y: animateBars ? 0 : 12)
-                        .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.2) : nil, value: animateBars)
+                        skillGrowthSection
+                            .opacity(animateBars ? 1 : 0)
+                            .offset(y: animateBars ? 0 : 12)
+                            .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.15) : nil, value: animateBars)
 
-                    insightsSection
-                        .opacity(animateBars ? 1 : 0)
-                        .offset(y: animateBars ? 0 : 12)
-                        .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.25) : nil, value: animateBars)
+                        milestonesSection
+                            .opacity(animateBars ? 1 : 0)
+                            .offset(y: animateBars ? 0 : 12)
+                            .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.2) : nil, value: animateBars)
+
+                        insightsSection
+                            .opacity(animateBars ? 1 : 0)
+                            .offset(y: animateBars ? 0 : 12)
+                            .animation(animationsEnabled ? .easeOut(duration: 0.35).delay(0.25) : nil, value: animateBars)
+                    }
 
                     Spacer(minLength: 40)
                 }
@@ -218,6 +250,9 @@ struct TrendsView: View {
             }
         }
         .background(Color.black.ignoresSafeArea())
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+        }
     }
 
     // MARK: - Range Selector
@@ -225,23 +260,35 @@ struct TrendsView: View {
     private var rangeSelector: some View {
         HStack(spacing: 0) {
             ForEach(RangeOption.allCases, id: \.self) { option in
+                let locked = option.isProOnly && !proStore.isPro
                 Button {
-                    selectedRange = option
+                    if locked {
+                        showPaywall = true
+                    } else {
+                        selectedRange = option
+                    }
                 } label: {
-                    Text(option.rawValue)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundColor(selectedRange == option ? .white : .white.opacity(0.5))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(
-                            selectedRange == option
-                                ? Color.white.opacity(0.15)
-                                : Color.clear
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    HStack(spacing: 4) {
+                        if locked {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        Text(option.rawValue)
+                    }
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(selectedRange == option ? .white : .white.opacity(0.5))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(
+                        selectedRange == option
+                            ? Color.white.opacity(0.15)
+                            : Color.clear
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("\(option.rawValue) range")
+                .accessibilityLabel(option.isProOnly ? "All time range, Arise Pro" : "\(option.rawValue) range")
+                .accessibilityHint(locked ? "Opens the Arise Pro upgrade" : "")
                 .accessibilityAddTraits(selectedRange == option ? .isSelected : [])
             }
         }
@@ -668,6 +715,192 @@ struct TrendsView: View {
         .padding(.horizontal, 16)
     }
 
+    // MARK: - All Time (Pro)
+
+    private var allTimeStatsSection: some View {
+        VStack(spacing: 10) {
+            sectionTitle("All Time")
+
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                spacing: 12
+            ) {
+                statCard(icon: "bolt.fill", value: formatXP(Double(allTimeStats.totalXP)), label: "Total XP")
+                statCard(icon: "checkmark.circle.fill", value: formatXP(Double(allTimeStats.totalCompleted)), label: "Tasks completed")
+                statCard(icon: "flame.fill", value: "\(allTimeStats.bestStreak) days", label: "Best streak")
+                statCard(icon: "calendar", value: "\(allTimeStats.activeDays)", label: "Active days")
+            }
+
+            if let earliest = allTimeStats.earliestMonth {
+                Text("History saved since \(monthLabel(earliest))")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white.opacity(0.4))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 2)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private var allTimeChartSection: some View {
+        VStack(spacing: 10) {
+            sectionTitle("XP by Month")
+
+            VStack(spacing: 0) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("\(allTimeStats.months.count) month\(allTimeStats.months.count == 1 ? "" : "s") tracked")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.4))
+                    Spacer()
+                    Text("\(Int(allTimeStats.completionRate * 100))% overall")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.4))
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 8)
+
+                Chart(allTimeStats.months) { month in
+                    BarMark(
+                        x: .value("Month", month.date, unit: .month),
+                        y: .value("XP", month.xpGained),
+                        width: .ratio(0.6)
+                    )
+                    .foregroundStyle(LinearGradient.brand)
+                    .cornerRadius(3)
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .month)) { value in
+                        AxisGridLine().foregroundStyle(Color.white.opacity(0.05))
+                        AxisValueLabel {
+                            if let date = value.as(Date.self) {
+                                Text(shortMonthLabel(date))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.white.opacity(0.4))
+                            }
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading) { value in
+                        AxisGridLine().foregroundStyle(Color.white.opacity(0.05))
+                        AxisValueLabel {
+                            if let xp = value.as(Double.self) {
+                                Text(compactXP(xp))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.white.opacity(0.35))
+                            }
+                        }
+                    }
+                }
+                .frame(height: 170)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 10)
+            }
+            .background(Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+            )
+        }
+        .accessibilityElement(children: .contain)
+        .padding(.horizontal)
+    }
+
+    private var lockedAllTimeSection: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(LinearGradient.brand)
+                .padding(.top, 6)
+
+            Text("Unlock Your Full History")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+
+            Text("Arise Pro keeps your monthly XP, completions, active days, and best streaks for as long as you use Arise — even after daily details are summarized.")
+                .font(.system(size: 14))
+                .foregroundColor(.white.opacity(0.55))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let earliest = allTimeStats.earliestMonth {
+                Text("History saved since \(monthLabel(earliest))")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white.opacity(0.4))
+            }
+
+            Button {
+                showPaywall = true
+            } label: {
+                Text("Unlock with Arise Pro")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Capsule().fill(LinearGradient.brand))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 2)
+            .accessibilityHint("Opens the Arise Pro upgrade")
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 30)
+        .padding(.horizontal, 20)
+        .background(Color.white.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+        )
+        .padding(.horizontal)
+    }
+
+    private func statCard(icon: String, value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundStyle(LinearGradient.brand)
+
+            Text(value)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white.opacity(0.45))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.white.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(value)")
+    }
+
+    private func monthLabel(_ month: String) -> String {
+        guard let date = AriseDate.date(fromISO: "\(month)-01") else { return month }
+        let fmt = DateFormatter()
+        fmt.dateFormat = "MMM yyyy"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        return fmt.string(from: date)
+    }
+
+    private func shortMonthLabel(_ date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "MMM"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        return fmt.string(from: date)
+    }
+
     // MARK: - Shared UI
 
     private func sectionTitle(_ title: String) -> some View {
@@ -785,6 +1018,8 @@ struct TrendsView: View {
             } else {
                 self.dailyLogs = []
             }
+
+            self.monthlySummaries = ProHistoryAggregator.summaries(from: data["monthlySummaries"])
 
             self.isLoading = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
