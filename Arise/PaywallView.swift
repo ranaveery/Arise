@@ -330,19 +330,12 @@ struct PaywallView: View {
 
     private var featureList: some View {
         VStack(spacing: 0) {
-            featureRow(icon: "chart.line.uptrend.xyaxis", text: "Advanced Insights Pack — momentum, consistency & best month")
-            Divider().background(Color.white.opacity(0.06))
-            featureRow(icon: "calendar", text: "1-Year & All-Time history")
-            Divider().background(Color.white.opacity(0.06))
-            featureRow(icon: "square.and.pencil", text: "Custom Tasks — build your own habits")
-            Divider().background(Color.white.opacity(0.06))
-            featureRow(icon: "bell.badge", text: "Custom Reminders — set your own times")
-            Divider().background(Color.white.opacity(0.06))
-            featureRow(icon: "square.and.arrow.up", text: "Export your data as JSON")
-            Divider().background(Color.white.opacity(0.06))
-            featureRow(icon: "apps.iphone", text: "Home Screen widget with your streak")
-            Divider().background(Color.white.opacity(0.06))
-            featureRow(icon: "bag.fill", text: "One-time purchase — no subscription")
+            ForEach(Array(ProPerks.list.enumerated()), id: \.element.id) { index, perk in
+                featureRow(icon: perk.icon, text: perk.combinedLabel)
+                if index != ProPerks.list.count - 1 {
+                    Divider().background(Color.white.opacity(0.06))
+                }
+            }
         }
         .background(Color.white.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))

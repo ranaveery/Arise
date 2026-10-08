@@ -21,6 +21,7 @@ struct OnboardingView: View {
 
     // --- Answers state ---
     // Intro has no inputs
+    @State private var fullName: String = ""
     @State private var majorFocus: String = ""
     
     // Wake time (weekday/weekend)
@@ -67,8 +68,8 @@ struct OnboardingView: View {
     // Completion callback
     let onFinish: () -> Void
     
-    // total final step index (0..10 used in your original code)
-    private let maxStepIndex = 10
+    // total final step index (0..11)
+    private let maxStepIndex = 11
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -99,6 +100,7 @@ struct OnboardingView: View {
             .padding(.top, 8)
         }
         .onPreferenceChange(NavHeightPreferenceKey.self) { navHeight = $0 }
+        .onAppear { prefillName() }
         .animation(.easeInOut, value: currentStep)
     }
     
@@ -145,16 +147,17 @@ struct OnboardingView: View {
     private var stepView: some View {
         switch currentStep {
         case 0: introStep
-        case 1: majorFocusStep
-        case 2: wakeTimeStep
-        case 3: sleepDurationStep
-        case 4: workoutStep
-        case 5: screenTimeStep
-        case 6: weightWaterStep
-        case 7: coldShowerStep
-        case 8: activitiesStep
-        case 9: revisitAddictionStep
-        case 10: overviewStep
+        case 1: nameStep
+        case 2: majorFocusStep
+        case 3: wakeTimeStep
+        case 4: sleepDurationStep
+        case 5: workoutStep
+        case 6: screenTimeStep
+        case 7: weightWaterStep
+        case 8: coldShowerStep
+        case 9: activitiesStep
+        case 10: revisitAddictionStep
+        case 11: overviewStep
         default: completionView
         }
     }
@@ -183,7 +186,49 @@ struct OnboardingView: View {
     }
 
     
-    // --- 1: Major focus
+    // --- 1: Name
+    private var nameStep: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "person.crop.circle")
+                .font(.system(size: 64, weight: .light))
+                .foregroundStyle(appGradient)
+                .padding(.top, 20)
+
+            Text("What should we call you?")
+                .font(.title2.bold())
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+                .padding(.top, 12)
+
+            Text("This is how we'll greet you on your journey.")
+                .foregroundColor(.white.opacity(0.75))
+                .multilineTextAlignment(.center)
+                .font(.footnote)
+                .padding(.horizontal, 12)
+
+            TextField("Your name", text: $fullName)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(16)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(appGradient, lineWidth: 2)
+                )
+                .foregroundColor(.white)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .textContentType(.name)
+                .padding(.horizontal)
+                .accessibilityLabel("Your name")
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.black.ignoresSafeArea())
+    }
+
+    // --- 2: Major focus
     private var majorFocusStep: some View {
         VStack(spacing: 16) {
             // Question
@@ -1292,22 +1337,25 @@ struct OnboardingView: View {
     private var isNextDisabled: Bool {
         switch currentStep {
         case 1:
+            // Require a name
+            return fullName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case 2:
             // Require a major focus selection
             return selectedAddiction.isEmpty
-        case 4:
-            return workoutDays.isEmpty
         case 5:
+            return workoutDays.isEmpty
+        case 6:
             // If they enabled limits, ensure a positive limit
             return screenLimitHours <= 0
-        case 7:
+        case 8:
             // If they enabled cold showers, ensure at least 1 day
             return takeColdShowers && coldShowerDays.isEmpty
-        case 8:
+        case 9:
             // If any selected activity has no days chosen, disable "Next"
             return selectedActivities.contains { _, config in
                 config.days.isEmpty
             }
-        case 10:
+        case 11:
             return finalNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         default:
             return false
@@ -1327,6 +1375,22 @@ struct OnboardingView: View {
         }
     }
 
+    private func prefillName() {
+        guard fullName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        if let displayName = Auth.auth().currentUser?.displayName,
+           !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            fullName = sanitizeName(displayName)
+            return
+        }
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        Firestore.firestore().collection("users").document(uid).getDocument { snapshot, _ in
+            let existing = snapshot?.data()?["name"] as? String ?? ""
+            let cleaned = sanitizeName(existing)
+            guard !cleaned.isEmpty, cleaned != "User", cleaned != "No Name" else { return }
+            DispatchQueue.main.async { self.fullName = cleaned }
+        }
+    }
+
     private func saveFinalPlan() {
         guard let uid = Auth.auth().currentUser?.uid else {
             return
@@ -1341,6 +1405,7 @@ struct OnboardingView: View {
         }
 
         var payload: [String: Any] = [
+            "name": sanitizeName(fullName),
             "majorFocus": selectedAddiction,
             "wakeWeekday": militaryTimeInt(from: wakeWeekday),
             "wakeWeekend": militaryTimeInt(from: wakeWeekend),

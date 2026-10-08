@@ -120,6 +120,42 @@ struct ProInsightsEngineTests {
     }
 }
 
+struct NotificationTimeSuggestionTests {
+
+    @Test func newTasksIsThirtyMinutesAfterWake() {
+        #expect(NotificationTimeSuggestion.hhmm(for: .newTasks, wakeWeekday: 700, sleepHoursWeekday: 8) == "07:30")
+    }
+
+    @Test func bedtimeIsThirtyMinutesBeforeBed() {
+        // Wake 07:00, 8h sleep -> bedtime 23:00 -> notify 22:30.
+        #expect(NotificationTimeSuggestion.hhmm(for: .bedtime, wakeWeekday: 700, sleepHoursWeekday: 8) == "22:30")
+    }
+
+    @Test func expiringIsOneHourBeforeBed() {
+        // Wake 07:00, 8h sleep -> bedtime 23:00 -> notify 22:00.
+        #expect(NotificationTimeSuggestion.hhmm(for: .expiringTasks, wakeWeekday: 700, sleepHoursWeekday: 8) == "22:00")
+    }
+
+    @Test func fractionalSleepDurationIsRespected() {
+        // Wake 06:30 (390), 7.5h sleep -> bedtime 23:00 -> notify 22:30.
+        #expect(NotificationTimeSuggestion.hhmm(for: .bedtime, wakeWeekday: 630, sleepHoursWeekday: 7.5) == "22:30")
+    }
+
+    @Test func wrapsAcrossMidnight() {
+        #expect(NotificationTimeSuggestion.hhmm(for: .newTasks, wakeWeekday: 2330, sleepHoursWeekday: 8) == "00:00")
+    }
+
+    @Test func missingDataReturnsNil() {
+        #expect(NotificationTimeSuggestion.hhmm(for: .newTasks, wakeWeekday: nil, sleepHoursWeekday: 8) == nil)
+        #expect(NotificationTimeSuggestion.hhmm(for: .bedtime, wakeWeekday: 700, sleepHoursWeekday: nil) == nil)
+        #expect(NotificationTimeSuggestion.hhmm(for: .expiringTasks, wakeWeekday: 700, sleepHoursWeekday: nil) == nil)
+    }
+
+    @Test func invalidWakeTimeReturnsNil() {
+        #expect(NotificationTimeSuggestion.hhmm(for: .newTasks, wakeWeekday: 9900, sleepHoursWeekday: 8) == nil)
+    }
+}
+
 struct YearAggregateTests {
 
     @Test func yearStatsRestrictsToTrailingTwelveMonths() {

@@ -7,15 +7,15 @@ import FirebaseFirestore
 
 let skillLevelThresholds: [Int] = [
     0,    // Level 1
-    150,  // Level 2
-    350,  // Level 3
-    500,  // Level 4
-    850,  // Level 5
-    1150, // Level 6
-    1500, // Level 7
-    2000, // Level 8
-    2500, // Level 9
-    3350  // Level 10
+    300,  // Level 2
+    700,  // Level 3
+    1000, // Level 4
+    1700, // Level 5
+    2300, // Level 6
+    3000, // Level 7
+    4000, // Level 8
+    5000, // Level 9
+    6700  // Level 10
 ]
 
 func calculateSkillLevel(from xp: Int) -> Int {
@@ -427,7 +427,6 @@ struct CustomTask: Identifiable, Equatable {
     static let maxPerDay = 2
     static let maxXP = 40
     static let maxDefinitions = 4
-    static let maxDefined = 6
 
     init(
         id: String = UUID().uuidString,
@@ -604,6 +603,61 @@ enum ProInsightsEngine {
     }
 }
 
+// MARK: - Arise Pro: Default notification time suggestions
+
+/// Computes suggested "HH:mm" times for the three default notifications from the
+/// user's weekday wake time and sleep duration. Kept pure so it can be unit
+/// tested and reused by both the Settings UI and the scheduler.
+///
+/// Offsets intentionally mirror `SettingsView`'s scheduling exactly:
+/// - New Tasks  = wake + 30 min
+/// - Bedtime    = bedtime − 30 min (bedtime = wake − sleepHours)
+/// - Expiring   = bedtime − 60 min
+enum NotificationTimeSuggestion {
+    enum Kind {
+        case newTasks
+        case bedtime
+        case expiringTasks
+    }
+
+    /// - Parameters:
+    ///   - wakeWeekday: weekday wake time as a military Int (e.g. `730` = 07:30).
+    ///   - sleepHoursWeekday: weekday sleep duration in hours (e.g. `8` or `7.5`).
+    /// - Returns: a zero-padded "HH:mm" string, or `nil` when data is missing/invalid.
+    static func hhmm(for kind: Kind, wakeWeekday: Int?, sleepHoursWeekday: Double?) -> String? {
+        guard let wakeWeekday else { return nil }
+        let wakeHour = wakeWeekday / 100
+        let wakeMinute = wakeWeekday % 100
+        guard (0...23).contains(wakeHour), (0...59).contains(wakeMinute) else { return nil }
+
+        var minutes = wakeHour * 60 + wakeMinute
+
+        switch kind {
+        case .newTasks:
+            minutes += 30
+        case .bedtime:
+            guard let sleepHoursWeekday else { return nil }
+            minutes += Int(-sleepHoursWeekday * 60) - 30
+        case .expiringTasks:
+            guard let sleepHoursWeekday else { return nil }
+            minutes += Int(-sleepHoursWeekday * 60) - 60
+        }
+
+        minutes = ((minutes % 1440) + 1440) % 1440
+        return String(format: "%02d:%02d", minutes / 60, minutes % 60)
+    }
+}
+
+/// The Pro user's custom times for the three default notifications.
+/// A `nil` value means "use the suggested time" (derived from their schedule).
+struct DefaultNotificationTimes: Equatable {
+    var expiringTasks: String?
+    var newTasks: String?
+    var bedtime: String?
+
+    static let empty = DefaultNotificationTimes()
+}
+
 // MARK: - Shared Services
 
 extension Notification.Name {
@@ -734,39 +788,39 @@ let ranks: [Rank] = [
          subtitle: "Every journey begins with a single step.",
          themeColors: [Color(red: 85/255,  green: 64/255,  blue: 44/255),
                        Color(red: 28/255,  green: 23/255,  blue: 19/255)]),
-    Rank(id: 2,  name: "Initiate",     emblemName: "initiate_emblem",     requiredXP: 900,
+    Rank(id: 2,  name: "Initiate",     emblemName: "initiate_emblem",     requiredXP: 1800,
          subtitle: "Commitment is your first victory.",
          themeColors: [Color(red: 85/255,  green: 85/255,  blue: 85/255),
                        Color(red: 169/255, green: 169/255, blue: 169/255)]),
-    Rank(id: 3,  name: "Pioneer",      emblemName: "pioneer_emblem",      requiredXP: 2100,
+    Rank(id: 3,  name: "Pioneer",      emblemName: "pioneer_emblem",      requiredXP: 4200,
          subtitle: "Forge new paths, leave a mark.",
          themeColors: [Color(red: 184/255, green: 115/255, blue: 51/255),
                        Color(red: 93/255,  green: 46/255,  blue: 12/255)]),
-    Rank(id: 4,  name: "Explorer",     emblemName: "explorer_emblem",     requiredXP: 3000,
+    Rank(id: 4,  name: "Explorer",     emblemName: "explorer_emblem",     requiredXP: 6000,
          subtitle: "Seek the unknown, learn from everything.",
          themeColors: [Color(red: 153/255, green: 0/255,   blue: 0/255),
                        Color(red: 255/255, green: 85/255,  blue: 0/255)]),
-    Rank(id: 5,  name: "Challenger",   emblemName: "challenger_emblem",   requiredXP: 5100,
+    Rank(id: 5,  name: "Challenger",   emblemName: "challenger_emblem",   requiredXP: 10200,
          subtitle: "You only lose when you stop fighting.",
          themeColors: [Color(red: 155/255, green: 102/255, blue: 75/255),
                        Color(red: 33/255,  green: 64/255,  blue: 68/255)]),
-    Rank(id: 6,  name: "Refiner",      emblemName: "refiner_emblem",      requiredXP: 6900,
+    Rank(id: 6,  name: "Refiner",      emblemName: "refiner_emblem",      requiredXP: 13800,
          subtitle: "Strength is forged in relentless practice.",
          themeColors: [Color(red: 4/255,   green: 99/255,  blue: 7/255),
                        Color(red: 212/255, green: 175/255, blue: 55/255)]),
-    Rank(id: 7,  name: "Master",       emblemName: "master_emblem",       requiredXP: 9000,
+    Rank(id: 7,  name: "Master",       emblemName: "master_emblem",       requiredXP: 18000,
          subtitle: "Discipline shapes mastery.",
          themeColors: [Color(red: 11/255,  green: 29/255,  blue: 58/255),
                        Color(red: 64/255,  green: 224/255, blue: 208/255)]),
-    Rank(id: 8,  name: "Conquerer",    emblemName: "conquerer_emblem",    requiredXP: 12000,
+    Rank(id: 8,  name: "Conquerer",    emblemName: "conquerer_emblem",    requiredXP: 24000,
          subtitle: "Pain is the path to triumph.",
          themeColors: [Color(red: 71/255,  green: 12/255,  blue: 17/255),
                        Color(red: 86/255,  green: 105/255, blue: 162/255)]),
-    Rank(id: 9,  name: "Ascendant",    emblemName: "ascendant_emblem",    requiredXP: 15000,
+    Rank(id: 9,  name: "Ascendant",    emblemName: "ascendant_emblem",    requiredXP: 30000,
          subtitle: "Only by fighting do you rise.",
          themeColors: [Color(red: 10/255,  green: 55/255,  blue: 126/255),
                        Color(red: 180/255, green: 124/255, blue: 28/255)]),
-    Rank(id: 10, name: "Transcendent", emblemName: "transcendent_emblem", requiredXP: 20100,
+    Rank(id: 10, name: "Transcendent", emblemName: "transcendent_emblem", requiredXP: 40200,
          subtitle: "All limits fall before you.",
          themeColors: [Color(red: 84/255,  green: 0/255,   blue: 232/255),
                        Color(red: 236/255, green: 71/255,  blue: 1/255)])

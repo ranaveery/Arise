@@ -868,7 +868,10 @@ struct TrendsView: View {
         skillTotals: [(skill: String, xp: Int)]
     ) -> some View {
         VStack(spacing: 10) {
-            sectionTitle("Deeper Insights")
+            HStack(spacing: 8) {
+                sectionTitle("Deeper Insights")
+                ProBadge()
+            }
 
             VStack(spacing: 0) {
                 insightRow(
@@ -967,7 +970,7 @@ struct TrendsView: View {
 
     private var lockedDeeperInsightsRow: some View {
         VStack(spacing: 10) {
-            sectionTitle("Insights")
+            sectionTitle("Deeper Insights")
             LockedProCard(
                 icon: "chart.xyaxis.line",
                 title: "Unlock Advanced Insights",

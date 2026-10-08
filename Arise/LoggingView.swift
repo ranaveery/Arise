@@ -78,7 +78,7 @@ struct LoggingView: View {
 
     private var completionPercentage: Double {
         guard !assignedTasks.isEmpty else { return 0 }
-        return Double(completedTaskIDs.count) / Double(assignedTasks.count)
+        return Double(completedTasks.count) / Double(assignedTasks.count)
     }
 
     private var sectionedTasks: [(String, [TaskItem])] {
@@ -149,7 +149,7 @@ struct LoggingView: View {
     // MARK: - Today Stats
     private var todayStatsView: some View {
         HStack(spacing: 0) {
-            statItem(value: "\(completedTaskIDs.count)/\(assignedTasks.count)", label: "Done", icon: "checkmark.circle.fill", color: .green)
+            statItem(value: "\(completedTasks.count)/\(assignedTasks.count)", label: "Done", icon: "checkmark.circle.fill", color: .green)
                 .accessibilityLabel("\(Int(completionPercentage * 100))% complete")
             Divider().frame(height: 28).background(Color.white.opacity(0.1))
             statItem(value: "\(todayXP)", label: "XP", icon: "bolt.fill", color: Color(red: 84/255, green: 0/255, blue: 232/255))
@@ -367,6 +367,7 @@ struct LoggingView: View {
         case "Daily Rituals": return "sun.max.fill"
         case "Set Day": return "calendar.day.timeline.left"
         case "Addiction Focus": return "flame.fill"
+        case "Custom Tasks": return "square.and.pencil"
         default: return "circle.fill"
         }
     }
@@ -413,6 +414,7 @@ extension LoggingView {
                 
                 // generate tasks for today (IDs deterministic per day)
                 self.generateTasks(from: data)
+                self.pruneOrphanedCompletions(userRef: userRef)
                 if self.todayTotalPossibleXP > 0 {
                     userRef.updateData(["todayTotalPossibleXP": self.todayTotalPossibleXP])
                 }
@@ -421,6 +423,17 @@ extension LoggingView {
         }
     }
     
+    /// Drops completed-task IDs that no longer correspond to a task assigned
+    /// today (e.g. a completed custom task whose definition was deleted).
+    /// Without this, the "Done" count can exceed the assigned count (11/9).
+    private func pruneOrphanedCompletions(userRef: DocumentReference) {
+        let validIDs = Set(assignedTasks.map { $0.id })
+        let pruned = completedTaskIDs.filter { validIDs.contains($0) }
+        guard pruned.count != completedTaskIDs.count else { return }
+        completedTaskIDs = pruned
+        userRef.updateData(["completedTasks": pruned])
+    }
+
     private func makeTasks(from data: [String: Any], date: Date) -> [TaskItem] {
         var newTasks: [TaskItem] = []
         let calendar = Calendar.current
@@ -1143,6 +1156,7 @@ struct TaskCard: View {
         case "Daily": return Color(red: 84/255, green: 0/255, blue: 232/255)
         case "Set Day": return Color(red: 0/255, green: 122/255, blue: 255/255)
         case "Addiction": return Color.orange
+        case "Custom": return Color(red: 236/255, green: 71/255, blue: 1/255)
         default: return .gray
         }
     }

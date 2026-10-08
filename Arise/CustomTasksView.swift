@@ -17,9 +17,17 @@ struct CustomTasksView: View {
 
     @State private var tasks: [CustomTask] = []
     @State private var isLoading = true
-    @State private var editingTask: CustomTask?
-    @State private var isPresentingEditor = false
+    @State private var editorContext: EditorContext?
     @State private var errorMessage: String?
+
+    /// Wraps an optional task so the editor sheet can reliably distinguish
+    /// "new task" from "edit task". Presenting with `.sheet(item:)` guarantees
+    /// the task is captured correctly (plain `.sheet(isPresented:)` can read a
+    /// stale `nil` and hide the Delete button).
+    private struct EditorContext: Identifiable {
+        let id = UUID()
+        let task: CustomTask?
+    }
 
     private var canAddMore: Bool { tasks.count < CustomTask.maxDefinitions }
 
@@ -66,11 +74,11 @@ struct CustomTasksView: View {
                         .foregroundColor(.white)
                 }
             }
-            .sheet(isPresented: $isPresentingEditor) {
+            .sheet(item: $editorContext) { context in
                 CustomTaskEditorView(
-                    task: editingTask,
-                    canAdd: canAddMore,
-                    onSave: { saved in upsert(saved) }
+                    task: context.task,
+                    onSave: { upsert($0) },
+                    onDelete: { delete($0) }
                 )
             }
         }
@@ -132,8 +140,7 @@ struct CustomTasksView: View {
 
     private func taskRow(_ task: CustomTask) -> some View {
         Button {
-            editingTask = task
-            isPresentingEditor = true
+            editorContext = EditorContext(task: task)
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "checklist")
@@ -167,6 +174,18 @@ struct CustomTasksView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(task.name), \(subtitle(for: task)), plus \(task.xp) XP")
+        .contextMenu {
+            Button {
+                editorContext = EditorContext(task: task)
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                delete(task)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 
     private func subtitle(for task: CustomTask) -> String {
@@ -184,8 +203,7 @@ struct CustomTasksView: View {
     private var addButton: some View {
         Button {
             guard canAddMore else { return }
-            editingTask = nil
-            isPresentingEditor = true
+            editorContext = EditorContext(task: nil)
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "plus")
@@ -229,14 +247,16 @@ struct CustomTasksView: View {
     }
 
     private func upsert(_ task: CustomTask) {
-        if task.days.isEmpty {
-            // An empty day set is our deletion tombstone.
-            tasks.removeAll { $0.id == task.id }
-        } else if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index] = task
         } else {
             tasks.append(task)
         }
+        persist()
+    }
+
+    private func delete(_ task: CustomTask) {
+        tasks.removeAll { $0.id == task.id }
         persist()
     }
 
@@ -260,8 +280,8 @@ private struct CustomTaskEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     let task: CustomTask?
-    let canAdd: Bool
     let onSave: (CustomTask) -> Void
+    let onDelete: (CustomTask) -> Void
 
     @State private var name: String
     @State private var details: String
@@ -269,10 +289,10 @@ private struct CustomTaskEditorView: View {
     @State private var days: Set<Int>
     @State private var skills: Set<String>
 
-    init(task: CustomTask?, canAdd: Bool, onSave: @escaping (CustomTask) -> Void) {
+    init(task: CustomTask?, onSave: @escaping (CustomTask) -> Void, onDelete: @escaping (CustomTask) -> Void) {
         self.task = task
-        self.canAdd = canAdd
         self.onSave = onSave
+        self.onDelete = onDelete
         _name = State(initialValue: task?.name ?? "")
         _details = State(initialValue: task?.details ?? "")
         _xp = State(initialValue: task?.xp ?? CustomTask.maxXP)
@@ -400,15 +420,7 @@ private struct CustomTaskEditorView: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal)
-    }
-
-    /// Deleting is modelled by saving a task with the same id but no days, which
-    /// the parent removes. To keep the closure simple, we reuse `onSave` with a
-    /// sentinel by asking the parent to drop ids with empty days.
-    private func onDelete(_ task: CustomTask) {
-        var tombstone = task
-        tombstone.days = []
-        onSave(tombstone)
+        .accessibilityHint("Removes this custom task")
     }
 
     private func save() {

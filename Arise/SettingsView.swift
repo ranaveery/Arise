@@ -38,8 +38,10 @@ struct SettingsView: View {
     @State private var showGoogleSignInAlert = false
     @State private var navigateToChangePassword = false
     @State private var isLoading = true
-    @State private var showPaywall = false
-    @State private var expiringTasksTime = "18:00"
+    @State private var expiringTasksTime: String? = nil
+    @State private var newTasksTime: String? = nil
+    @State private var bedtimeTime: String? = nil
+    @State private var wakeBedData: [String: Any] = [:]
     @State private var extraReminders: [Reminder] = []
 @State private var showReminderEditor = false
     @State private var exportURL: URL?
@@ -72,28 +74,9 @@ struct SettingsView: View {
                             .padding(.top, 40)
                     } else {
                         // ARISE PRO
-                        sectionBlock("ARISE PRO") {
-                            Button {
-                                showPaywall = true
-                            } label: {
-                                HStack(spacing: 12) {
-                                    plainIcon(systemImage: "crown.fill")
-                                    Text("Arise Pro").foregroundColor(.white)
-                                    Spacer()
-                                    Text(proStore.isPro ? "Active" : "Learn More")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.white.opacity(0.4))
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(.white.opacity(0.2))
-                                }
-                                .padding(.horizontal)
-                                .padding(.vertical, 13)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Arise Pro")
-                            .accessibilityHint(proStore.isPro ? "You own Arise Pro" : "Opens the Arise Pro upgrade")
-                        }
+                        AriseProCard(isPro: proStore.isPro)
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
 
                         // ACCOUNT
                         sectionBlock("ACCOUNT") {
@@ -102,10 +85,9 @@ struct SettingsView: View {
                             }
                             .accessibilityLabel("Name")
                             dividerLine()
-                            inputRow(systemImage: "envelope",
-                                     label: "Email",
-                                     binding: .constant(userEmail.isEmpty ? "No email set" : userEmail),
-                                     isEditable: false)
+                            staticRow(systemImage: "envelope",
+                                      label: "Email",
+                                      value: accountEmailDisplay)
                             dividerLine()
                             userIDRow
                             dividerLine()
@@ -245,21 +227,22 @@ struct SettingsView: View {
 #endif
 
                         // LOG OUT
+                        let logoutText = Text("Log Out")
+                            .fontWeight(.semibold)
+                            .font(.system(size: 15, design: .rounded))
+                            .foregroundColor(.white.opacity(0.7))
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 11)
+                            .background(
+                                Capsule()
+                                    .fill(Color.white.opacity(0.07))
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    )
+                            )
                         Button(action: { showLogoutConfirmation = true }) {
-                            Text("Log Out")
-                                .fontWeight(.semibold)
-                                .font(.system(size: 15, design: .rounded))
-                                .foregroundColor(.white.opacity(0.7))
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 11)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.white.opacity(0.07))
-                                        .overlay(
-                                            Capsule()
-                                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                                        )
-                                )
+                            logoutText
                         }
                         .accessibilityLabel("Log out")
                         .accessibilityHint("Signs you out of your account")
@@ -306,16 +289,20 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $showPaywall) {
-            PaywallView()
-        }
         .sheet(isPresented: $showReminderEditor) {
             ReminderEditorView(
                 reminders: extraReminders,
-                expiringTasksTime: expiringTasksTime,
-                onSave: { newReminders, newTime in
-                    expiringTasksTime = newTime
+                times: DefaultNotificationTimes(expiringTasks: expiringTasksTime,
+                                                newTasks: newTasksTime,
+                                                bedtime: bedtimeTime),
+                suggestions: DefaultNotificationTimes(expiringTasks: suggestedExpiringTime,
+                                                      newTasks: suggestedNewTasksTime,
+                                                      bedtime: suggestedBedtimeTime),
+                onSave: { newReminders, newTimes in
                     extraReminders = newReminders
+                    expiringTasksTime = newTimes.expiringTasks
+                    newTasksTime = newTimes.newTasks
+                    bedtimeTime = newTimes.bedtime
                     persistReminderSettings()
                 }
             )
@@ -361,12 +348,13 @@ struct SettingsView: View {
 
     private func persistReminderSettings() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
-        let payload: [String: Any] = [
-            "notifications": [
-                "expiringTasksTime": expiringTasksTime,
-                "extraReminders": extraReminders.map { $0.toDict() }
-            ]
+        let notifications: [String: Any] = [
+            "extraReminders": extraReminders.map { $0.toDict() },
+            "expiringTasksTime": expiringTasksTime ?? FieldValue.delete(),
+            "newTasksTime": newTasksTime ?? FieldValue.delete(),
+            "bedtimeTime": bedtimeTime ?? FieldValue.delete()
         ]
+        let payload: [String: Any] = ["notifications": notifications]
         Firestore.firestore().collection("users").document(uid).setData(payload, merge: true) { _ in
             NotificationCenter.default.post(name: .ariseRescheduleNotifications, object: nil)
         }
@@ -398,64 +386,79 @@ struct SettingsView: View {
     // MARK: - Notifications content (content-only, wrapped by sectionBlock)
     @ViewBuilder
     private func notificationsContent() -> some View {
-        Toggle(isOn: $expiringTasks) {
-            HStack(spacing: 12) {
-                plainIcon(systemImage: "clock.badge.exclamationmark")
-                Text("Expiring Tasks").foregroundColor(.white)
-            }
-        }
-        .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
-        .accessibilityLabel("Enable Expiring Tasks notifications")
-        .accessibilityHint("Double tap to toggle")
-        .padding(.horizontal)
-        .padding(.vertical, 13)
-        .onChange(of: expiringTasks) { _, newValue in
-            guard preferencesLoaded else { return }
-            PreferenceManager.savePreference(key: "expiringTasks", value: newValue)
-            fetchUserTimesAndReschedule()
-        }
+        notificationRow(
+            icon: "clock.badge.exclamationmark",
+            title: "Expiring Tasks",
+            isOn: $expiringTasks,
+            preferenceKey: "expiringTasks"
+        )
 
         dividerLine()
 
-        Toggle(isOn: $newTasks) {
-            HStack(spacing: 12) {
-                plainIcon(systemImage: "plus.square.on.square")
-                Text("New Tasks").foregroundColor(.white)
-            }
-        }
-        .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
-        .accessibilityLabel("Enable New Tasks notifications")
-        .accessibilityHint("Double tap to toggle")
-        .padding(.horizontal)
-        .padding(.vertical, 13)
-        .onChange(of: newTasks) { _, newValue in
-            guard preferencesLoaded else { return }
-            PreferenceManager.savePreference(key: "newTasks", value: newValue)
-            fetchUserTimesAndReschedule()
-        }
+        notificationRow(
+            icon: "plus.square.on.square",
+            title: "New Tasks",
+            isOn: $newTasks,
+            preferenceKey: "newTasks"
+        )
 
         dividerLine()
 
-        Toggle(isOn: $sleepTime) {
-            HStack(spacing: 12) {
-                plainIcon(systemImage: "moon.fill")
-                Text("Bedtime").foregroundColor(.white)
-            }
-        }
-        .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
-        .accessibilityLabel("Enable Bedtime notifications")
-        .accessibilityHint("Double tap to toggle")
-        .padding(.horizontal)
-        .padding(.vertical, 13)
-        .onChange(of: sleepTime) { _, newValue in
-            guard preferencesLoaded else { return }
-            PreferenceManager.savePreference(key: "sleepTime", value: newValue)
-            fetchUserTimesAndReschedule()
-        }
+        notificationRow(
+            icon: "moon.fill",
+            title: "Bedtime",
+            isOn: $sleepTime,
+            preferenceKey: "sleepTime"
+        )
 
         dividerLine()
 
         customRemindersContent()
+    }
+
+    // MARK: - Default notification rows (Pro time customization)
+
+    private var suggestedNewTasksTime: String? {
+        NotificationTimeSuggestion.hhmm(for: .newTasks,
+                                        wakeWeekday: wakeBedData["wakeWeekday"] as? Int,
+                                        sleepHoursWeekday: wakeBedData["sleepHoursWeekday"] as? Double)
+    }
+
+    private var suggestedBedtimeTime: String? {
+        NotificationTimeSuggestion.hhmm(for: .bedtime,
+                                        wakeWeekday: wakeBedData["wakeWeekday"] as? Int,
+                                        sleepHoursWeekday: wakeBedData["sleepHoursWeekday"] as? Double)
+    }
+
+    private var suggestedExpiringTime: String? {
+        NotificationTimeSuggestion.hhmm(
+            for: .expiringTasks,
+            wakeWeekday: wakeBedData["wakeWeekday"] as? Int,
+            sleepHoursWeekday: wakeBedData["sleepHoursWeekday"] as? Double
+        )
+    }
+
+    @ViewBuilder
+    private func notificationRow(icon: String,
+                                 title: String,
+                                 isOn: Binding<Bool>,
+                                 preferenceKey: String) -> some View {
+        Toggle(isOn: isOn) {
+            HStack(spacing: 12) {
+                plainIcon(systemImage: icon)
+                Text(title).foregroundColor(.white)
+            }
+        }
+        .tint(Color(red: 84/255, green: 0/255, blue: 232/255))
+        .accessibilityLabel("Enable \(title) notifications")
+        .accessibilityHint("Double tap to toggle")
+        .padding(.horizontal)
+        .padding(.vertical, 13)
+        .onChange(of: isOn.wrappedValue) { _, newValue in
+            guard preferencesLoaded else { return }
+            PreferenceManager.savePreference(key: preferenceKey, value: newValue)
+            fetchUserTimesAndReschedule()
+        }
     }
 
     // MARK: - Custom Reminders (Pro)
@@ -496,19 +499,11 @@ struct SettingsView: View {
     }
 
     private var remindersSubtitle: String {
-        var parts: [String] = ["Expiring tasks at \(formattedReminderTime(expiringTasksTime))"]
         let count = extraReminders.filter { $0.enabled }.count
-        if count > 0 {
-            parts.append("\(count) extra reminder\(count == 1 ? "" : "s")")
+        if count == 0 {
+            return "Set your own reminder times"
         }
-        return parts.joined(separator: " · ")
-    }
-
-    private func formattedReminderTime(_ hhmm: String) -> String {
-        guard let date = dateFromTimeString(hhmm) else { return hhmm }
-        let fmt = DateFormatter()
-        fmt.timeStyle = .short
-        return fmt.string(from: date)
+        return "\(count) active reminder\(count == 1 ? "" : "s")"
     }
 
     // MARK: - Divider between rows (no gaps)
@@ -626,6 +621,16 @@ struct SettingsView: View {
 
 
     // MARK: - Firestore helpers
+    private var accountEmailDisplay: String {
+        let trimmed = userEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.contains("@") { return trimmed }
+        switch Auth.auth().currentUser?.providerData.first?.providerID {
+        case "apple.com": return "Signed in with Apple"
+        case "google.com": return "Signed in with Google"
+        default: return "No email set"
+        }
+    }
+
     private func saveNameToFirestore(_ newName: String) {
         let cleanedName = sanitizeName(newName)
         guard let uid = Auth.auth().currentUser?.uid else { return }
@@ -661,6 +666,8 @@ struct SettingsView: View {
             let fetchedAnimations = data["animationsEnabled"] as? Bool
             let fetchedReminders = Reminder.list(from: fetchedNotifications["extraReminders"])
             let fetchedExpiringTime = fetchedNotifications["expiringTasksTime"] as? String
+            let fetchedNewTasksTime = fetchedNotifications["newTasksTime"] as? String
+            let fetchedBedtimeTime = fetchedNotifications["bedtimeTime"] as? String
 
             DispatchQueue.main.async {
                 self.name = fetchedName
@@ -670,7 +677,10 @@ struct SettingsView: View {
                 self.expiringTasks = fetchedNotifications["expiringTasks"] as? Bool ?? self.expiringTasks
                 self.newTasks = fetchedNotifications["newTasks"] as? Bool ?? self.newTasks
                 self.sleepTime = fetchedNotifications["sleepTime"] as? Bool ?? self.sleepTime
-                if let fetchedExpiringTime { self.expiringTasksTime = fetchedExpiringTime }
+                self.expiringTasksTime = fetchedExpiringTime
+                self.newTasksTime = fetchedNewTasksTime
+                self.bedtimeTime = fetchedBedtimeTime
+                self.wakeBedData = data
                 self.extraReminders = fetchedReminders
                 if let anim = fetchedAnimations { self.animationsEnabled = anim }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -736,11 +746,14 @@ struct SettingsView: View {
             guard let data = snapshot?.data(), error == nil else {
                 return
             }
-            // schedule/cancel using that single snapshot
-            scheduleExpiringTasksNotificationIfNeeded()  // independent of user times
-            scheduleBedtimeNotificationIfNeeded(wakeOrBedData: data)
-            scheduleNewTasksNotificationIfNeeded(userData: data)
-            scheduleExtraReminders()
+            DispatchQueue.main.async {
+                self.wakeBedData = data
+                // schedule/cancel using that single snapshot
+                self.scheduleExpiringTasksNotificationIfNeeded()
+                self.scheduleBedtimeNotificationIfNeeded(wakeOrBedData: data)
+                self.scheduleNewTasksNotificationIfNeeded(userData: data)
+                self.scheduleExtraReminders()
+            }
         }
     }
 
@@ -808,16 +821,28 @@ struct SettingsView: View {
     }
 
     private func scheduleExpiringTasksNotificationIfNeeded() {
-        if expiringTasks {
-            let components = timeComponents(from: expiringTasksTime) ?? (18, 0)
-            scheduleDailyNotification(id: NotificationIDs.expiringTasks,
-                                      title: "Expiring Tasks",
-                                      body: "Reminder to get all your tasks done.",
-                                      hour: components.0,
-                                      minute: components.1)
-        } else {
+        guard expiringTasks else {
             cancelNotification(id: NotificationIDs.expiringTasks)
+            return
         }
+
+        // Pro users can override the time; otherwise use their weekday-schedule
+        // suggestion for Pro, or the fixed default for free users.
+        let value: String
+        if proStore.isPro, let custom = expiringTasksTime {
+            value = custom
+        } else if proStore.isPro, let suggestion = suggestedExpiringTime {
+            value = suggestion
+        } else {
+            value = "18:00"
+        }
+
+        let components = timeComponents(from: value) ?? (18, 0)
+        scheduleDailyNotification(id: NotificationIDs.expiringTasks,
+                                  title: "Expiring Tasks",
+                                  body: "Reminder to get all your tasks done.",
+                                  hour: components.0,
+                                  minute: components.1)
     }
 
     // MARK: - Custom reminder scheduling (Pro)
@@ -860,14 +885,7 @@ struct SettingsView: View {
         return (hour, minute)
     }
 
-    private func dateFromTimeString(_ value: String) -> Date? {
-        guard let (hour, minute) = timeComponents(from: value) else { return nil }
-        return Calendar.current.date(from: DateComponents(hour: hour, minute: minute))
-    }
-
     private func scheduleBedtimeNotificationIfNeeded(wakeOrBedData: [String: Any]) {
-        // you store sleep / wake data in Firestore. Find the user's bedtime time using your keys.
-        // Example: you have wakeWeekday/wakeWeekend (Int) and sleepHoursWeekday/sleepHoursWeekend (Double).
         guard sleepTime else {
             cancelNotification(id: NotificationIDs.bedTime)
             return
@@ -876,6 +894,20 @@ struct SettingsView: View {
         // Clear any previous copies first (including old bare-id schedules).
         cancelNotification(id: NotificationIDs.bedTime)
 
+        // Pro users can set a single custom time that applies every day.
+        if proStore.isPro,
+           let custom = bedtimeTime,
+           let components = timeComponents(from: custom) {
+            scheduleDailyNotification(id: NotificationIDs.bedTime,
+                                      title: "Bedtime Reminder",
+                                      body: "It's almost bedtime — wind down for rest.",
+                                      hour: components.0,
+                                      minute: components.1)
+            return
+        }
+
+        // you store sleep / wake data in Firestore. Find the user's bedtime time using your keys.
+        // Example: you have wakeWeekday/wakeWeekend (Int) and sleepHoursWeekday/sleepHoursWeekend (Double).
         // Weekday (Mon-Fri) and weekend (Sat-Sun) use their own wake times.
         scheduleBedtimeVariant(data: wakeOrBedData, wakeKey: "wakeWeekday", sleepHoursKey: "sleepHoursWeekday", weekdays: [2, 3, 4, 5, 6])
         scheduleBedtimeVariant(data: wakeOrBedData, wakeKey: "wakeWeekend", sleepHoursKey: "sleepHoursWeekend", weekdays: [7, 1])
@@ -911,6 +943,18 @@ struct SettingsView: View {
 
         // Clear any previous copies first (including old bare-id schedules).
         cancelNotification(id: NotificationIDs.newTasks)
+
+        // Pro users can set a single custom time that applies every day.
+        if proStore.isPro,
+           let custom = newTasksTime,
+           let components = timeComponents(from: custom) {
+            scheduleDailyNotification(id: NotificationIDs.newTasks,
+                                      title: "New Tasks Assigned",
+                                      body: "Your daily tasks are here — check your list and get started!",
+                                      hour: components.0,
+                                      minute: components.1)
+            return
+        }
 
         scheduleNewTasksVariant(data: userData, wakeKey: "wakeWeekday", weekdays: [2, 3, 4, 5, 6])
         scheduleNewTasksVariant(data: userData, wakeKey: "wakeWeekend", weekdays: [7, 1])
