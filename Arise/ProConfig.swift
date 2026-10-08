@@ -14,15 +14,22 @@ enum ProConfig {
 
     // MARK: Paid era window (grandfathering)
 
-    // TODO(set-me): First day of the paid era, one or two days BEFORE the first
-    // $3 sale. Check App Store Connect > Trends > Sales, filter Arise, May to now,
-    // and use the date of the first sale minus 1-2 days (UTC).
-    static let paidEraStart: Date? = nil
+    // Paid era window (UTC). First $3 sale was July 15, 2026; buffer -2 days =
+    // July 13. Paid era ends the day v2.1.0 (free + IAP) goes live: Dec 1, 2026.
+    static let paidEraStart: Date? = Self.date(year: 2026, month: 7, day: 13)
+    static let paidEraEnd: Date? = Self.date(year: 2026, month: 12, day: 1)
 
-    // TODO(set-me): The day the free + in-app-purchase update goes live (UTC).
-    // Never default this to the distant future - that would give Pro to every
-    // new free user. Must be later than `paidEraStart`.
-    static let paidEraEnd: Date? = nil
+    /// Builds a UTC midnight date so the window matches App Store timestamps
+    /// (which are also UTC).
+    private static func date(year: Int, month: Int, day: Int) -> Date? {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = year
+        components.month = month
+        components.day = day
+        return components.date
+    }
 
     /// Grandfathering rule: everyone who first received the app inside the paid
     /// era window (`paidEraStart` inclusive, `paidEraEnd` exclusive) gets Arise
